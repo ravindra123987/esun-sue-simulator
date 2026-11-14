@@ -10,6 +10,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 |---|---|---|
 | M0 | Read the specs, build the delta table | in progress: [docs/delta-table.md](docs/delta-table.md) |
 | M1 | Scapy layers, Wireshark dissector, golden pcaps | not started |
+| M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | planned |
 | M2 | LLR + CBFC link simulator | not started |
 | M3 | SUE-T endpoint in the simulator | not started |
 | M4 | netns emulator with a user-space switch | not started |

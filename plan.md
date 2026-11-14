@@ -52,6 +52,32 @@ Read the specs in this order:
 
 **Deliverable:** `wireshark/sue.lua`, `sue/layers/`, and `pcaps/golden/` with a short README.
 
+#### M1b: Wireshark upstream contribution track
+
+Wireshark has `epan/dissectors/packet-uet.c` (merged 2025-12-18, [MR !22094](https://gitlab.com/wireshark/wireshark/-/merge_requests/22094), Keysight + Rivos, written against UEC 1.0.1, still maintained). It decodes UDP 4793 / IP-direct UET: ROD/RUD/RUDI/UUD, ACK/NACK and CC variants, TSS, standard SES, and the IP-path UET CRC. As of 2026-11-14 nothing from UEC 1.1 is there, and no open MR or issue covers it:
+
+| Gap | Spec | Upstream target |
+|---|---|---|
+| RODL (`pds.type` 15): 12 B header, and the compressed form over UFH_16 | UEC §3.5.10.5, §3.5.22 | `packet-uet.c` |
+| Unified Local SES: request ac=0 (12 B), ac=1 (8 B), response (4 B), mm packing | UEC §3.4.3.3, §3.4.3.8 | `packet-uet.c` |
+| UFH_16 / UFH_32 (EtherType 0xE790) | UEC §5.4 | `packet-uet.c` (EtherType registration) |
+| UET CRC over UFH_16: dscp/ecn masked, expected PSN appended (needs per-PDC PSN tracking; verify syn=1 packets directly) | UEC §3.5.26.1 | `packet-uet.c` |
+| CBFC CC_Update (0x8808, opcode 0xFFFE, CID FA-7A-CB, msg type 1/2) | UEC §5.2.6.2 | `packet-macctrl.c` |
+
+Out of scope for upstream:
+- **LLR and CF_Update**: they live in the preamble and PCS control blocks, which NICs strip before capture. Only the simulator and the docs show them.
+- **ESUN header**: keep it in our Lua dissector behind Decode As / a preference until IEEE assigns the EtherType.
+
+Steps:
+1. Prototype each gap in `wireshark/sue.lua` and check it against `pcaps/golden/`, where every field value is known.
+2. Before any C work, open a Wireshark issue describing the UEC 1.1 additions, and mention the original authors so the work is coordinated with them.
+3. Port to C as extensions of the existing dissectors, as three small MRs in this order: (a) RODL + Unified Local SES, (b) UFH + CRC over UFH, (c) CC_Update in MAC control. Each MR includes a golden capture for `test/captures/` and a field-by-field note citing the spec figure.
+4. Track review comments and any spec ambiguities they raise in `docs/findings/wireshark.md`.
+
+Rules: public specs only, personal time and identity (no tool attribution). Check the employer's open-source contribution policy before step 2. Nothing is posted upstream (issue or MR) without explicit approval.
+
+**Deliverable:** a merged MR, or MRs under review, for (a)–(c), plus `docs/findings/wireshark.md`.
+
 ### M2: Link-layer simulator: LLR + CBFC (2 weeks)
 - DES topology: two endpoints and one switch, with link models for propagation delay, bit error rate (BER, injected as frame corruption), and link down.
 - LLR per UEC §5.1: replay buffer, LLR_ACK/LLR_NACK, the INIT handshake, and timers.
@@ -113,3 +139,4 @@ pcaps/golden/   reference captures
 - [ ] SUE-T §7.6 balances each *packed group* across ports, but RODL needs one path per PDC. Is balancing only across PDCs? Model both readings in M5. See docs/delta-table.md open item 8.
 - [ ] LLR is "optional" in ESUN. What does SUE-T assume when LLR is off: does RODL take over all recovery? (M0/M2)
 - [ ] Should the user-space switch use AF_PACKET or AF_XDP? Benchmark in M4.
+- [ ] Wireshark CRC over UFH_16: the PSN is not on the wire. Track expected PSN per {src, dst, PDCID} conversation, and mark the CRC "unverified" after a gap rather than "bad"? Decide with the maintainers in M1b.

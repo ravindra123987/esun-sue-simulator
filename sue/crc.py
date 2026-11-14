@@ -39,15 +39,21 @@ def crc_bytes(value: int) -> bytes:
     return value.to_bytes(4, C.CRC_BYTE_ORDER)
 
 
-def ufh16_crc(body: bytes, psn: int | None) -> int:
+def ufh16_crc(body: bytes, psn: int | None, payload_end: int | None = None) -> int:
     """CRC over a UFH_16 frame body (UFH header .. last pad byte, no CRC, no FCS).
 
     psn: the 32-bit PSN to append (RODL requests). None for other PDS types (ACK, NACK, CP).
+    payload_end: offset where the SES payload ends and minimum-size padding starts.
+      Only used when consts.PSN_AFTER_PAD is False (the PSN then goes before the pad).
     """
     m = bytearray(body)
     m[C.UFH16_TC_BYTE] = 0                       # mask dscp + ecn
     if psn is not None:
-        m += (psn & 0xFFFFFFFF).to_bytes(4, C.PSN_BYTE_ORDER)
+        p = (psn & 0xFFFFFFFF).to_bytes(4, C.PSN_BYTE_ORDER)
+        if C.PSN_AFTER_PAD or payload_end is None:
+            m += p
+        else:
+            m[payload_end:payload_end] = p
     return crc32c(bytes(m))
 
 

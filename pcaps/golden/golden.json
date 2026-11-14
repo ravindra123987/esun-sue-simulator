@@ -18,7 +18,18 @@
           "expected_psn": 1000,
           "uet_crc": "0x22DEDC2E",
           "note": "syn=1 read",
-          "ses_messages": 1
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 17,
+            "targets": [
+              8590996480
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -31,9 +42,21 @@
           "len": 552,
           "len_with_fcs": 556,
           "expected_psn": 1042,
-          "uet_crc": "0xECC47F55",
+          "uet_crc": "0x85E41AEA",
           "note": "556 B with FCS",
-          "ses_messages": 2
+          "ses_messages": 2,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 17,
+            "targets": [
+              8590996480,
+              8590996736
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -46,9 +69,23 @@
           "len": 60,
           "len_with_fcs": 64,
           "expected_psn": 1043,
-          "uet_crc": "0xE57815FF",
+          "uet_crc": "0x25A709B1",
           "note": "offsets +0x100, -0x300, +0x1EFCE00",
-          "ses_messages": 4
+          "ses_messages": 4,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 17,
+            "targets": [
+              8590996480,
+              8590996736,
+              8590995968,
+              8623489024
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -61,9 +98,22 @@
           "len": 140,
           "len_with_fcs": 144,
           "expected_psn": 1044,
-          "uet_crc": "0xAAD897A4",
+          "uet_crc": "0xE776D369",
           "note": "ac=0,1,0",
-          "ses_messages": 3
+          "ses_messages": 3,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 17,
+            "targets": [
+              12288,
+              12352,
+              12416
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -76,9 +126,19 @@
           "len": 60,
           "len_with_fcs": 64,
           "expected_psn": null,
-          "uet_crc": "0x2FF45361",
+          "uet_crc": "0x5939820F",
           "note": "CRC without PSN",
-          "ses_messages": 4
+          "ses_messages": 4,
+          "fields": {
+            "dst": 1,
+            "src": 2,
+            "spdcid": 34,
+            "cack_psn": 1044,
+            "ack_psn": 1044
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -91,9 +151,19 @@
           "len": 160,
           "len_with_fcs": 164,
           "expected_psn": null,
-          "uet_crc": "0x58546AB7",
+          "uet_crc": "0xE9C9A242",
           "note": "read data",
-          "ses_messages": 2
+          "ses_messages": 2,
+          "fields": {
+            "dst": 1,
+            "src": 2,
+            "spdcid": 34,
+            "cack_psn": 1043,
+            "ack_psn": 1043
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -106,9 +176,19 @@
           "len": 566,
           "len_with_fcs": 570,
           "expected_psn": 1042,
-          "uet_crc": "0x44D8A304",
+          "uet_crc": "0x6B42E3E3",
           "note": "CRC rule is a project decision",
-          "ses_messages": 2
+          "ses_messages": 2,
+          "fields": {
+            "spdcid": 17,
+            "targets": [
+              8590996480,
+              8590996736
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -121,9 +201,19 @@
           "len": 590,
           "len_with_fcs": 594,
           "expected_psn": 1042,
-          "uet_crc": "0xB9524C21",
+          "uet_crc": "0x96C80CC6",
           "note": "UDP checksum 0",
-          "ses_messages": 2
+          "ses_messages": 2,
+          "fields": {
+            "spdcid": 17,
+            "targets": [
+              8590996480,
+              8590996736
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     },
@@ -138,34 +228,378 @@
           "expected_psn": 2000,
           "uet_crc": "0x7BFCE4F8",
           "note": "syn",
-          "ses_messages": 1
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 51,
+            "targets": [
+              20480
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         },
         {
           "kind": "ufh16-rodl",
           "len": 64,
           "len_with_fcs": 68,
           "expected_psn": 2001,
-          "uet_crc": "0x8B71363C",
+          "uet_crc": "0xDB1E1E5F",
           "note": "PSN 2001 hidden",
-          "ses_messages": 1
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 51,
+            "targets": [
+              20544
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         },
         {
           "kind": "ufh16-rodl",
           "len": 64,
           "len_with_fcs": 68,
           "expected_psn": 2002,
-          "uet_crc": "0x8D34B6F9",
+          "uet_crc": "0xDD5B9E9A",
           "note": "PSN 2002 hidden",
-          "ses_messages": 1
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 51,
+            "targets": [
+              20608
+            ]
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         },
         {
           "kind": "ufh16-ack",
           "len": 60,
           "len_with_fcs": 64,
           "expected_psn": null,
-          "uet_crc": "0xD74C9188",
+          "uet_crc": "0xD6AF3173",
           "note": "cumulative ACK",
-          "ses_messages": 0
+          "ses_messages": 0,
+          "fields": {
+            "dst": 1,
+            "src": 2,
+            "spdcid": 68,
+            "cack_psn": 2002,
+            "ack_psn": 2002
+          },
+          "dissector": {
+            "crc_status": 0
+          }
+        }
+      ]
+    },
+    {
+      "file": "10-ufh16-loss-and-retx.pcap",
+      "description": "PSN 3002 lost; the dissector recovers 3003 from the CRC (gap 1), then the sender goes back to 3002 with retx=1",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3000,
+          "uet_crc": "0xDC7924BA",
+          "note": "syn",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24576
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3000,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3001,
+          "uet_crc": "0xDB5942C7",
+          "note": "in order",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24640
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3001,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3003,
+          "uet_crc": "0x46E8DFB3",
+          "note": "3002 lost: dissector finds PSN 3003 (gap 1)",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24768
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3003,
+            "gap": 1
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3004,
+          "uet_crc": "0xDB4DDBF8",
+          "note": "in order after the gap",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24832
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3004,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3002,
+          "uet_crc": "0x3A06639A",
+          "note": "Go-Back-N retransmission",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24704
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3002,
+            "gap": -3
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3003,
+          "uet_crc": "0x74DEAD20",
+          "note": "Go-Back-N retransmission",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24768
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3003,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 3004,
+          "uet_crc": "0xE97BA96B",
+          "note": "Go-Back-N retransmission",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 85,
+            "targets": [
+              24832
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 3004,
+            "gap": 0
+          }
+        }
+      ]
+    },
+    {
+      "file": "11-ufh16-corrupted.pcap",
+      "description": "syn PSN 4000, then PSN 4001 with one payload bit flipped (CRC Bad), then PSN 4002 (Good)",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 4000,
+          "uet_crc": "0x1A2E1C21",
+          "note": "syn",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 119,
+            "targets": [
+              28672
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 4000,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 4001,
+          "uet_crc": "0x14A11D03",
+          "note": "bit flip at byte 40: CRC Bad",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 119,
+            "targets": [
+              28736
+            ]
+          },
+          "dissector": {
+            "crc_status": 1
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 4002,
+          "uet_crc": "0x87F5E76B",
+          "note": "tracking continues",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 119,
+            "targets": [
+              28800
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 4002,
+            "gap": 0
+          }
+        }
+      ]
+    },
+    {
+      "file": "12-ufh16-atomic-and-ack-offset.pcap",
+      "description": "Packed atomic + fetching atomic (4 B atomic header each) + write; ACK with ack_psn_offset = -1",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 60,
+          "len_with_fcs": 64,
+          "expected_psn": 5000,
+          "uet_crc": "0x505150AC",
+          "note": "syn",
+          "ses_messages": 1,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 153,
+            "targets": [
+              36864
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 5000,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 88,
+          "len_with_fcs": 92,
+          "expected_psn": 5001,
+          "uet_crc": "0x68D7CDDC",
+          "note": "atomic header before operands",
+          "ses_messages": 3,
+          "fields": {
+            "dst": 2,
+            "src": 1,
+            "spdcid": 153,
+            "targets": [
+              36864,
+              36872,
+              36928
+            ]
+          },
+          "dissector": {
+            "crc_status": 0,
+            "psn": 5001,
+            "gap": 0
+          }
+        },
+        {
+          "kind": "ufh16-ack",
+          "len": 60,
+          "len_with_fcs": 64,
+          "expected_psn": null,
+          "uet_crc": "0x00C70BB7",
+          "note": "ACK_PSN 5000 = CACK_PSN 5001 + (-1)",
+          "ses_messages": 0,
+          "fields": {
+            "dst": 1,
+            "src": 2,
+            "spdcid": 170,
+            "cack_psn": 5001,
+            "ack_psn": 5000
+          },
+          "dissector": {
+            "crc_status": 0
+          }
         }
       ]
     }

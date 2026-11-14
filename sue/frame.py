@@ -13,7 +13,7 @@ from . import consts as C
 from . import crc as K
 from .layers import ESUN, RODL, SESReqLcl0, SESReqLcl1, SESRespLcl, UFH16Ack, UFH16RODL
 from .layers import is_ufh16, psn_state_syn0, split_psn_state
-from .layers.ses import pad4, request_wire_bytes
+from .layers.ses import atomic_hdr_bytes, pad4, request_wire_bytes
 
 
 # --------------------------------------------------------------------------
@@ -30,10 +30,13 @@ class Req:
     dc: int = 0
     ehl: int = 0
     ext: bytes = b""
+    atomic: bytes = b""          # 4-byte atomic header for UET_ATOMIC / UET_FETCHING_ATOMIC (§3.4.3.5)
 
     def __post_init__(self):
         if self.length is None:
             self.length = len(self.data)
+        if len(self.atomic) != atomic_hdr_bytes(self.opcode):
+            raise ValueError("atomics need a 4-byte atomic header; other opcodes none")
         if request_wire_bytes(self.opcode, self.length) != len(self.data):
             raise ValueError(f"opcode {self.opcode:#x} with length {self.length} needs "
                              f"{request_wire_bytes(self.opcode, self.length)} data bytes, got {len(self.data)}")
@@ -59,6 +62,8 @@ def pack_requests(reqs: list[Req], compress: bool = True) -> list[Packet]:
     its ehl equals the one inherited from the last ac=0 header, the offset fits
     32-bit two's complement and the length fits 12 bits.
     """
+    if len(reqs) > C.MAX_PACKED:
+        raise ValueError(f"SUE-T packs at most {C.MAX_PACKED} commands per packet")
     out, prev_addr, inherited_ehl = [], None, 0
     for i, r in enumerate(reqs):
         mm = 1 if i < len(reqs) - 1 else 0
@@ -67,11 +72,12 @@ def pack_requests(reqs: list[Req], compress: bool = True) -> list[Packet]:
         if (compress and off is not None and -(1 << 31) <= off < (1 << 31)
                 and r.length < (1 << 12) and r.ehl == inherited_ehl):
             h = SESReqLcl1(mm=mm, opcode=r.opcode, dc=r.dc, jobid=r.jobid, request_length=r.length,
-                           address_offset_raw=off & 0xFFFFFFFF, ext=r.ext, data=r.data, pad=pad)
+                           address_offset_raw=off & 0xFFFFFFFF, ext=r.ext, atomic=r.atomic,
+                           data=r.data, pad=pad)
         else:
             h = SESReqLcl0(mm=mm, opcode=r.opcode, dc=r.dc, jobid=r.jobid,
                            request_length=r.length & 0xFFF, rle=r.length >> 12, ehl=r.ehl,
-                           address=r.address, ext=r.ext, data=r.data, pad=pad)
+                           address=r.address, ext=r.ext, atomic=r.atomic, data=r.data, pad=pad)
             inherited_ehl = r.ehl
         out.append(h)
         prev_addr = r.address
@@ -106,7 +112,7 @@ class PDC:
     psn: int
     dscp: int = 0
     ecn: int = 0
-    clear_psn_offset: int = 0
+    clear_psn_offset: int = -1      # CLEAR_PSN starts at Start_PSN-1 and never exceeds PSN (§3.5.11)
     rev_cack_psn_lsb: int = 0
     extra: dict = field(default_factory=dict)
 
@@ -129,17 +135,22 @@ def ufh16_rodl_header(pdc: PDC, next_hdr: int, syn: int = 0, ar: int = 0, retx: 
 
 
 def build_ufh16_rodl(pdc: PDC, msgs: list[Packet], next_hdr: int = C.NH_REQUEST_LCL, **kw) -> bytes:
-    body = _pad_to_min(bytes(ufh16_rodl_header(pdc, next_hdr, **kw)) + _ses_bytes(msgs))
-    return body + K.crc_bytes(K.ufh16_crc(body, pdc.psn))
+    unpadded = bytes(ufh16_rodl_header(pdc, next_hdr, **kw)) + _ses_bytes(msgs)
+    body = _pad_to_min(unpadded)
+    return body + K.crc_bytes(K.ufh16_crc(body, pdc.psn, payload_end=len(unpadded)))
 
 
 def build_ufh16_ack(dst: int, src: int, spdcid: int, dpdcid: int, ack_psn: int, cack_psn: int,
                     msgs: list[Packet] | None = None, dscp: int = 0, flags: int = 0) -> bytes:
+    """ACK_PSN travels as a signed 16-bit offset from CACK_PSN (§3.5.11.4.5)."""
     msgs = msgs or []
+    off = ((ack_psn - cack_psn + (1 << 31)) % (1 << 32)) - (1 << 31)
+    if not -(1 << 15) <= off < (1 << 15):
+        raise ValueError("ACK_PSN must be within a signed 16-bit offset of CACK_PSN")
     hdr = UFH16Ack(next_hdr=C.NH_RESPONSE_DATA_LCL if msgs else C.NH_NONE, flags=flags,
                    dpdcid_hi=dpdcid >> 4, dpdcid_lo=dpdcid & 0xF, dst_rsv=dst >> 12, dst_addr=dst & 0xFFF,
                    dscp=dscp, spdcid=spdcid, src_entropy=src >> 12, src_addr=src & 0xFFF,
-                   ack_psn=ack_psn & 0xFFFF, cack_psn=cack_psn & 0xFFFFFFFF)
+                   ack_psn_offset_raw=off & 0xFFFF, cack_psn=cack_psn & 0xFFFFFFFF)
     body = _pad_to_min(bytes(hdr) + _ses_bytes(msgs))
     return body + K.crc_bytes(K.ufh16_crc(body, None))     # no PSN for non-RODL types (Fig 3-122)
 
@@ -148,7 +159,8 @@ def build_ufh16_ack(dst: int, src: int, spdcid: int, dpdcid: int, ack_psn: int, 
 # ESUN and UDP/IPv4 (RODL general header)
 # --------------------------------------------------------------------------
 def rodl_header(psn: int, spdcid: int, dpdcid: int, next_hdr: int = C.NH_REQUEST_LCL,
-                cack: int = 0, psn16: int = 0, syn: int = 0, ar: int = 0, retx: int = 0) -> RODL:
+                cack: int = 0, psn16: int = -1, syn: int = 0, ar: int = 0, retx: int = 0) -> RODL:
+    """psn16 is clear_psn_offset (cack=0, default -1) or rev_cack_psn_lsb (cack=1)."""
     return RODL(next_hdr=next_hdr, cack=cack, retx=retx, ar=ar, syn=syn, psn16=psn16 & 0xFFFF,
                 psn=psn & 0xFFFFFFFF, spdcid=spdcid, dpdcid=dpdcid)
 
@@ -167,7 +179,6 @@ def build_udp_rodl(dst_mac: str, src_mac: str, dst_ip: str, src_ip: str, sport: 
     # Lengths must include the CRC trailer, so build with a placeholder first.
     pkt = Ether(dst=dst_mac, src=src_mac) / IP(dst=dst_ip, src=src_ip, tos=dscp << 2, flags="DF") / \
         UDP(sport=sport, dport=C.UDP_PORT_UET) / rodl / Raw(ses + b"\x00" * C.UET_CRC_LEN)
-    raw = bytearray(bytes(pkt))
     pkt[UDP].chksum = 0                                   # UDP checksum 0 (allowed for IPv4)
     raw = bytearray(bytes(pkt))
     body = bytes(raw[:-C.UET_CRC_LEN])
@@ -201,13 +212,16 @@ def decode(frame: bytes, expected_psn: int | None = None) -> Decoded:
     For a RODL request over UFH_16 with syn=0 the PSN is not on the wire, so
     the caller must pass the receiver's expected PSN to verify the CRC.
     """
+    if len(frame) < 18:
+        return Decoded("other", Raw(frame), None, None, None)
     body, wire = frame[:-C.UET_CRC_LEN], int.from_bytes(frame[-C.UET_CRC_LEN:], C.CRC_BYTE_ORDER)
-    if is_ufh16(frame):
+    if is_ufh16(frame) and frame[12:14] == C.ETHERTYPE_UET.to_bytes(2, "big"):
         ptype = frame[1] >> 3
         if ptype == C.PDS_TYPE_RODL:
             pkt = UFH16RODL(body)
             psn = pkt.explicit_psn if pkt.syn else expected_psn
-            calc = None if psn is None else K.ufh16_crc(body, psn)
+            end = len(body) - (len(pkt.lastlayer()) if isinstance(pkt.lastlayer(), Raw) else 0)
+            calc = None if psn is None else K.ufh16_crc(body, psn, payload_end=end)
             return Decoded("ufh16-rodl", pkt, wire, calc, None if calc is None else calc == wire)
         if ptype == C.PDS_TYPE_ACK:
             pkt = UFH16Ack(body)

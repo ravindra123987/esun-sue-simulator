@@ -14,9 +14,13 @@ tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/02-ufh16-rodl-two-stores.
 
 ## How it hooks in
 
-- UFH_16 reuses the MAC DA/SA bytes, so the Ethernet dissector would show garbage addresses. `sue.lua` registers on `wtap_encap` for Ethernet, recognises UFH_16 from the first DA octet (v=0, w=1, SLAP AAI, local) plus EtherType 0xE790, and decodes the whole frame itself. Every other frame goes to the stock `eth_withoutfcs` dissector.
-- ESUN is registered on the EtherType preference (default 0x88B5).
-- RODL over UDP is registered on UDP port 4793. Newer Wireshark builds with `packet-uet.c` also claim 4793; the Lua registration overrides it.
+Structured like the planned C change to `packet-uet.c` (see [UPSTREAM.md](UPSTREAM.md)):
+
+- **UFH_16** is registered on EtherType 0xE790. The Ethernet dissector still runs (so FCS handling, VLANs and its preferences apply); `sue.lua` re-reads the UFH bits from the `eth.dst` / `eth.src` field ranges and recognises UFH from the first DA octet (v=0, SLAP AAI, local). The Source/Destination columns show the UFH addresses (`ufh:0001`).
+- **ESUN** is registered on the EtherType preference (default 0x88B5).
+- **RODL over UDP** is registered on UDP port 4793 and only claims PDS type 15; newer Wireshark builds with `packet-uet.c` handle the other types.
+- Field names mirror `packet-uet.c` (`sue.pds.type` ↔ `uet.pds.type`), and bit fields use masks, so Wireshark highlights individual bits.
+- Every frame is dissected under `pcall` with explicit bounds checks: truncated or inconsistent frames get a "Malformed" expert item, never a Lua error.
 
 ## Preferences
 
@@ -24,14 +28,20 @@ tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/02-ufh16-rodl-two-stores.
 |---|---|---|
 | `sue.esun_ethertype` | 0x88B5 | ESUN EH-ET is unassigned |
 | `sue.udp_port` | 4793 | UET over UDP |
-| `sue.assume_psn` | (empty) | PSN to use for a syn=0 frame when no syn=1 was seen for its PDC |
-| `sue.crc_le` | false | Read the UET CRC little-endian (iSCSI style) instead of big-endian |
+| `sue.assume_psn` | (empty) | PSN for a syn=0 frame whose PDC had no syn=1 in the capture |
+| `sue.psn_window` | 64 | How far from the expected PSN to search on a CRC mismatch (0 = off) |
+| `sue.psn_before_pad` | false | Put the hidden PSN right after the SES payload instead of after the padding (m1-decisions D6) |
+| `sue.crc_le` | false | Read the UET CRC little-endian instead of big-endian (D8) |
 
-## UET CRC status
+## The hidden PSN
 
-- **Good / Bad**: computed and compared.
-- **Unverified**: a syn=0 RODL frame over UFH_16 whose PSN is unknown. The PSN is never on the wire, so the dissector tracks the expected PSN per {src, dst, spdcid}, starting from the last syn=1 frame. After a lost frame the tracked value is off by one and later frames show Bad; this is the open question for the upstream version.
+Over UFH_16 a syn=0 RODL frame does not carry its PSN; it is folded into the UET CRC. The dissector keeps the expected PSN per {source address (without the entropy nibble), destination, source PDCID}, starting from the last syn=1 frame:
+
+- **Good**: the CRC matches the expected PSN.
+- **Good + gap N**: it matches PSN = expected + N. N > 0 means frames were lost (expert warning); N < 0 means a Go-Back-N retransmission (expert note). Tracking resynchronises.
+- **Bad**: no PSN within the window matches: corruption.
+- **Unverified**: no syn=1 was seen and `sue.assume_psn` is not set, or the frame was cut by the snap length.
 
 ## Display filters
 
-`sue.pds.type == 15`, `sue.ses.opcode == 1`, `sue.crc.status == 1` (bad CRC), `sue.esun.flow_label`, `sue.ses.target`.
+`sue.pds.type == 15`, `sue.ses.opcode == 1`, `sue.crc.status == 1` (bad CRC), `sue.pds.rodl.psn_gap > 0` (lost frames), `sue.esun.flow_label`, `sue.ses.lcl.target`, `_ws.expert.group == "Sequence"`.

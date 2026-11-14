@@ -25,15 +25,19 @@ def pad4(n: int) -> int:
 
 
 def request_wire_bytes(opcode: int, length: int) -> int:
-    """Payload bytes that travel with a request.
+    """Payload bytes after the SES header (+ extension header + atomic header).
 
-    Writes and vendor opcodes carry `length` bytes. Reads and no-ops carry none
-    (read data returns in the response). Atomics are carried as opaque
-    `length` bytes in M1 (atomic header not decoded yet).
+    Writes and vendor opcodes (0x30-0x3E) carry `length` bytes. Atomics carry
+    `length` bytes of operands after a 4-byte atomic header (§3.4.3.5).
+    Reads and no-ops carry none (read data returns in the response).
     """
-    if opcode in (C.OP_READ, C.OP_NO_OP):
-        return 0
-    return length
+    if opcode in (C.OP_WRITE, C.OP_ATOMIC, C.OP_FETCHING_ATOMIC) or opcode in C.VENDOR_OPCODES:
+        return length
+    return 0
+
+
+def atomic_hdr_bytes(opcode: int) -> int:
+    return C.ATOMIC_HDR_LEN if opcode in (C.OP_ATOMIC, C.OP_FETCHING_ATOMIC) else 0
 
 
 def _inherited_ehl(pkt) -> int:
@@ -69,6 +73,7 @@ class SESReqLcl0(_SESBase):
         BitField("ehl", 0, 2),
         BitField("address", 0, 60),
         StrLenField("ext", b"", length_from=lambda p: C.EHL_BYTES[p.ehl]),
+        StrLenField("atomic", b"", length_from=lambda p: atomic_hdr_bytes(p.opcode)),
         StrLenField("data", b"", length_from=lambda p: request_wire_bytes(p.opcode, p.length)),
         StrLenField("pad", b"", length_from=lambda p: pad4(request_wire_bytes(p.opcode, p.length))),
     ]
@@ -94,6 +99,7 @@ class SESReqLcl1(_SESBase):
         BitField("request_length", 0, 12),
         BitField("address_offset_raw", 0, 32),
         StrLenField("ext", b"", length_from=lambda p: C.EHL_BYTES[_inherited_ehl(p)]),
+        StrLenField("atomic", b"", length_from=lambda p: atomic_hdr_bytes(p.opcode)),
         StrLenField("data", b"", length_from=lambda p: request_wire_bytes(p.opcode, p.request_length)),
         StrLenField("pad", b"", length_from=lambda p: pad4(request_wire_bytes(p.opcode, p.request_length))),
     ]

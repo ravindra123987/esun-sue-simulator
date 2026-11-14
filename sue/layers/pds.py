@@ -44,5 +44,13 @@ class RODL(Packet):
     def rev_cack_psn_lsb(self) -> int | None:
         return self.psn16 if self.cack else None
 
+    @property
+    def pdc_info(self) -> int | None:
+        return self.dpdcid >> 12 if self.syn else None
+
+    @property
+    def psn_offset(self) -> int | None:
+        return self.dpdcid & 0xFFF if self.syn else None
+
     def guess_payload_class(self, payload):
         return ses_class_for(self.next_hdr)

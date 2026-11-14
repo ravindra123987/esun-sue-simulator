@@ -10,7 +10,7 @@ ACK over UFH_16, 20 bytes (Fig 3-120):
   byte 0-3   flags(4) da_encode(4) | type(5) next_hdr(4) flags(7) | dpdcid[11:4](8)
   byte 4-7   dst_rsv(4) dst_addr(12) | rsvd(4) sa_encode(4) | dscp(6) ecn(2)
   byte 8-11  dpdcid[3:0](4) spdcid(12) | src_entropy(4) src_addr(12)
-  byte 12-15 EtherType 0xE790 | ack_psn / probe_opaque(16)
+  byte 12-15 EtherType 0xE790 | ack_psn_offset / probe_opaque(16, signed; ACK_PSN = CACK_PSN + offset, §3.5.11.4.5)
   byte 16-19 cack_psn(32)
 
 ufh.flags = [v, w, rsvd, rsvd]; da/sa_encode = [z, y, x, m] (Table 5-40).
@@ -127,13 +127,31 @@ class UFH16Ack(Packet):
         BitField("src_entropy", 0, 4),
         BitField("src_addr", 0, 12),
         XShortField("ethertype", C.ETHERTYPE_UET),
-        BitField("ack_psn", 0, 16),
+        BitField("ack_psn_offset_raw", 0, 16),
         BitField("cack_psn", 0, 32),
     ]
 
     @property
     def dpdcid(self) -> int:
         return (self.dpdcid_hi << 4) | self.dpdcid_lo
+
+    @property
+    def dst(self) -> int:
+        return (self.dst_rsv << 12) | self.dst_addr
+
+    @property
+    def src(self) -> int:
+        return (self.src_entropy << 12) | self.src_addr
+
+    @property
+    def ack_psn_offset(self) -> int:
+        v = self.ack_psn_offset_raw
+        return v - (1 << 16) if v & 0x8000 else v
+
+    @property
+    def ack_psn(self) -> int:
+        """ACK_PSN = CACK_PSN + sign-extended ack_psn_offset (UEC Table 3-52)."""
+        return (self.cack_psn + self.ack_psn_offset) & 0xFFFFFFFF
 
     def guess_payload_class(self, payload):
         return ses_class_for(self.next_hdr)

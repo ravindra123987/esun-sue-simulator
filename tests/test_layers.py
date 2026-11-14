@@ -56,11 +56,35 @@ def test_psn_state_syn0_split():
 
 
 def test_ufh16_ack_layout():
-    a = UFH16Ack(dpdcid_hi=0xAB, dpdcid_lo=0xC, ack_psn=0x1234, cack_psn=0xDEADBEEF)
+    a = UFH16Ack(dpdcid_hi=0xAB, dpdcid_lo=0xC, ack_psn_offset_raw=0x1234, cack_psn=0xDEADBEEF)
     b = bytes(a)
     assert len(b) == 20 and b[0] == 0x42 and b[1] >> 3 == C.PDS_TYPE_ACK
-    assert b[12:14] == b"\xe7\x90" and b[16:20] == b"\xde\xad\xbe\xef"
+    assert b[12:14] == b"\xe7\x90" and b[14:16] == b"\x12\x34" and b[16:20] == b"\xde\xad\xbe\xef"
     assert UFH16Ack(b).dpdcid == 0xABC
+
+
+@pytest.mark.parametrize("off,cack,ack", [(0x0024, 0x62231120, 0x62231144), (0xFFDC, 0x62231120, 0x622310FC),
+                                          (0x0010, 0xFFFFFFF3, 0x00000003), (0xFEE2, 0x00000079, 0xFFFFFF5B)])
+def test_ack_psn_offset_table_3_52(off, cack, ack):
+    a = UFH16Ack(ack_psn_offset_raw=off, cack_psn=cack)
+    assert a.ack_psn == ack
+    f = build_ufh16_ack(dst=1, src=2, spdcid=3, dpdcid=4, ack_psn=ack, cack_psn=cack)
+    assert UFH16Ack(f[:20]).ack_psn_offset_raw == off
+
+
+def test_rodl_general_header_bytes():
+    # flags = [rsvd, cack, retx, ar, syn, rsvd(2)] after type(5)=15 and next_hdr(4)=7
+    assert bytes(RODL())[:2] == b"\x7b\x80"
+    assert bytes(RODL(cack=1))[:2] == b"\x7b\xa0"
+    assert bytes(RODL(retx=1))[:2] == b"\x7b\x90"
+    assert bytes(RODL(ar=1))[:2] == b"\x7b\x88"
+    assert bytes(RODL(syn=1))[:2] == b"\x7b\x84"
+    r = rodl_header(psn=0x01020304, spdcid=0x0A0B, dpdcid=0x0C0D)
+    b = bytes(r)
+    assert len(b) == 12 and b[2:4] == b"\xff\xff" and b[4:8] == b"\x01\x02\x03\x04"
+    assert b[8:12] == b"\x0a\x0b\x0c\x0d" and r.clear_psn_offset == -1
+    s = RODL(syn=1, dpdcid=0x1ABC)
+    assert (s.pdc_info, s.psn_offset) == (1, 0xABC)
 
 
 # --- SES Unified Local (§3.4.3.3) ----------------------------------------------
@@ -106,6 +130,25 @@ def test_long_request_uses_rle_and_ac0():
     hdrs = pack_requests([Req(C.OP_READ, 0, length=100), Req(C.OP_READ, 0x10000, length=5000)])
     assert hdrs[1].ac == 0 and hdrs[1].rle == 1 and hdrs[1].request_length == 5000 - 4096
     assert hdrs[1].length == 5000
+
+
+def test_atomic_has_4B_header_before_operands():
+    # §3.4.3.5 / Fig 3-20: [SES 12][ext][atomic hdr 4][operands], request_length counts operands only
+    reqs = [Req(C.OP_ATOMIC, 0x8000, b"\x01" * 8, atomic=b"\xA1\xA2\xA3\xA4"),
+            Req(C.OP_WRITE, 0x8040, b"\x02" * 16)]
+    raw = b"".join(bytes(h) for h in pack_requests(reqs))
+    assert len(raw) == 12 + 4 + 8 + 8 + 16
+    assert raw[12:16] == b"\xA1\xA2\xA3\xA4"
+    p = SESReqLcl0(raw)
+    assert p.atomic == b"\xA1\xA2\xA3\xA4" and p.data == b"\x01" * 8
+    assert p[SESReqLcl1].opcode == C.OP_WRITE and p[SESReqLcl1].data == b"\x02" * 16
+    with pytest.raises(ValueError):
+        Req(C.OP_ATOMIC, 0, b"\x00" * 8)          # missing atomic header
+
+
+def test_pack_limit_16():
+    with pytest.raises(ValueError):
+        pack_requests([Req(C.OP_READ, i * 64, length=64) for i in range(17)])
 
 
 def test_read_carries_no_data_and_response_does():
@@ -156,12 +199,14 @@ def test_ufh16_syn_carries_psn_and_short_frame_is_padded():
 
 
 def test_ack_with_four_responses_is_64B():
-    # UEC Fig 3-123 (right): ACK over UFH_16 + 4 packed responses + pad = 64 B with FCS
-    rsps = pack_responses([Rsp(C.RSP_RESPONSE)] * 3 + [Rsp(C.RSP_RESPONSE, return_code=C.RC_NO_MATCH)])
+    # UEC Fig 3-123 (right): ACK over UFH_16 + 3 x UET_RESPONSE RC_OK + 1 x RC_BAD_ADDR + pad = 64 B with FCS
+    rsps = pack_responses([Rsp(C.RSP_RESPONSE)] * 3 + [Rsp(C.RSP_RESPONSE, return_code=C.RC_BAD_ADDR)])
     f = build_ufh16_ack(dst=2, src=1, spdcid=0x22, dpdcid=0x11, ack_psn=1042, cack_psn=1042, msgs=rsps)
     assert len(f) + 4 == 64
     d = decode(f)
     assert d.kind == "ufh16-ack" and d.crc_ok is True and len(d.ses) == 4
+    assert [m.return_code for m in d.ses] == [C.RC_OK] * 3 + [0x1D]
+    assert d.pkt.ack_psn == 1042 and d.pkt.ack_psn_offset == 0
 
 
 def test_esun_frame_and_crc_masks():
@@ -189,3 +234,23 @@ def test_udp_frame_and_crc_ignores_ttl():
     assert d.pkt[UDP].chksum == 0 and d.pkt[IP].len == len(f) - 14
     g = bytearray(f); g[14 + 8] -= 1                      # IP TTL changed by a router
     assert decode(bytes(g)).crc_ok is True
+
+
+def test_psn_placement_readings_differ_only_when_padded(monkeypatch):
+    short = PDC(dst=1, src=2, spdcid=3, dpdcid=4, psn=77)
+    msgs = pack_requests([Req(C.OP_READ, 0x40, length=64)])
+    after = build_ufh16_rodl(short, msgs)                     # padded frame, default: PSN after pad
+    monkeypatch.setattr(C, "PSN_AFTER_PAD", False)
+    before = build_ufh16_rodl(short, msgs)
+    assert after[:-4] == before[:-4] and after[-4:] != before[-4:]
+    assert decode(before, expected_psn=77).crc_ok is True
+    big = build_ufh16_rodl(PDC0, two_stores())                # not padded: both readings agree
+    monkeypatch.setattr(C, "PSN_AFTER_PAD", True)
+    assert build_ufh16_rodl(PDC0, two_stores()) == big
+
+
+def test_decode_guards():
+    assert decode(b"\x42" * 10).kind == "other"
+    f = bytearray(build_ufh16_rodl(PDC0, two_stores()))
+    f[12:14] = b"\x08\x00"                                    # UFH-looking DA but not EtherType 0xE790
+    assert decode(bytes(f)).kind != "ufh16-rodl"

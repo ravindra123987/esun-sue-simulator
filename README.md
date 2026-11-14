@@ -10,7 +10,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 |---|---|---|
 | M0 | Read the specs, build the delta table | draft done: [docs/delta-table.md](docs/delta-table.md) |
 | M1 | Scapy layers, Wireshark dissector, golden pcaps | first cut: [sue/](sue/), [wireshark/](wireshark/), [pcaps/golden/](pcaps/golden/) |
-| M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | planned |
+| M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | dissector polished for porting: [wireshark/UPSTREAM.md](wireshark/UPSTREAM.md); issue drafted, not posted |
 | M2 | LLR + CBFC link simulator | not started |
 | M3 | SUE-T endpoint in the simulator | not started |
 | M4 | netns emulator with a user-space switch | not started |
@@ -29,7 +29,7 @@ docs/           delta table, findings (m1-decisions.md: choices the specs leave 
 sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
 wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC)
 pcaps/golden/   reference captures, one packet type each, + golden.json expectations
-tools/          make_golden.py
+tools/          make_golden.py, fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests and tshark-based dissector tests
 ```
 

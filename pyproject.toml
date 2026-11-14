@@ -1,0 +1,20 @@
+[project]
+name = "esun-sue-simulator"
+version = "0.1.0"
+description = "Learning Ethernet scale-up by building it: SUE-T, ESUN and the UEC link layer"
+requires-python = ">=3.11"
+dependencies = ["scapy==2.6.1"]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sue*"]

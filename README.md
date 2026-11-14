@@ -8,8 +8,8 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 
 | Milestone | What | State |
 |---|---|---|
-| M0 | Read the specs, build the delta table | in progress: [docs/delta-table.md](docs/delta-table.md) |
-| M1 | Scapy layers, Wireshark dissector, golden pcaps | not started |
+| M0 | Read the specs, build the delta table | draft done: [docs/delta-table.md](docs/delta-table.md) |
+| M1 | Scapy layers, Wireshark dissector, golden pcaps | first cut: [sue/](sue/), [wireshark/](wireshark/), [pcaps/golden/](pcaps/golden/) |
 | M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | planned |
 | M2 | LLR + CBFC link simulator | not started |
 | M3 | SUE-T endpoint in the simulator | not started |
@@ -25,10 +25,24 @@ The full plan is in [plan.md](plan.md).
 ```
 plan.md         milestones, design principles, open questions
 specs/          reference PDFs (git-ignored) + README with sources and how they relate
-docs/           delta table, experiments, findings
+docs/           delta table, findings (m1-decisions.md: choices the specs leave open)
+sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
+wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC)
+pcaps/golden/   reference captures, one packet type each, + golden.json expectations
+tools/          make_golden.py
+tests/          layer/CRC tests and tshark-based dissector tests
 ```
 
-More directories (`sue/`, `wireshark/`, `sim/`, `emu/`, `p4/`, `pcaps/`) arrive with their milestones.
+`sim/`, `emu/` and `p4/` arrive with M2–M6.
+
+## Quick start
+
+```
+python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
+.venv/bin/python -m pytest                 # dissector tests need tshark; skipped otherwise
+.venv/bin/python tools/make_golden.py      # regenerate pcaps/golden/
+tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/09-ufh16-conversation.pcap
+```
 
 ## Specs
 

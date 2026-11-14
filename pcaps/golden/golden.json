@@ -1,0 +1,173 @@
+{
+  "generator": "tools/make_golden.py",
+  "decisions": {
+    "esun_ethertype": "0x88B5",
+    "crc_byte_order": "big",
+    "psn_byte_order": "big",
+    "fcs": "not included"
+  },
+  "captures": [
+    {
+      "file": "01-ufh16-rodl-syn-read.pcap",
+      "description": "RODL over UFH_16, syn=1 (PSN on the wire), one 64 B read, padded to 56 B",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 60,
+          "len_with_fcs": 64,
+          "expected_psn": 1000,
+          "uet_crc": "0x22DEDC2E",
+          "note": "syn=1 read",
+          "ses_messages": 1
+        }
+      ]
+    },
+    {
+      "file": "02-ufh16-rodl-two-stores.pcap",
+      "description": "Two packed 256 B stores (ac=0 then ac=1), syn=0, PSN 1042 hidden in the CRC",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 552,
+          "len_with_fcs": 556,
+          "expected_psn": 1042,
+          "uet_crc": "0xECC47F55",
+          "note": "556 B with FCS",
+          "ses_messages": 2
+        }
+      ]
+    },
+    {
+      "file": "03-ufh16-rodl-table-3-14.pcap",
+      "description": "Four packed reads using the address offsets of UEC Table 3-14",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 60,
+          "len_with_fcs": 64,
+          "expected_psn": 1043,
+          "uet_crc": "0xE57815FF",
+          "note": "offsets +0x100, -0x300, +0x1EFCE00",
+          "ses_messages": 4
+        }
+      ]
+    },
+    {
+      "file": "04-ufh16-rodl-ext-and-padding.pcap",
+      "description": "Extension headers (ehl=1 inherited by ac=1), 53 B payload padded to 56, ehl change forces ac=0",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 140,
+          "len_with_fcs": 144,
+          "expected_psn": 1044,
+          "uet_crc": "0xAAD897A4",
+          "note": "ac=0,1,0",
+          "ses_messages": 3
+        }
+      ]
+    },
+    {
+      "file": "05-ufh16-ack-four-responses.pcap",
+      "description": "ACK over UFH_16 with four packed responses, padded: 64 B with FCS (UEC Fig 3-123)",
+      "frames": [
+        {
+          "kind": "ufh16-ack",
+          "len": 60,
+          "len_with_fcs": 64,
+          "expected_psn": null,
+          "uet_crc": "0x2FF45361",
+          "note": "CRC without PSN",
+          "ses_messages": 4
+        }
+      ]
+    },
+    {
+      "file": "06-ufh16-ack-read-data.pcap",
+      "description": "ACK over UFH_16 returning two 64 B read responses",
+      "frames": [
+        {
+          "kind": "ufh16-ack",
+          "len": 160,
+          "len_with_fcs": 164,
+          "expected_psn": null,
+          "uet_crc": "0x58546AB7",
+          "note": "read data",
+          "ses_messages": 2
+        }
+      ]
+    },
+    {
+      "file": "07-esun-rodl-two-stores.pcap",
+      "description": "ESUN (EH-ET 0x88b5, local experimental) + RODL general header + two stores",
+      "frames": [
+        {
+          "kind": "esun",
+          "len": 566,
+          "len_with_fcs": 570,
+          "expected_psn": 1042,
+          "uet_crc": "0x44D8A304",
+          "note": "CRC rule is a project decision",
+          "ses_messages": 2
+        }
+      ]
+    },
+    {
+      "file": "08-udp-rodl-two-stores.pcap",
+      "description": "Ethernet/IPv4/UDP 4793 + RODL general header + two stores",
+      "frames": [
+        {
+          "kind": "udp",
+          "len": 590,
+          "len_with_fcs": 594,
+          "expected_psn": 1042,
+          "uet_crc": "0xB9524C21",
+          "note": "UDP checksum 0",
+          "ses_messages": 2
+        }
+      ]
+    },
+    {
+      "file": "09-ufh16-conversation.pcap",
+      "description": "PDC setup (syn=1, PSN 2000), two syn=0 writes (PSN 2001, 2002 hidden), cumulative ACK",
+      "frames": [
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 2000,
+          "uet_crc": "0x7BFCE4F8",
+          "note": "syn",
+          "ses_messages": 1
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 2001,
+          "uet_crc": "0x8B71363C",
+          "note": "PSN 2001 hidden",
+          "ses_messages": 1
+        },
+        {
+          "kind": "ufh16-rodl",
+          "len": 64,
+          "len_with_fcs": 68,
+          "expected_psn": 2002,
+          "uet_crc": "0x8D34B6F9",
+          "note": "PSN 2002 hidden",
+          "ses_messages": 1
+        },
+        {
+          "kind": "ufh16-ack",
+          "len": 60,
+          "len_with_fcs": 64,
+          "expected_psn": null,
+          "uet_crc": "0xD74C9188",
+          "note": "cumulative ACK",
+          "ses_messages": 0
+        }
+      ]
+    }
+  ]
+}

@@ -132,7 +132,8 @@ pcaps/golden/   reference captures
 
 ## Open questions
 - [x] ESUN header vs UEC UFH: separate designs. ESUN keeps 48-bit MACs and adds a 4-byte EH; UFH overlays the MACs. See specs/README.md.
-- [ ] Over ESUN, which bytes does the UET CRC cover, and which EH fields are masked (TTL/ECN are rewritten per hop)? Pick a rule and document it. (M1)
+- [x] Over ESUN, which bytes does the UET CRC cover? **Decision D3:** from the DA, EH CoS/ECN/TTL masked. See docs/findings/m1-decisions.md. (M1)
+- [x] `psn_state` split when syn=0 (UFH_16): **D5**, {clear_psn_offset(12), rev_cack_psn_lsb(12)}. Hidden-PSN placement in the CRC: **D6**. CRC trailer byte order: **D8**, big-endian until a real test vector says otherwise. (M1)
 - [x] ESUN EtherType (EH-ET) is unassigned (ESUN 1.0 §5.1). As of 2026-11-14 no public deployment, product, test tool or IETF draft uses a value (searched Keysight, Arista, Broadcom TH-Ultra, Meta Tahan, IETF SUNH). **Decision:** `ESUN_ETHERTYPE = 0x88B5` (IEEE 802 local experimental), one config value shared by the Scapy layer, Lua dissector and user-space switch. Recheck when ESUN 1.1 is released. (M1)
 - [x] What follows the ESUN header? Nothing in the frame says. SUE-T §7: "When using ESUN, the presence of the UEC transport is inferred by network wide configuration." **Decision:** a second config value `ESUN_PAYLOAD = rodl` (default), so the dissector decodes EH → RODL → SES without an in-band marker. (M1)
 - [ ] Do SUE-T load balancing and the ESUN flow label work together? The flow label must stay constant per PDC to keep ordering. (M0/M5)

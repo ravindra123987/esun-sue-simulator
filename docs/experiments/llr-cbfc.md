@@ -94,6 +94,13 @@ LLR absorbs outages up to about `replay_timer × (replay_ct_max + 1)`. Beyond th
 - **"LLR is optional in ESUN. What does SUE-T assume when LLR is off?"** E3: every corrupted frame becomes an end-to-end loss (8,000 per million at BER 1e-6 with 1 KB frames), recovered by RODL Go-Back-N over the whole path, or fatal in SUE-lite. SUE-T's "lossless network" requirement can only be met at realistic error rates with LLR, or with transport retransmission enabled.
 - **CBFC with LLR**: correct only if the §5.2.9 rules hold; rule 3 is the one whose violation loses frames (E4).
 
+## Seen in the packet viewer
+
+[docs/viz/](../viz/) replays traced runs (`tools/make_traces.py`). Two things showed up there that the aggregate experiments hide:
+
+- **A replay timer near one round trip causes spurious replays after INIT.** With `replay_timer_ns` 150 on a 3 m link (round trip about 148 ns), A keeps sending LLR_INIT every CtlOS slot until the echo arrives, and B answers each one with LLR_INIT_ECHO. Echoes take priority over ACKs, so B sends no ACK for about 120 ns after recovery and A's timer expires on a healthy link (needless replay, duplicates at B). The scenarios use 250 ns; the default is 2 µs. Table 5-9's "about 10× the link RTT" guidance avoids this.
+- **A stale INIT could rewind the receiver (model question, not yet seen).** `on_ctlos` applies every LLR_INIT it receives: it sets `next_rx` and re-arms the echo. An INIT still in flight that arrives after B has accepted new frames would move `next_rx` back, causing a NACK and a replay (no loss: duplicates are filtered). Check §5.1.7 to see whether the receiver should ignore INIT once it has accepted frames, and add a test.
+
 ## Next
 
 - Add a switch (two links in series) and a second VC, so credit back-pressure and replays interact across hops (M3/M4 prerequisite).

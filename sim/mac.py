@@ -68,6 +68,27 @@ class Mac:
             "rx_bad", "rx_dup", "rx_ooo", "rx_crc_drop", "credit_stalls", "overflow",
             "cc_tx", "cc_rx", "cc_reclaimed", "cc_negative", "cf_tx", "timer_replays")}
         self.lost_fids = []
+        self.stalled = False            # waiting for credits (tracing only)
+        self._last_snap = None
+
+    # ================================================================ tracing
+    def _log(self, ev, **kw):
+        if self.sim.trace is not None:
+            self.sim.log(ev, mac=self.name, **kw)
+
+    def snapshot(self) -> dict:
+        """The state the visualiser draws (docs/viz)."""
+        return {"llr": self.state, "tx_seq": self.tx_seq, "acked": self.acked_seq,
+                "buf": [f.seq for f in self.buf], "out_data": self.out_data, "replay_ct": self.replay_ct,
+                "timer": self.rt_running, "next_rx": self.next_rx, "ack_state": self.ack_state,
+                "cr_used": (self.s_cc[0] - self.s_cf[0]) % CF_MOD, "cl": self.cl[0], "stalled": self.stalled,
+                "occ": self.occ, "rxq": len(self.rxbuf)}
+
+    def snap_if_changed(self):
+        s = self.snapshot()
+        if s != self._last_snap:
+            self._last_snap = s
+            self.sim.log("mac", mac=self.name, **s)
 
     # ================================================================ start
     def start(self):
@@ -96,7 +117,9 @@ class Mac:
         cu = (self.s_cc[fr.vc] - self.s_cf[fr.vc]) % CF_MOD
         if cu + cr > self.cl[fr.vc]:
             self.stats["credit_stalls"] += 1
+            self.stalled = True
             return False
+        self.stalled = False
         return True
 
     def _choose(self):
@@ -107,6 +130,9 @@ class Mac:
                 self.replay_req = False
                 self.state = "REPLAY"
                 self.replay_list, self.replay_idx = list(self.buf), 0
+                if self.buf:
+                    self._log("replay", start=self.buf[0].seq, n=len(self.buf),
+                              cause="nack" if self.nack_received else "timer", replay_ct=self.replay_ct)
                 self.nack_received = False
             if self.state == "REPLAY":
                 while self.replay_idx < len(self.replay_list):
@@ -228,14 +254,17 @@ class Mac:
         L = self.llr
         if (self.sim.now - self.last_progress >= L.data_age_ns
                 or (L.replay_ct_max != 255 and self.replay_ct >= L.replay_ct_max)):
+            self._log("timer", action="flush", replay_ct=self.replay_ct)
             self._flush()
             return
+        self._log("timer", action="replay", replay_ct=self.replay_ct)
         self.stats["timer_replays"] += 1
         self.replay_req = True
         self.kick()
 
     def _flush(self):
         self.stats["flushes"] += 1
+        self._log("flush", seqs=[f.seq for f in self.buf], fids=[f.fid for f in self.buf if f.kind == "data"])
         for fr in self.buf:
             if fr.kind == "data":
                 self.stats["flush_lost"] += 1
@@ -299,6 +328,8 @@ class Mac:
     def on_frame(self, fr: Frame, bad: bool):
         if fr.kind == "cc_update" and self.cbfc.cc_bypass_llr and not bad:
             self._rx_cc(fr)                        # breaks rule 3: ignores the LLR verdict
+        if self.sim.trace is not None:
+            self._log("rx", fid=fr.fid, seq=fr.seq, kind=fr.kind, res=self._rx_verdict(fr, bad))
         if not fr.llr_eligible:
             if bad:
                 self.stats["rx_crc_drop"] += 1
@@ -326,6 +357,14 @@ class Mac:
             if self.ack_state == "SEND_ACKS":
                 self.ack_state = "SEND_NACK"
 
+    def _rx_verdict(self, fr, bad):
+        if bad:
+            return "bad"
+        if not fr.llr_eligible:
+            return "accept"
+        d = seq_diff(fr.seq, self.next_rx)
+        return "accept" if d == 0 else ("dup" if d < 0 else "ooo")
+
     # ================================================================ CBFC receiver
     def _deliver(self, fr: Frame):
         if fr.kind == "cc_update":
@@ -336,6 +375,7 @@ class Mac:
             self.r_cc[fr.vc] = (self.r_cc[fr.vc] + fr.credits) % CC_MOD
             if self.occ + fr.credits > self.cbfc.total_credits:
                 self.stats["overflow"] += 1        # a lossless frame dropped: CBFC failed
+                self._log("overflow", fid=fr.fid, occ=self.occ, need=fr.credits)
                 self.lost_fids.append(fr.fid)
                 return
             self.occ += fr.credits
@@ -365,6 +405,8 @@ class Mac:
         self.stats["cc_rx"] += 1
         for vc, s in fr.cc_snapshot.items():
             lost = (s - self.r_cc[vc]) % CC_MOD
+            if lost:
+                self._log("cc", lost=lost if lost < CC_MOD // 2 else lost - CC_MOD)
             if lost >= CC_MOD // 2:
                 self.stats["cc_negative"] += 1     # "a serious error has occurred" (§5.2.5.7.4)
             elif lost:

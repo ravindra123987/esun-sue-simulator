@@ -1,0 +1,490 @@
+<title>LLR + CBFC Packet Viewer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: scenario bar, then the live link (true scale), MAC state, a time-position ladder and the event captions. Colours follow the SUE-T Field Guide. */
+:root{
+  --bg:#f4f6fa; --surface:#ffffff; --surface-2:#eaeff6; --fg:#14203a; --muted:#56627a; --line:#d4dce8; --accent:#2f6fde;
+  --data:#2f6fde; --cc:#4a8a12; --ack:#c2367a; --cf:#4a8a12; --init:#cf9200; --bad:#cf3b3b; --down:#8a94a6; --ok:#17914c;
+  --f-display:"Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0d1320; --surface:#141c2b; --surface-2:#1a2436; --fg:#e5ebf5; --muted:#9ba8bf; --line:#2a3650; --accent:#6f9dff;
+  --data:#6f9dff; --cc:#9be05a; --ack:#ff7ab8; --cf:#9be05a; --init:#f1c24a; --bad:#ff6b6b; --down:#6b7690; --ok:#3fcf7f; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0d1320; --surface:#141c2b; --surface-2:#1a2436; --fg:#e5ebf5; --muted:#9ba8bf; --line:#2a3650; --accent:#6f9dff;
+  --data:#6f9dff; --cc:#9be05a; --ack:#ff7ab8; --cf:#9be05a; --init:#f1c24a; --bad:#ff6b6b; --down:#6b7690; --ok:#3fcf7f; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:14.5px; line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:0 48px}
+.wrap{max-width:1180px; margin:0 auto; display:grid; gap:14px}
+h1,h2,h3{font-family:var(--f-display); line-height:1.15; text-wrap:balance; margin:0}
+h1{font-size:clamp(1.7rem, 3.6vw, 2.3rem); letter-spacing:-0.02em}
+h2{font-size:1.2rem}
+p{margin:0; max-width:80ch}
+code,.mono{font-family:var(--f-mono); font-size:.86em}
+.eyebrow{font-family:var(--f-mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.muted{color:var(--muted)}
+header.top{display:grid; gap:8px; padding-block:28px 0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:12px}
+.tabs{display:flex; flex-wrap:wrap; gap:6px}
+.tabs button{font:inherit; font-size:.84rem; cursor:pointer; padding:6px 11px; border-radius:8px; color:var(--fg); background:var(--surface); border:1px solid var(--line)}
+.tabs button[aria-selected="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 9%, var(--surface))}
+button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.scn{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px 22px; padding:14px 16px}
+.scn .cfg{font-family:var(--f-mono); font-size:.74rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 12px}
+.scn .watch{font-size:.86rem; color:var(--muted)}
+.scn .watch b{color:var(--fg); font-weight:600}
+@media (max-width:820px){ .scn{grid-template-columns:1fr} }
+
+/* controls */
+.ctl{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 14px}
+.ctl button{font:inherit; font-size:.84rem; cursor:pointer; padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--fg); min-width:40px}
+.ctl button.primary{background:var(--accent); border-color:var(--accent); color:var(--surface); font-weight:600; min-width:76px}
+.ctl label{font-size:.8rem; color:var(--muted); display:inline-flex; gap:6px; align-items:center}
+.ctl select{font:inherit; font-size:.8rem; padding:4px 6px; border-radius:6px; border:1px solid var(--line); background:var(--surface); color:var(--fg)}
+.clock{font-family:var(--f-mono); font-size:.95rem; font-variant-numeric:tabular-nums; min-width:150px}
+.tl{padding:6px 14px 12px; display:grid; gap:2px}
+.tl canvas{width:100%; height:18px; display:block; cursor:pointer}
+.tl input{width:100%; margin:0}
+
+/* link + ladder canvases */
+.scroll{overflow-x:auto}
+#cLink{display:block; width:100%; min-width:660px; height:230px}
+#cLadder{display:block; width:100%; min-width:660px; height:300px}
+
+/* MAC state */
+.macs{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+@media (max-width:820px){ .macs{grid-template-columns:1fr} }
+.mac{padding:12px 14px; display:grid; gap:8px; min-width:0}
+.mac h2{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+.mac h2 small{font-family:var(--f-body); font-size:.78rem; color:var(--muted); font-weight:400}
+.kv{display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:6px 12px}
+.kv div{display:grid; gap:0}
+.kv span{font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em}
+.kv b{font-family:var(--f-mono); font-size:.92rem; font-weight:600; font-variant-numeric:tabular-nums}
+.pill{display:inline-block; font-family:var(--f-mono); font-size:.76rem; padding:1px 8px; border-radius:999px; border:1px solid var(--line); background:var(--surface-2)}
+.pill.ADVANCE,.pill.SEND_ACKS{border-color:var(--ok); color:var(--ok)}
+.pill.REPLAY,.pill.SEND_NACK,.pill.NACK_SENT{border-color:var(--ack); color:var(--ack)}
+.pill.INIT{border-color:var(--init); color:var(--init)}
+.pill.FLUSH,.pill.stall{border-color:var(--bad); color:var(--bad)}
+.pill.off{opacity:.35}
+.sub{font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em}
+.cells{display:flex; flex-wrap:wrap; gap:2px; min-height:20px}
+.cells i{font-style:normal; font-family:var(--f-mono); font-size:.66rem; min-width:24px; text-align:center; padding:1px 2px; border-radius:3px;
+  background:color-mix(in srgb, var(--data) 18%, var(--surface)); border:1px solid color-mix(in srgb, var(--data) 50%, transparent)}
+.cells i.rp{background:color-mix(in srgb, var(--ack) 18%, var(--surface)); border-color:color-mix(in srgb, var(--ack) 55%, transparent)}
+.cells em{font-style:normal; font-size:.75rem; color:var(--muted)}
+.bar{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center}
+.bar .track{height:10px; border-radius:5px; background:var(--surface-2); border:1px solid var(--line); overflow:hidden}
+.bar .fill{height:100%; background:var(--cf); transition:width .08s linear}
+.bar .fill.hi{background:var(--bad)}
+.bar b{font-family:var(--f-mono); font-size:.8rem; font-variant-numeric:tabular-nums}
+
+/* captions */
+.notes{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px}
+@media (max-width:820px){ .notes{grid-template-columns:1fr} }
+.now{padding:14px 16px; display:grid; gap:6px; align-content:start}
+.now .txt{font-size:1rem}
+.log{padding:8px; max-height:260px; overflow:auto; display:grid; gap:2px; align-content:start}
+.log button{font:inherit; text-align:left; cursor:pointer; display:grid; grid-template-columns:72px minmax(0,1fr); gap:8px; padding:5px 8px; border-radius:6px; border:1px solid transparent; background:none; color:var(--fg); font-size:.8rem}
+.log button:hover{background:var(--surface-2)}
+.log button.past{color:var(--muted)}
+.log button.cur{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--surface)); color:var(--fg)}
+.log button span:first-child{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
+.legend{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.78rem; color:var(--muted); padding:0 2px}
+.legend span{display:inline-flex; gap:6px; align-items:center}
+.legend i{width:20px; height:11px; border-radius:3px; border:1.6px solid var(--k); background:color-mix(in srgb, var(--k) 22%, var(--surface))}
+.legend i.d{border-style:dashed}
+footer{font-size:.82rem; color:var(--muted); border-top:1px solid var(--line); padding-top:14px; display:grid; gap:6px}
+.err{padding:16px; color:var(--bad)}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">esun-sue-simulator · sim/ traces · UEC 1.1 §5.1 LLR, §5.2 CBFC</div>
+    <h1>LLR + CBFC Packet Viewer</h1>
+    <p class="muted">Replays what the link simulator actually did: every frame, every control block and every state change of the two MACs on one 800G link. Frames are drawn to scale; a 1 KB frame is about 10 ns long on a 64 ns link.</p>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Scenario"></nav>
+
+  <section class="card scn">
+    <div style="display:grid; gap:6px; min-width:0">
+      <h2 id="sTitle"></h2>
+      <p id="sSum"></p>
+      <div class="cfg" id="sCfg"></div>
+    </div>
+    <p class="watch" id="sWatch"></p>
+  </section>
+
+  <section class="card">
+    <div class="ctl">
+      <button id="bPlay" class="primary">Play</button>
+      <button id="bPrevN" title="Previous event" aria-label="Previous event">⏮</button>
+      <button id="bNextN" title="Next event" aria-label="Next event">⏭</button>
+      <span class="clock" id="clock">t = 0.0 ns</span>
+      <label for="speed">Speed
+        <select id="speed">
+          <option value="2">2 ns/s</option><option value="5">5 ns/s</option><option value="10" selected>10 ns/s</option>
+          <option value="25">25 ns/s</option><option value="60">60 ns/s</option><option value="150">150 ns/s</option>
+        </select></label>
+      <label for="pauseAt"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
+      <label for="span">Ladder window
+        <select id="span"><option value="120">120 ns</option><option value="250" selected>250 ns</option><option value="500">500 ns</option><option value="1000">1 µs</option></select></label>
+    </div>
+    <div class="tl">
+      <canvas id="cMarks" aria-hidden="true"></canvas>
+      <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
+    </div>
+    <div class="scroll"><canvas id="cLink" aria-label="Link view"></canvas></div>
+  </section>
+
+  <div class="macs">
+    <section class="card mac" id="macA"></section>
+    <section class="card mac" id="macB"></section>
+  </div>
+
+  <div class="notes">
+    <section class="card now" aria-live="polite">
+      <div class="eyebrow">What just happened</div>
+      <div class="txt" id="nowTxt"></div>
+      <div class="muted mono" id="nowT"></div>
+    </section>
+    <section class="card log" id="log" aria-label="Events"></section>
+  </div>
+
+  <section class="card">
+    <div class="ctl" style="padding-bottom:0"><span class="eyebrow">Ladder: time runs down, now is the bottom edge</span></div>
+    <div class="scroll"><canvas id="cLadder" aria-label="Time-position ladder diagram"></canvas></div>
+  </section>
+
+  <div class="legend">
+    <span><i style="--k:var(--data)"></i>data frame (label = LLR seq)</span>
+    <span><i class="d" style="--k:var(--data)"></i>replayed frame</span>
+    <span><i style="--k:var(--cc)"></i>CC_Update frame</span>
+    <span><i style="--k:var(--ack)"></i>LLR ACK / NACK</span>
+    <span><i style="--k:var(--cf)"></i>CF_Update</span>
+    <span><i style="--k:var(--init)"></i>INIT / INIT_ECHO</span>
+    <span><i style="--k:var(--bad)"></i>corrupted</span>
+    <span><i class="d" style="--k:var(--down)"></i>lost: link down</span>
+  </div>
+
+  <footer>
+    <div>Traces are generated by <code>tools/make_traces.py</code>, which runs <code>sim/</code> with tracing on. Captions come from <code>sim/trace.py</code> and are derived from the events, not written per scenario. Control blocks (8 B) are really 0.08 ns long; they are drawn wider so you can see them.</div>
+    <div>Model limits (see <code>docs/experiments/llr-cbfc.md</code>): one link, one VC, both ends start initialised, no PCS-status timer.</div>
+  </footer>
+</div>
+
+<script src="traces.js"></script>
+<script>
+(function(){
+"use strict";
+const TR = window.SUE_TRACES;
+const $ = id => document.getElementById(id);
+if (!TR || !TR.length){
+  document.querySelector(".wrap").insertAdjacentHTML("beforeend", '<div class="card err">traces.js did not load. Run <code>tools/make_traces.py</code> and open this page next to it.</div>');
+  return;
+}
+
+// ---------- data prep ----------
+function prep(tr){
+  const frames = [], ctl = [], snaps = {A:[], B:[]}, rx = [], deliv = [];
+  for (const e of tr.events){
+    if (e.ev === "frame") frames.push(e);
+    else if (e.ev === "ctlos") ctl.push(e);
+    else if (e.ev === "mac") snaps[e.mac].push(e);
+    else if (e.ev === "rx") rx.push(e);
+    else if (e.ev === "deliver") deliv.push(e.t);
+  }
+  // replayed seqs for colouring buffer cells: seq -> first replay time
+  return Object.assign({}, tr, {frames, ctl, snaps, rx, deliv, dur:tr.cfg.sim_ns, prop:tr.cfg.prop_ns});
+}
+const D = TR.map(prep);
+const lastAt = (arr, t) => { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi){ const m = (lo + hi) >> 1; if (arr[m].t <= t){ r = m; lo = m + 1; } else hi = m - 1; } return r; };
+const countAt = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m + 1; else hi = m; } return lo; };
+
+// ---------- theme ----------
+let C = {};
+function readTheme(){
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ["bg","surface","surface-2","fg","muted","line","accent","data","cc","ack","cf","init","bad","down","ok"]) C[k] = cs.getPropertyValue("--" + k).trim();
+}
+readTheme();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); draw(); });
+new MutationObserver(() => { readTheme(); draw(); }).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+const alpha = (hex, a) => { const m = hex.replace("#",""); const n = parseInt(m.length === 3 ? m.split("").map(x=>x+x).join("") : m, 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; };
+
+function fit(cv){
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [g, r.width, r.height];
+}
+function rrect(g, x, y, w, h, r){ g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
+
+const ctlStyle = k => ({LLR_ACK:["ack","A"], LLR_NACK:["ack","NACK"], CF_UPDATE:["cf","CF"], LLR_INIT:["init","INIT"], LLR_INIT_ECHO:["init","ECHO"]}[k] || ["muted", k]);
+const isDown = (d, t) => d.cfg.down.some(([a,b]) => a <= t && t < b);
+const ALL1 = (1 << 20) - 1;
+
+// ---------- link view ----------
+function drawLink(d, t){
+  const [g, W, H] = fit($("cLink"));
+  g.clearRect(0, 0, W, H);
+  const mw = 112, xa = mw + 14, xb = W - mw - 14, L = xb - xa;
+  const yF = 92, yR = 168, fh = 30;
+  const down = isDown(d, t);
+  // MAC boxes
+  for (const [x, name, sub] of [[0, "MAC A", "sender"], [W - mw, "MAC B", "receiver"]]){
+    g.fillStyle = C["surface-2"]; g.strokeStyle = C.line; g.lineWidth = 1; rrect(g, x + .5, 40.5, mw - 1, 160, 10); g.fill(); g.stroke();
+    g.fillStyle = C.fg; g.font = "600 14px " + getComputedStyle(document.body).getPropertyValue("--f-display"); g.textAlign = "center";
+    g.fillText(name, x + mw/2, 66); g.fillStyle = C.muted; g.font = "11px Inter, system-ui, sans-serif"; g.fillText(sub, x + mw/2, 82);
+  }
+  // lanes
+  g.lineWidth = 1.5; g.setLineDash(down ? [5,5] : []);
+  g.strokeStyle = down ? C.bad : C.line;
+  for (const y of [yF, yR]){ g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.stroke(); }
+  g.setLineDash([]);
+  g.fillStyle = C.muted; g.font = "10px 'JetBrains Mono', monospace"; g.textAlign = "left";
+  g.fillText("A → B: frames + A's control blocks", xa, yF - fh/2 - 22);
+  g.fillText("B → A: B's control blocks (ACK/NACK, CF_Update, ECHO)", xa, yR + 30);
+  g.textAlign = "right";
+  g.fillText(`${d.cfg.cable_m} m · ${d.cfg.rate_gbps}G · one way ${d.prop.toFixed(1)} ns`, xb, yR + 30);
+  if (down){ g.fillStyle = C.bad; g.font = "600 12px 'JetBrains Mono', monospace"; g.textAlign = "center"; g.fillText("LINK DOWN", (xa + xb)/2, (yF + yR)/2 + 4); }
+  const px = f => xa + f * L;
+  // frames
+  g.textAlign = "center"; g.textBaseline = "middle";
+  for (const f of d.frames){
+    if (f.dir !== "a2b" || f.t0 > t || f.arrive < t) continue;
+    const front = (t - f.t0) / d.prop, back = (t - f.t1) / d.prop;
+    if (front <= 0 || back >= 1) continue;
+    const x0 = px(Math.max(0, back)), x1 = px(Math.min(1, front));
+    const col = f.kind === "cc_update" ? C.cc : C.data;
+    let fill = alpha(col, .22), stroke = col, txt = C.fg, op = 1;
+    if (f.fate === "bad" && front > .5){ stroke = C.bad; fill = alpha(C.bad, .18); txt = C.bad; }
+    if (f.fate === "down"){ stroke = C.down; fill = alpha(C.down, .15); txt = C.muted; op = Math.max(.15, 1 - front); }
+    g.globalAlpha = op;
+    rrect(g, x0, yF - fh/2, Math.max(2, x1 - x0), fh, 4); g.fillStyle = fill; g.fill();
+    g.setLineDash(f.replay ? [5,3] : []); g.strokeStyle = stroke; g.lineWidth = 1.6; g.stroke(); g.setLineDash([]);
+    if (x1 - x0 > 26){
+      g.fillStyle = txt; g.font = "600 11px 'JetBrains Mono', monospace";
+      g.fillText(f.kind === "cc_update" ? "CC" : (f.seq == null ? "#" + f.fid : String(f.seq)), (x0 + x1)/2, yF);
+    }
+    if (f.fate === "bad" && front > .5 && back < .5){ g.fillStyle = C.bad; g.font = "600 13px Inter, sans-serif"; g.fillText("⚡", px(.5), yF - fh/2 - 9); }
+    g.globalAlpha = 1;
+  }
+  // control blocks
+  for (const c of d.ctl){
+    if (c.t1 > t || c.arrive < t) continue;
+    const f = (t - c.t1) / d.prop; if (f < 0 || f > 1) continue;
+    const quiet = c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1;   // A acks nothing: reverse path is idle
+    const [k, lab] = ctlStyle(c.kind);
+    const label = c.kind === "LLR_ACK" || c.kind === "LLR_NACK" ? `${lab} ${c.seq === ALL1 ? "–" : c.seq}` : lab;
+    const x = c.dir === "a2b" ? px(f) : px(1 - f), y = c.dir === "a2b" ? yF - fh/2 - 8 : yR;
+    g.font = "600 9.5px 'JetBrains Mono', monospace";
+    const w = g.measureText(label).width + 10;
+    g.globalAlpha = quiet ? .3 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
+    let col = C[k];
+    if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
+    rrect(g, x - w/2, y - 8, w, 16, 8); g.fillStyle = alpha(col, .2); g.fill(); g.strokeStyle = col; g.lineWidth = 1.3; g.stroke();
+    g.fillStyle = C.fg; g.fillText(label, x, y + .5);
+    g.globalAlpha = 1;
+  }
+  // receive verdicts at B (last ~8 ns)
+  for (let i = d.rx.length - 1; i >= 0; i--){
+    const r = d.rx[i]; if (r.t > t) continue; if (t - r.t > 8) break;
+    if (r.mac !== "B" || r.res === "accept") continue;
+    const lab = {bad:"FCS ✕", ooo:"out of order", dup:"duplicate"}[r.res];
+    g.fillStyle = r.res === "bad" ? C.bad : C.ack; g.font = "600 11px 'JetBrains Mono', monospace";
+    g.globalAlpha = 1 - (t - r.t) / 8; g.fillText(`${lab} · ${r.seq ?? ""}`, W - mw/2, 186); g.globalAlpha = 1;
+  }
+  g.textBaseline = "alphabetic";
+}
+
+// ---------- ladder ----------
+function drawLadder(d, t){
+  const [g, W, H] = fit($("cLadder"));
+  g.clearRect(0, 0, W, H);
+  const span = +$("span").value, top = 22, bot = H - 14, xa = 90, xb = W - 90;
+  const t0 = t - span;
+  const y = tt => top + (tt - t0) / span * (bot - top);
+  g.font = "10px 'JetBrains Mono', monospace"; g.fillStyle = C.muted; g.textAlign = "center";
+  g.fillText("MAC A", xa, 14); g.fillText("MAC B", xb, 14);
+  // grid
+  const step = span <= 150 ? 20 : span <= 300 ? 50 : span <= 600 ? 100 : 200;
+  g.strokeStyle = alpha(C.muted, .18); g.lineWidth = 1; g.textAlign = "right";
+  for (let k = Math.ceil(Math.max(0, t0) / step) * step; k <= t; k += step){ const yy = y(k); g.beginPath(); g.moveTo(xa, yy); g.lineTo(xb, yy); g.stroke(); g.fillText(k + " ns", xa - 10, yy + 3); }
+  for (const [a, b] of d.cfg.down){ if (b < t0 || a > t) continue; g.fillStyle = alpha(C.bad, .08); g.fillRect(xa, y(Math.max(a, t0)), xb - xa, y(Math.min(b, t)) - y(Math.max(a, t0))); }
+  g.strokeStyle = C.line; g.lineWidth = 2;
+  for (const x of [xa, xb]){ g.beginPath(); g.moveTo(x, top); g.lineTo(x, bot); g.stroke(); }
+  g.save(); g.beginPath(); g.rect(0, top, W, bot - top); g.clip();
+  // frames as bands
+  for (const f of d.frames){
+    if (f.dir !== "a2b" || f.arrive < t0 || f.t0 > t) continue;
+    const col = f.fate === "down" ? C.down : (f.fate === "bad" ? C.bad : (f.kind === "cc_update" ? C.cc : C.data));
+    const ser = f.t1 - f.t0;
+    let endF = 1; if (f.fate === "down") endF = .5;
+    const xe = xa + (xb - xa) * endF;
+    g.beginPath(); g.moveTo(xa, y(f.t0)); g.lineTo(xe, y(f.t0 + d.prop * endF)); g.lineTo(xe, y(f.t1 + d.prop * endF)); g.lineTo(xa, y(f.t1)); g.closePath();
+    g.fillStyle = alpha(col, f.replay ? .12 : .22); g.fill();
+    g.setLineDash(f.replay || f.fate === "down" ? [4,3] : []); g.strokeStyle = alpha(col, .9); g.lineWidth = 1; g.stroke(); g.setLineDash([]);
+    if (f.arrive <= t && f.fate === "bad"){ g.fillStyle = C.bad; g.font = "600 12px Inter"; g.textAlign = "left"; g.fillText("✕", xb + 6, y(f.arrive) + 4); }
+    if (y(f.t1) - y(f.t0) > 9 && f.seq != null){ g.fillStyle = C.muted; g.font = "9.5px 'JetBrains Mono', monospace"; g.textAlign = "right"; g.fillText(f.seq, xa - 4, y((f.t0 + f.t1) / 2) + 3); }
+    void ser;
+  }
+  // control blocks as lines
+  for (const c of d.ctl){
+    if (c.arrive < t0 || c.t1 > t) continue;
+    if (c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1) continue;
+    const [k, lab] = ctlStyle(c.kind);
+    const col = c.fate === "ok" ? C[k] : (c.fate === "down" ? C.down : C.bad);
+    const [x0, x1] = c.dir === "b2a" ? [xb, xa] : [xa, xb];
+    const endF = c.fate === "ok" ? 1 : .5;
+    g.strokeStyle = col; g.lineWidth = c.kind === "LLR_NACK" || c.kind.startsWith("LLR_INIT") ? 2 : 1;
+    g.globalAlpha = c.kind === "LLR_ACK" ? .55 : 1;
+    g.setLineDash(c.fate === "ok" ? [] : [3,3]);
+    g.beginPath(); g.moveTo(x0, y(c.t1)); g.lineTo(x0 + (x1 - x0) * endF, y(c.t1 + d.prop * endF)); g.stroke(); g.setLineDash([]);
+    if (c.kind !== "LLR_ACK" && c.kind !== "CF_UPDATE"){
+      g.fillStyle = col; g.font = "600 10px 'JetBrains Mono', monospace"; g.textAlign = c.dir === "b2a" ? "left" : "right";
+      g.fillText(c.kind === "LLR_NACK" ? `NACK ${c.seq}` + (c.fate === "ok" ? "" : " (lost)") : lab, x0 + (c.dir === "b2a" ? 6 : -6), y(c.t1) + 3);
+    }
+    g.globalAlpha = 1;
+  }
+  g.restore();
+  // now line
+  g.strokeStyle = C.accent; g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa - 30, bot); g.lineTo(xb + 30, bot); g.stroke();
+  g.fillStyle = C.accent; g.textAlign = "left"; g.font = "600 10px 'JetBrains Mono', monospace"; g.fillText("now", xb + 8, bot - 3);
+}
+
+// ---------- timeline marks ----------
+function drawMarks(d){
+  const [g, W, H] = fit($("cMarks"));
+  g.clearRect(0, 0, W, H);
+  for (const [a, b] of d.cfg.down){ g.fillStyle = alpha(C.bad, .18); g.fillRect(a / d.dur * W, 0, (b - a) / d.dur * W, H); }
+  for (const n of d.notes){
+    const k = {bad:"bad", nack:"ack", replay:"ack", timer:"init", flush:"bad", init:"init", cc:"cf", stall:"cf", overflow:"bad", down:"bad", up:"ok", dup:"muted", ooo:"ack", deliver:"ok"}[n.kind] || "muted";
+    g.fillStyle = C[k]; g.fillRect(Math.round(n.t / d.dur * (W - 3)), 3, 3, H - 6);
+  }
+}
+
+// ---------- MAC panels ----------
+function cells(seqs, replaying){
+  if (!seqs.length) return '<em>empty</em>';
+  const show = seqs.slice(0, 40).map(s => `<i class="${replaying ? "rp" : ""}">${s}</i>`).join("");
+  return show + (seqs.length > 40 ? `<em>+${seqs.length - 40}</em>` : "");
+}
+function bar(v, m){ const p = Math.min(100, v / m * 100); return `<div class="bar"><div class="track"><div class="fill${p > 90 ? " hi" : ""}" style="width:${p}%"></div></div><b>${v} / ${m}</b></div>`; }
+const seqTxt = s => s === ALL1 ? "–" : s;
+function drawMacs(d, t){
+  const a = d.snaps.A[Math.max(0, lastAt(d.snaps.A, t))], b = d.snaps.B[Math.max(0, lastAt(d.snaps.B, t))];
+  const llr = d.cfg.llr.enabled;
+  $("macA").innerHTML = `
+    <h2>MAC A <small>sender · LLR transmit + CBFC credits</small></h2>
+    <div class="kv">
+      <div><span>LLR state</span><b><i class="pill ${llr ? a.llr : "off"}" style="font-style:normal">${llr ? a.llr : "LLR off"}</i></b></div>
+      <div><span>next tx seq</span><b>${llr ? a.tx_seq : "–"}</b></div>
+      <div><span>last ACKed</span><b>${llr ? seqTxt(a.acked) : "–"}</b></div>
+      <div><span>replay timer</span><b>${a.timer ? "running" : "idle"}</b></div>
+      <div><span>replay_ct</span><b>${a.replay_ct} / ${d.cfg.llr.replay_ct_max}</b></div>
+    </div>
+    <div class="sub">Replay buffer · ${a.buf.length} frames · ${(a.out_data / 1024).toFixed(0)} KB</div>
+    <div class="cells">${cells(a.buf, a.llr === "REPLAY")}</div>
+    <div class="sub">Credits in use (receiver buffer at B) ${a.stalled ? '<i class="pill stall" style="font-style:normal">waiting for credits</i>' : ""}</div>
+    ${bar(a.cr_used, a.cl)}`;
+  const got = countAt(d.deliv, t);
+  $("macB").innerHTML = `
+    <h2>MAC B <small>receiver · LLR receive + CBFC buffer</small></h2>
+    <div class="kv">
+      <div><span>ACK state</span><b><i class="pill ${llr ? b.ack_state : "off"}" style="font-style:normal">${llr ? b.ack_state : "LLR off"}</i></b></div>
+      <div><span>next_rx_seq</span><b>${llr ? b.next_rx : "–"}</b></div>
+      <div><span>delivered</span><b>${got}</b></div>
+      <div><span>drains at</span><b>${d.cfg.cbfc.drain_gbps} Gb/s</b></div>
+    </div>
+    <div class="sub">Receive buffer · ${b.rxq} frame(s) waiting to drain</div>
+    ${bar(b.occ, d.cfg.cbfc.total_credits)}`;
+}
+
+// ---------- notes ----------
+function noteIdx(d, t){ let r = -1; for (let i = 0; i < d.notes.length; i++){ if (d.notes[i].t <= t + 1e-6) r = i; else break; } return r; }
+function buildLog(d){
+  const L = $("log"); L.textContent = "";
+  d.notes.forEach((n, i) => {
+    const b = document.createElement("button"); b.dataset.i = i;
+    b.innerHTML = "<span></span><span></span>"; b.firstChild.textContent = n.t.toFixed(1) + " ns"; b.lastChild.textContent = n.text;
+    b.onclick = () => { stop(); setT(n.t); }; L.appendChild(b);
+  });
+}
+let lastNote = -2;
+function drawNotes(d, t){
+  const i = noteIdx(d, t);
+  if (i === lastNote) return; lastNote = i;
+  $("nowTxt").textContent = i < 0 ? "Press Play. The captions below follow the simulator's events." : d.notes[i].text;
+  $("nowT").textContent = i < 0 ? "" : `at ${d.notes[i].t.toFixed(1)} ns`;
+  [...$("log").children].forEach((b, k) => { b.className = k === i ? "cur" : (k < i ? "past" : ""); });
+  const cur = $("log").children[i]; if (cur && playing) cur.scrollIntoView({block:"nearest"});
+}
+
+// ---------- main loop ----------
+let d = D[0], t = 0, playing = false, lastFrame = 0;
+function draw(){
+  $("clock").textContent = `t = ${t.toFixed(1)} ns`;
+  $("scrub").value = t;
+  drawLink(d, t); drawLadder(d, t); drawMacs(d, t); drawNotes(d, t);
+}
+function setT(v){ t = Math.max(0, Math.min(d.dur, v)); draw(); }
+function tick(now){
+  if (!playing) return;
+  const dt = Math.min(100, now - lastFrame) / 1000; lastFrame = now;
+  let nt = t + dt * +$("speed").value;
+  if ($("pauseAt").checked){ const n = d.notes.find(n => n.t > t + 1e-6 && n.t <= nt); if (n){ setT(n.t); stop(); return; } }
+  if (nt >= d.dur){ setT(d.dur); stop(); return; }
+  setT(nt); requestAnimationFrame(tick);
+}
+function play(){ if (t >= d.dur) t = 0; playing = true; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
+function stop(){ playing = false; $("bPlay").textContent = t >= d.dur ? "Replay" : "Play"; }
+
+function pick(id){
+  stop();
+  d = D.find(x => x.id === id) || D[0]; t = 0; lastNote = -2;
+  for (const b of $("tabs").children) b.setAttribute("aria-selected", b.dataset.id === d.id ? "true" : "false");
+  $("sTitle").textContent = d.title; $("sSum").textContent = d.summary;
+  $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(d.watch);
+  const c = d.cfg, r = d.result;
+  const bits = [`${c.cable_m} m · ${c.rate_gbps}G`, `${c.frame} B frames`,
+    c.llr.enabled ? `LLR: replay timer ${c.llr.replay_timer_ns} ns, replay_ct_max ${c.llr.replay_ct_max}` : "LLR off",
+    `CBFC: ${c.cbfc.total_credits} credits × ${c.cbfc.credit_size} B, drain ${c.cbfc.drain_gbps} Gb/s`,
+    c.down.length ? `link down ${c.down.map(([a,b]) => a + "–" + b + " ns").join(", ")}` : null,
+    `result: ${r.delivered} delivered, ${r.lost} lost, ${r.replayed} replayed`];
+  $("sCfg").innerHTML = ""; for (const s of bits.filter(Boolean)){ const e = document.createElement("span"); e.textContent = s; $("sCfg").appendChild(e); }
+  $("scrub").max = d.dur;
+  buildLog(d); drawMarks(d); draw();
+  if (location.hash.slice(1) !== d.id) history.replaceState(null, "", "#" + d.id);
+}
+
+for (const x of D){
+  const b = document.createElement("button"); b.setAttribute("role", "tab"); b.dataset.id = x.id; b.textContent = x.title;
+  b.onclick = () => pick(x.id); $("tabs").appendChild(b);
+}
+$("bPlay").onclick = () => playing ? stop() : play();
+$("bNextN").onclick = () => { stop(); const n = d.notes.find(n => n.t > t + 1e-6); setT(n ? n.t : d.dur); };
+$("bPrevN").onclick = () => { stop(); const ns = d.notes.filter(n => n.t < t - 1e-6); setT(ns.length ? ns[ns.length - 1].t : 0); };
+$("scrub").oninput = e => { stop(); setT(+e.target.value); };
+$("span").onchange = draw;
+$("cMarks").onclick = e => { const r = e.target.getBoundingClientRect(); stop(); setT((e.clientX - r.left) / r.width * d.dur); };
+document.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("input, select, textarea")) return;
+  if (e.key === " " && !(e.target.closest && e.target.closest("button"))){ e.preventDefault(); $("bPlay").click(); }
+  else if (e.key === "ArrowRight"){ e.preventDefault(); stop(); setT(t + (e.shiftKey ? 10 : 1)); }
+  else if (e.key === "ArrowLeft"){ e.preventDefault(); stop(); setT(t - (e.shiftKey ? 10 : 1)); }
+});
+window.addEventListener("resize", () => { drawMarks(d); draw(); });
+window.addEventListener("hashchange", () => pick(location.hash.slice(1)));
+pick(location.hash.slice(1) || D[0].id);
+})();
+</script>

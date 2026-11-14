@@ -47,14 +47,18 @@ class Result:
 
 
 def run_link(link: LinkCfg = None, llr: LLRCfg = None, cbfc: CBFCCfg = None, frame_size=1024,
-             sim_ns=20_000.0, warmup_ns=2_000.0, hooks=None) -> Result:
+             sim_ns=20_000.0, warmup_ns=2_000.0, hooks=None, trace: list | None = None) -> Result:
+    """Run one link. Pass an empty list as `trace` to record every event (sim/trace.py)."""
     link, llr, cbfc = link or LinkCfg(), llr or LLRCfg(), cbfc or CBFCCfg()
     sim = Sim()
+    sim.trace = trace
     a2b, b2a = Wire(sim, link, "a2b"), Wire(sim, link, "b2a")
     got = []
 
     def sink(fr, now):
         got.append((fr.fid, now - fr.born, fr.size, now))
+        if sim.trace is not None:
+            sim.log("deliver", fid=fr.fid, lat=round(now - fr.born, 3))
 
     src = Backlog(frame_size)
     A = Mac(sim, "A", link, llr, cbfc, a2b, source=src)
@@ -62,6 +66,12 @@ def run_link(link: LinkCfg = None, llr: LLRCfg = None, cbfc: CBFCCfg = None, fra
     a2b.peer, b2a.peer = B, A
     if hooks:
         hooks(sim, A, B, a2b, b2a)
+    if trace is not None:
+        def snap():
+            A.snap_if_changed()
+            B.snap_if_changed()
+        sim.after_event = snap
+        snap()
     A.start()
     B.start()
     sim.run(sim_ns)

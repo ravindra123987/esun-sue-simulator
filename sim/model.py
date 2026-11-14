@@ -117,17 +117,29 @@ class Wire:
 
     def send_frame(self, fr: Frame, t_end: float):
         self.stats["frames"] += 1
-        if self._down(t_end):
+        down = self._down(t_end)
+        bad = False if down else self._corrupt(fr, fr.size)
+        if self.sim.trace is not None:
+            self.sim.log("frame", dir=self.name, fid=fr.fid, seq=fr.seq, kind=fr.kind, size=fr.size,
+                         replay=fr.tx_count > 1, t0=round(t_end - (fr.size + PREAMBLE_IPG) / self.cfg.rate, 3),
+                         t1=round(t_end, 3), arrive=round(t_end + self.cfg.prop_ns, 3),
+                         fate="down" if down else ("bad" if bad else "ok"))
+        if down:
             self.stats["lost_down"] += 1
             return
-        bad = self._corrupt(fr, fr.size)
         if bad:
             self.stats["corrupted"] += 1
         self.sim.at(t_end + self.cfg.prop_ns, self.peer.on_frame, fr, bad)
 
     def send_ctlos(self, c: CtlOS, t_end: float):
         self.stats["ctlos"] += 1
-        if self._down(t_end) or self._corrupt(c, CTLOS_BYTES):
+        down = self._down(t_end)
+        lost = down or self._corrupt(c, CTLOS_BYTES)
+        if self.sim.trace is not None:
+            self.sim.log("ctlos", dir=self.name, kind=c.kind, seq=c.seq, cf=(c.cf or {}).get(0),
+                         t1=round(t_end, 3), arrive=round(t_end + self.cfg.prop_ns, 3),
+                         fate="down" if down else ("bad" if lost else "ok"))
+        if lost:
             self.stats["ctlos_lost"] += 1
             return
         self.sim.at(t_end + self.cfg.prop_ns, self.peer.on_ctlos, c)

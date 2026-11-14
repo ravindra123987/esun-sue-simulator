@@ -11,7 +11,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M0 | Read the specs, build the delta table | draft done: [docs/delta-table.md](docs/delta-table.md) |
 | M1 | Scapy layers, Wireshark dissector, golden pcaps | first cut: [sue/](sue/), [wireshark/](wireshark/), [pcaps/golden/](pcaps/golden/) |
 | M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | dissector polished for porting: [wireshark/UPSTREAM.md](wireshark/UPSTREAM.md); issue drafted, not posted |
-| M2 | LLR + CBFC link simulator | first cut (one link): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md) |
+| M2 | LLR + CBFC link simulator | first cut (one link): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [docs/viz/](docs/viz/) |
 | M3 | SUE-T endpoint in the simulator | not started |
 | M4 | netns emulator with a user-space switch | not started |
 | M5 | Multi-plane, three-way comparison | not started |
@@ -25,12 +25,13 @@ The full plan is in [plan.md](plan.md).
 ```
 plan.md         milestones, design principles, open questions
 specs/          reference PDFs (git-ignored) + README with sources and how they relate
-docs/           delta table, findings (m1-decisions.md: choices the specs leave open)
+docs/           delta table, findings (m1-decisions.md: choices the specs leave open), experiments
+docs/viz/       packet viewer: replays simulator traces (index.html + generated traces.js)
 sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
 wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC)
 pcaps/golden/   reference captures, one packet type each, + golden.json expectations
-sim/            discrete-event link model: LLR (UEC §5.1), CBFC (§5.2), their interaction (§5.2.9)
-tools/          make_golden.py, run_m2.py (M2 experiments + plots), fetch_vectors.sh (third-party test vectors, not committed)
+sim/            discrete-event link model: LLR (UEC §5.1), CBFC (§5.2), their interaction (§5.2.9); trace.py records events
+tools/          make_golden.py, run_m2.py (M2 experiments + plots), make_traces.py (viewer scenarios), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests and tshark-based dissector tests
 ```
 
@@ -44,7 +45,14 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python tools/make_golden.py      # regenerate pcaps/golden/
 .venv/bin/pip install -e '.[sim]' && .venv/bin/python tools/run_m2.py   # M2 experiments (~5 s)
 tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/09-ufh16-conversation.pcap
+.venv/bin/python tools/make_traces.py      # regenerate docs/viz/traces.js, then open docs/viz/index.html
 ```
+
+## Packet viewer
+
+[docs/viz/index.html](docs/viz/index.html) replays what the link simulator actually did, in seven scenarios: a clean link, a bit error, a bit error with a lost NACK, a slow receiver, a short outage that LLR absorbs, a long outage that ends in FLUSH, and the same bit error with LLR off. It shows frames to scale on the wire, both MACs' LLR and CBFC state, a time-position ladder diagram, and captions that `sim/trace.py` derives from the events. Open the file in a browser; it needs only `traces.js` next to it.
+
+To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (link, LLR and CBFC settings, plus optional corruption hooks) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
 
 ## Specs
 

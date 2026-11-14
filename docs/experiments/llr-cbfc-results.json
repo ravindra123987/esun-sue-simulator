@@ -1,0 +1,272 @@
+{
+  "e1_replay_buffer": {
+    "2": {
+      "bdp_bytes": 13888,
+      "goodput": {
+        "2048": 114.1,
+        "4096": 228.2,
+        "8192": 456.7,
+        "16384": 781.5,
+        "32768": 781.5,
+        "65536": 781.5,
+        "131072": 781.5,
+        "262144": 781.5
+      }
+    },
+    "10": {
+      "bdp_bytes": 21248,
+      "goodput": {
+        "2048": 79.6,
+        "4096": 159.7,
+        "8192": 320.1,
+        "16384": 618.2,
+        "32768": 781.8,
+        "65536": 781.8,
+        "131072": 781.8,
+        "262144": 781.8
+      }
+    },
+    "50": {
+      "bdp_bytes": 58048,
+      "goodput": {
+        "2048": 28.7,
+        "4096": 57.3,
+        "8192": 114.7,
+        "16384": 229.4,
+        "32768": 454.9,
+        "65536": 781.5,
+        "131072": 781.5,
+        "262144": 781.5
+      }
+    },
+    "100": {
+      "bdp_bytes": 104048,
+      "goodput": {
+        "2048": 15.8,
+        "4096": 31.6,
+        "8192": 63.2,
+        "16384": 126.4,
+        "32768": 249.9,
+        "65536": 500.0,
+        "131072": 781.5,
+        "262144": 781.5
+      }
+    }
+  },
+  "e2_credits": {
+    "2": {
+      "estimated_credits_needed": 265,
+      "goodput": {
+        "16": 57.1,
+        "32": 114.1,
+        "64": 200.1,
+        "128": 400.2,
+        "256": 755.1,
+        "512": 781.2,
+        "1024": 781.2,
+        "2048": 781.2
+      }
+    },
+    "10": {
+      "estimated_credits_needed": 380,
+      "goodput": {
+        "16": 36.3,
+        "32": 72.6,
+        "64": 145.1,
+        "128": 291.1,
+        "256": 533.1,
+        "512": 781.5,
+        "1024": 781.5,
+        "2048": 781.5
+      }
+    },
+    "50": {
+      "estimated_credits_needed": 955,
+      "goodput": {
+        "16": 14.0,
+        "32": 27.8,
+        "64": 55.3,
+        "128": 110.3,
+        "256": 220.3,
+        "512": 427.7,
+        "1024": 781.2,
+        "2048": 781.2
+      }
+    },
+    "100": {
+      "estimated_credits_needed": 1673,
+      "goodput": {
+        "16": 7.6,
+        "32": 15.8,
+        "64": 31.6,
+        "128": 62.6,
+        "256": 123.5,
+        "512": 244.6,
+        "1024": 490.1,
+        "2048": 781.2
+      }
+    }
+  },
+  "e3_ber": {
+    "on": {
+      "1e-09": {
+        "goodput": 781.3,
+        "lost_per_million": 0.0,
+        "replayed_per_error": 0.0,
+        "p99_latency_ns": 84.6
+      },
+      "1e-08": {
+        "goodput": 780.7,
+        "lost_per_million": 0.0,
+        "replayed_per_error": 14.3,
+        "p99_latency_ns": 84.6
+      },
+      "1e-07": {
+        "goodput": 771.7,
+        "lost_per_million": 0.0,
+        "replayed_per_error": 14.9,
+        "p99_latency_ns": 231.3
+      },
+      "1e-06": {
+        "goodput": 701.4,
+        "lost_per_million": 0.0,
+        "replayed_per_error": 13.5,
+        "p99_latency_ns": 252.2
+      },
+      "1e-05": {
+        "goodput": 233.7,
+        "lost_per_million": 0.0,
+        "replayed_per_error": 8.0,
+        "p99_latency_ns": 6186.7
+      }
+    },
+    "off": {
+      "1e-09": {
+        "goodput": 784.2,
+        "lost_per_million": 0.0,
+        "replayed_per_error": null,
+        "p99_latency_ns": 84.6
+      },
+      "1e-08": {
+        "goodput": 784.1,
+        "lost_per_million": 121.2,
+        "replayed_per_error": null,
+        "p99_latency_ns": 84.6
+      },
+      "1e-07": {
+        "goodput": 783.7,
+        "lost_per_million": 727.4,
+        "replayed_per_error": null,
+        "p99_latency_ns": 84.6
+      },
+      "1e-06": {
+        "goodput": 778.0,
+        "lost_per_million": 8053.6,
+        "replayed_per_error": null,
+        "p99_latency_ns": 84.6
+      },
+      "1e-05": {
+        "goodput": 724.1,
+        "lost_per_million": 76379.5,
+        "replayed_per_error": null,
+        "p99_latency_ns": 84.6
+      }
+    }
+  },
+  "e4_rules": {
+    "correct": {
+      "overflow_drops": 0,
+      "frames_lost": 0,
+      "cc_negative_events": 0,
+      "credits_falsely_reclaimed": 0,
+      "goodput_gbps": 380.4
+    },
+    "rule 1 broken (replays counted)": {
+      "overflow_drops": 0,
+      "frames_lost": 0,
+      "cc_negative_events": 0,
+      "credits_falsely_reclaimed": 27840,
+      "goodput_gbps": 372.4
+    },
+    "rule 2 broken (discards counted)": {
+      "overflow_drops": 0,
+      "frames_lost": 0,
+      "cc_negative_events": 210,
+      "credits_falsely_reclaimed": 0,
+      "goodput_gbps": 380.4
+    },
+    "rule 3 broken (CC_Update in discard window)": {
+      "overflow_drops": 42,
+      "frames_lost": 42,
+      "cc_negative_events": 25,
+      "credits_falsely_reclaimed": 2480,
+      "goodput_gbps": 36.8
+    }
+  },
+  "e5_outage": {
+    "100": {
+      "flushes": 0,
+      "timer_replays": 0,
+      "nacks": 1,
+      "frames_lost": 0,
+      "credits_reclaimed": 0,
+      "in_order": true
+    },
+    "300": {
+      "flushes": 0,
+      "timer_replays": 0,
+      "nacks": 1,
+      "frames_lost": 0,
+      "credits_reclaimed": 0,
+      "in_order": true
+    },
+    "1000": {
+      "flushes": 0,
+      "timer_replays": 1,
+      "nacks": 0,
+      "frames_lost": 0,
+      "credits_reclaimed": 0,
+      "in_order": true
+    },
+    "2000": {
+      "flushes": 0,
+      "timer_replays": 1,
+      "nacks": 1,
+      "frames_lost": 0,
+      "credits_reclaimed": 0,
+      "in_order": true
+    },
+    "3000": {
+      "flushes": 0,
+      "timer_replays": 2,
+      "nacks": 1,
+      "frames_lost": 0,
+      "credits_reclaimed": 0,
+      "in_order": true
+    },
+    "4000": {
+      "flushes": 0,
+      "timer_replays": 3,
+      "nacks": 1,
+      "frames_lost": 0,
+      "credits_reclaimed": 0,
+      "in_order": true
+    },
+    "6000": {
+      "flushes": 1,
+      "timer_replays": 3,
+      "nacks": 0,
+      "frames_lost": 10,
+      "credits_reclaimed": 160,
+      "in_order": true
+    },
+    "10000": {
+      "flushes": 1,
+      "timer_replays": 3,
+      "nacks": 0,
+      "frames_lost": 10,
+      "credits_reclaimed": 160,
+      "in_order": true
+    }
+  }
+}

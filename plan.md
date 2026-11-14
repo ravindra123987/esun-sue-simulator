@@ -88,7 +88,7 @@ Rules: public specs only, personal time and identity (no tool attribution). Chec
   - LLR on vs off: how many end-to-end retransmissions remain?
   - What happens to credit accounting when CBFC and LLR run together?
 
-**Deliverable:** `docs/experiments/llr-cbfc.md` with plots.
+**Deliverable:** `docs/experiments/llr-cbfc.md` with plots. *Status: first cut done on a single link (E1–E5); switch topology and a second VC are next.*
 
 ### M3: SUE-T endpoint in the simulator (2 weeks)
 - Per-{dstXPU, TC} transmit queues, packing, a 256 B maximum transaction size, and 2–4 traffic classes.
@@ -138,6 +138,6 @@ pcaps/golden/   reference captures
 - [x] What follows the ESUN header? Nothing in the frame says. SUE-T §7: "When using ESUN, the presence of the UEC transport is inferred by network wide configuration." **Decision:** a second config value `ESUN_PAYLOAD = rodl` (default), so the dissector decodes EH → RODL → SES without an in-band marker. (M1)
 - [ ] Do SUE-T load balancing and the ESUN flow label work together? The flow label must stay constant per PDC to keep ordering. (M0/M5)
 - [ ] SUE-T §7.6 balances each *packed group* across ports, but RODL needs one path per PDC. Is balancing only across PDCs? Model both readings in M5. See docs/delta-table.md open item 8.
-- [ ] LLR is "optional" in ESUN. What does SUE-T assume when LLR is off: does RODL take over all recovery? (M0/M2)
+- [x] LLR is "optional" in ESUN. What does SUE-T assume when LLR is off? **M2 E3:** every corrupted frame becomes an end-to-end loss for RODL Go-Back-N (or a dead PDC in SUE-lite); "lossless" at real error rates needs LLR or transport retransmission. See docs/experiments/llr-cbfc.md.
 - [ ] Should the user-space switch use AF_PACKET or AF_XDP? Benchmark in M4.
 - [ ] Wireshark CRC over UFH_16: the PSN is not on the wire. Track expected PSN per {src, dst, PDCID} conversation, and mark the CRC "unverified" after a gap rather than "bad"? Decide with the maintainers in M1b.

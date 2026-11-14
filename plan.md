@@ -109,6 +109,7 @@ pcaps/golden/   reference captures
 - [ ] Over ESUN, which bytes does the UET CRC cover, and which EH fields are masked (TTL/ECN are rewritten per hop)? Pick a rule and document it. (M1)
 - [x] ESUN EtherType (EH-ET) is unassigned (ESUN 1.0 §5.1). As of 2026-11-14 no public deployment, product, test tool or IETF draft uses a value (searched Keysight, Arista, Broadcom TH-Ultra, Meta Tahan, IETF SUNH). **Decision:** `ESUN_ETHERTYPE = 0x88B5` (IEEE 802 local experimental), one config value shared by the Scapy layer, Lua dissector and user-space switch. Recheck when ESUN 1.1 is released. (M1)
 - [x] What follows the ESUN header? Nothing in the frame says. SUE-T §7: "When using ESUN, the presence of the UEC transport is inferred by network wide configuration." **Decision:** a second config value `ESUN_PAYLOAD = rodl` (default), so the dissector decodes EH → RODL → SES without an in-band marker. (M1)
-- [ ] Do SUE-T load balancing and the ESUN flow label work together? SUE-T pins a PDC to one port; the flow label must stay constant per PDC to keep ordering. (M0/M5)
+- [ ] Do SUE-T load balancing and the ESUN flow label work together? The flow label must stay constant per PDC to keep ordering. (M0/M5)
+- [ ] SUE-T §7.6 balances each *packed group* across ports, but RODL needs one path per PDC. Is balancing only across PDCs? Model both readings in M5. See docs/delta-table.md open item 8.
 - [ ] LLR is "optional" in ESUN. What does SUE-T assume when LLR is off: does RODL take over all recovery? (M0/M2)
 - [ ] Should the user-space switch use AF_PACKET or AF_XDP? Benchmark in M4.

@@ -38,52 +38,55 @@ def first_ctlos(kind):
 
 SCENARIOS = [
     dict(id="clean", title="Clean link", sim_ns=400,
-         summary="A backlogged sender on an error-free 3 m link. The pipe fills, B acknowledges in every "
-                 "control slot, A's replay buffer stays about one link round trip deep, and credits come "
-                 "back as fast as they are spent.",
-         watch="The replay buffer (A) grows until the first ACK arrives, then stays level. Credits in use "
-               "stay flat: the 1024-credit pool is far more than this short link needs."),
+         summary="XPU A's NIC streams 1 KB frames to the switch over an error-free 3 m, 800G link. The pipe "
+                 "fills, the switch port ACKs in every control slot, the NIC's replay buffer stays about one "
+                 "link round trip deep, and credits come back as fast as they are spent.",
+         watch="The replay buffer in the NIC grows until the first ACK arrives, then stays level. Each frame "
+               "spends one serialisation time in the switch's ingress buffer and leaves on the egress port."),
     dict(id="bit-error", title="Bit error → NACK → replay", sim_ns=500,
          a2b=lambda: corrupt(frame_fid(12)),
-         summary="One frame is corrupted on the wire. B discards it, sends one NACK, drops the frames that "
-                 "follow, and A replays from its buffer. Nothing is lost.",
-         watch="B's next_rx_seq stops while the replayed frames (dashed) are on their way. The delivered "
-               "count pauses for about one round trip, then catches up in order."),
+         summary="One frame is corrupted on the cable. The switch port's FCS check fails, it sends one NACK, "
+                 "drops the frames that follow, and the NIC replays from its buffer. Nothing is lost.",
+         watch="The switch port's next_rx_seq stops while the replayed frames (dashed) are on their way. "
+               "Forwarding pauses for about one round trip, then catches up in order."),
     dict(id="lost-nack", title="Bit error and a lost NACK", sim_ns=900,
          a2b=lambda: corrupt(frame_fid(12)), b2a=lambda: corrupt(first_ctlos("LLR_NACK")),
          llr=dict(replay_timer_ns=300),
-         summary="The same error, but B's NACK is corrupted too. B stays silent (one NACK per error), so "
-                 "A only notices when its replay timer expires.",
+         summary="The same error, but the switch's NACK is corrupted on the way back. The switch stays silent "
+                 "(one NACK per error), so the NIC only notices when its replay timer expires.",
          watch="The replay starts a full replay-timer later than in the previous scenario (300 ns here, "
                "2 µs by default), which is why the timer must be short but never shorter than a round trip."),
-    dict(id="slow-receiver", title="Slow receiver: credits run out", sim_ns=700,
+    dict(id="slow-receiver", title="Small credit pool: credits run out", sim_ns=700,
          cbfc=dict(drain_gbps=400, total_credits=64),
-         summary="B's buffer holds only 64 credits (four 1 KB frames) and drains at 400 Gb/s. A must stop "
-                 "whenever its credits are used up and wait for CF_Updates.",
-         watch="A's credit bar hits the limit and the stall flag lights. Gaps open on the wire: the link "
-               "runs at the receiver's pace and nothing is ever dropped."),
+         summary="The switch gives this port only 64 credits of ingress buffer (four 1 KB frames), and its "
+                 "egress forwards at 400 Gb/s. Four frames' worth of credits cannot cover the credit loop "
+                 "(frame flight + control slot + CF_Update flight back, about 150 ns), so the NIC keeps "
+                 "running out and waiting for CF_Updates.",
+         watch="The NIC's credit gate sits at 64/64 and turns red while the switch's ingress buffer is "
+               "mostly empty: the credits are tied up in frames and CF_Updates on the cable. The link runs "
+               "below even the 400G egress (experiment E2 sizes the pool). Nothing is ever dropped."),
     dict(id="outage-short", title="Short outage: LLR absorbs it", sim_ns=1600,
          link=dict(down=[(150, 1000)]), llr=dict(replay_timer_ns=250, replay_ct_max=2),
          cbfc=dict(cc_interval_ns=350),
-         summary="The link drops for 850 ns. Every 250 ns A's replay timer expires and A replays into the "
-                 "dead link. The link returns before A runs out of retries, so the next replay gets through "
-                 "and nothing is lost.",
-         watch="Dashed replays die on the dead link until it comes back. The replay buffer never empties, "
-               "and B delivers the frames in order. Frames that arrived before the outage show up as "
-               "duplicates and are dropped."),
+         summary="The link drops for 850 ns. Every 250 ns the NIC's replay timer expires and it replays into "
+                 "the dead link. The link returns before the NIC runs out of retries, so the next replay gets "
+                 "through and nothing is lost.",
+         watch="Dashed replays die on the dead cable until it comes back. The replay buffer never empties, "
+               "and the switch forwards the frames in order. Frames that arrived before the outage show up "
+               "as duplicates and are dropped at the port."),
     dict(id="outage-flush", title="Long outage → FLUSH", sim_ns=2600,
          link=dict(down=[(150, 1400)]), llr=dict(replay_timer_ns=250, replay_ct_max=2),
          cbfc=dict(cc_interval_ns=350),
-         summary="The same link down for 1250 ns, longer than LLR will wait (250 ns timer, 2 retries). LLR "
-                 "gives up and flushes, resynchronises with INIT once the link is back, and CBFC's "
-                 "CC_Update returns the credits of the lost frames.",
-         watch="The replay buffer empties at FLUSH, INIT and INIT_ECHO cross, and A's credits in use drop "
-               "when the CC_Update shows the lost frames. Those frames are gone: only the transport can "
-               "resend them."),
+         summary="The same link down for 1250 ns, longer than LLR will wait (250 ns timer, 2 retries). The NIC "
+                 "gives up and flushes, resynchronises with INIT once the link is back, and CBFC's CC_Update "
+                 "returns the credits of the lost frames.",
+         watch="The replay buffer empties at FLUSH, INIT and INIT_ECHO cross the cable, and the credit gate "
+               "drops when the CC_Update shows the lost frames. Those frames are gone: only the transport "
+               "can resend them."),
     dict(id="no-llr", title="Same bit error without LLR", sim_ns=1200,
          a2b=lambda: corrupt(frame_fid(12)), llr=dict(enabled=False), cbfc=dict(cc_interval_ns=400),
-         summary="LLR turned off, as ESUN allows on host links. The corrupted frame is simply dropped; "
-                 "the next frames are delivered with a hole. Only the transport (RODL) could recover it.",
+         summary="LLR turned off, as ESUN allows on host links. The corrupted frame is dropped at the switch "
+                 "port; the next frames are forwarded with a hole. Only the transport (RODL) could recover it.",
          watch="No NACK, no replay, no replay buffer. The credits the lost frame used come back only when "
                "a CC_Update shows them missing."),
 ]

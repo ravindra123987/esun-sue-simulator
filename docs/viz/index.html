@@ -2,99 +2,71 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LLR + CBFC Packet Viewer</title>
+<title>Scale-up Packet Viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap">
 <style>
-/* Layout: scenario bar, then the live link (true scale), MAC state, a time-position ladder and the event captions. Colours follow the SUE-T Field Guide. */
+/* A device-level view of one scale-up hop: XPU A (HBM + on-die SUE NIC) cabled to a switch port.
+   Everything that moves comes from the simulator trace in traces.js. */
 :root{
-  --bg:#f4f6fa; --surface:#ffffff; --surface-2:#eaeff6; --fg:#14203a; --muted:#56627a; --line:#d4dce8; --accent:#2f6fde;
-  --data:#2f6fde; --cc:#4a8a12; --ack:#c2367a; --cf:#4a8a12; --init:#cf9200; --bad:#cf3b3b; --down:#8a94a6; --ok:#17914c;
-  --f-display:"Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --bg:#e9edf3; --surface:#ffffff; --surface-2:#eef2f7; --fg:#121a2b; --muted:#5a667c; --line:#cfd7e3; --accent:#1f6feb;
+  --canvas:#f3f6fa; --grid:#dde3ec; --chassis:#e2e8f0; --chassis-line:#8d9bb1; --block:#ffffff; --block-line:#b4c0d1; --block-hd:#f0f3f8;
+  --data:#1f6feb; --cc:#3f8f12; --ack:#c2367a; --cf:#2c9a5a; --init:#c98a00; --bad:#d93a3a; --down:#8a94a6; --ok:#17914c; --mem:#7b5cd6;
   --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#0d1320; --surface:#141c2b; --surface-2:#1a2436; --fg:#e5ebf5; --muted:#9ba8bf; --line:#2a3650; --accent:#6f9dff;
-  --data:#6f9dff; --cc:#9be05a; --ack:#ff7ab8; --cf:#9be05a; --init:#f1c24a; --bad:#ff6b6b; --down:#6b7690; --ok:#3fcf7f; color-scheme:dark }}
+  --bg:#070b12; --surface:#0f1622; --surface-2:#152031; --fg:#e4eaf4; --muted:#93a1b8; --line:#253248; --accent:#58a6ff;
+  --canvas:#0a1019; --grid:#152031; --chassis:#101826; --chassis-line:#3a4a66; --block:#152033; --block-line:#2d3d5a; --block-hd:#1b2940;
+  --data:#58a6ff; --cc:#8fdc4e; --ack:#ff7ab8; --cf:#3fd08a; --init:#f1c24a; --bad:#ff6363; --down:#66728a; --ok:#3fcf7f; --mem:#a98bff; color-scheme:dark }}
 :root[data-theme="dark"]{
-  --bg:#0d1320; --surface:#141c2b; --surface-2:#1a2436; --fg:#e5ebf5; --muted:#9ba8bf; --line:#2a3650; --accent:#6f9dff;
-  --data:#6f9dff; --cc:#9be05a; --ack:#ff7ab8; --cf:#9be05a; --init:#f1c24a; --bad:#ff6b6b; --down:#6b7690; --ok:#3fcf7f; color-scheme:dark }
+  --bg:#070b12; --surface:#0f1622; --surface-2:#152031; --fg:#e4eaf4; --muted:#93a1b8; --line:#253248; --accent:#58a6ff;
+  --canvas:#0a1019; --grid:#152031; --chassis:#101826; --chassis-line:#3a4a66; --block:#152033; --block-line:#2d3d5a; --block-hd:#1b2940;
+  --data:#58a6ff; --cc:#8fdc4e; --ack:#ff7ab8; --cf:#3fd08a; --init:#f1c24a; --bad:#ff6363; --down:#66728a; --ok:#3fcf7f; --mem:#a98bff; color-scheme:dark }
 
 *{box-sizing:border-box}
-body{background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:14.5px; line-height:1.5;
-  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:0 48px}
-.wrap{max-width:1180px; margin:0 auto; display:grid; gap:14px}
-h1,h2,h3{font-family:var(--f-display); line-height:1.15; text-wrap:balance; margin:0}
-h1{font-size:clamp(1.7rem, 3.6vw, 2.3rem); letter-spacing:-0.02em}
-h2{font-size:1.2rem}
-p{margin:0; max-width:80ch}
+body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:14px; line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:0 40px}
+.wrap{max-width:1520px; margin:0 auto; display:grid; gap:12px}
+h1,h2{line-height:1.15; margin:0; text-wrap:balance}
+h1{font-size:clamp(1.4rem, 2.6vw, 1.9rem); letter-spacing:-0.015em; font-weight:700}
+h2{font-size:1.05rem; font-weight:600}
+p{margin:0; max-width:90ch}
 code,.mono{font-family:var(--f-mono); font-size:.86em}
-.eyebrow{font-family:var(--f-mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.eyebrow{font-family:var(--f-mono); font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
 .muted{color:var(--muted)}
-header.top{display:grid; gap:8px; padding-block:28px 0}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:12px}
+header.top{display:grid; gap:6px; padding-block:22px 0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:10px}
 .tabs{display:flex; flex-wrap:wrap; gap:6px}
-.tabs button{font:inherit; font-size:.84rem; cursor:pointer; padding:6px 11px; border-radius:8px; color:var(--fg); background:var(--surface); border:1px solid var(--line)}
-.tabs button[aria-selected="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 9%, var(--surface))}
+.tabs button{font:inherit; font-size:.82rem; cursor:pointer; padding:6px 11px; border-radius:7px; color:var(--fg); background:var(--surface); border:1px solid var(--line)}
+.tabs button[aria-selected="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 10%, var(--surface))}
 button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-.scn{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px 22px; padding:14px 16px}
-.scn .cfg{font-family:var(--f-mono); font-size:.74rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 12px}
-.scn .watch{font-size:.86rem; color:var(--muted)}
+.scn{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:8px 22px; padding:12px 16px}
+.scn .cfg{font-family:var(--f-mono); font-size:.72rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 12px}
+.scn .watch{font-size:.85rem; color:var(--muted)}
 .scn .watch b{color:var(--fg); font-weight:600}
 @media (max-width:820px){ .scn{grid-template-columns:1fr} }
 
-/* controls */
 .ctl{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 14px}
-.ctl button{font:inherit; font-size:.84rem; cursor:pointer; padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--fg); min-width:40px}
-.ctl button.primary{background:var(--accent); border-color:var(--accent); color:var(--surface); font-weight:600; min-width:76px}
+.ctl button{font:inherit; font-size:.82rem; cursor:pointer; padding:6px 11px; border-radius:7px; border:1px solid var(--line); background:var(--surface-2); color:var(--fg); min-width:40px}
+.ctl button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; min-width:76px}
 .ctl label{font-size:.8rem; color:var(--muted); display:inline-flex; gap:6px; align-items:center}
 .ctl select{font:inherit; font-size:.8rem; padding:4px 6px; border-radius:6px; border:1px solid var(--line); background:var(--surface); color:var(--fg)}
-.clock{font-family:var(--f-mono); font-size:.95rem; font-variant-numeric:tabular-nums; min-width:150px}
-.tl{padding:6px 14px 12px; display:grid; gap:2px}
-.tl canvas{width:100%; height:18px; display:block; cursor:pointer}
+.clock{font-family:var(--f-mono); font-size:.95rem; font-variant-numeric:tabular-nums; min-width:140px}
+.tl{padding:4px 14px 10px; display:grid; gap:2px}
+.tl canvas{width:100%; height:16px; display:block; cursor:pointer}
 .tl input{width:100%; margin:0}
 
-/* link + ladder canvases */
 .scroll{overflow-x:auto}
-#cLink{display:block; width:100%; min-width:660px; height:230px}
-#cLadder{display:block; width:100%; min-width:660px; height:300px}
+#cNet{display:block; width:100%; min-width:1000px; aspect-ratio:1300 / 540; border-top:1px solid var(--line)}
+#cLadder{display:block; width:100%; min-width:660px; height:280px}
 
-/* MAC state */
-.macs{display:grid; grid-template-columns:1fr 1fr; gap:14px}
-@media (max-width:820px){ .macs{grid-template-columns:1fr} }
-.mac{padding:12px 14px; display:grid; gap:8px; min-width:0}
-.mac h2{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
-.mac h2 small{font-family:var(--f-body); font-size:.78rem; color:var(--muted); font-weight:400}
-.kv{display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:6px 12px}
-.kv div{display:grid; gap:0}
-.kv span{font-size:.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em}
-.kv b{font-family:var(--f-mono); font-size:.92rem; font-weight:600; font-variant-numeric:tabular-nums}
-.pill{display:inline-block; font-family:var(--f-mono); font-size:.76rem; padding:1px 8px; border-radius:999px; border:1px solid var(--line); background:var(--surface-2)}
-.pill.ADVANCE,.pill.SEND_ACKS{border-color:var(--ok); color:var(--ok)}
-.pill.REPLAY,.pill.SEND_NACK,.pill.NACK_SENT{border-color:var(--ack); color:var(--ack)}
-.pill.INIT{border-color:var(--init); color:var(--init)}
-.pill.FLUSH,.pill.stall{border-color:var(--bad); color:var(--bad)}
-.pill.off{opacity:.35}
-.sub{font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em}
-.cells{display:flex; flex-wrap:wrap; gap:2px; min-height:20px}
-.cells i{font-style:normal; font-family:var(--f-mono); font-size:.66rem; min-width:24px; text-align:center; padding:1px 2px; border-radius:3px;
-  background:color-mix(in srgb, var(--data) 18%, var(--surface)); border:1px solid color-mix(in srgb, var(--data) 50%, transparent)}
-.cells i.rp{background:color-mix(in srgb, var(--ack) 18%, var(--surface)); border-color:color-mix(in srgb, var(--ack) 55%, transparent)}
-.cells em{font-style:normal; font-size:.75rem; color:var(--muted)}
-.bar{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center}
-.bar .track{height:10px; border-radius:5px; background:var(--surface-2); border:1px solid var(--line); overflow:hidden}
-.bar .fill{height:100%; background:var(--cf); transition:width .08s linear}
-.bar .fill.hi{background:var(--bad)}
-.bar b{font-family:var(--f-mono); font-size:.8rem; font-variant-numeric:tabular-nums}
-
-/* captions */
-.notes{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px}
+.notes{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px}
 @media (max-width:820px){ .notes{grid-template-columns:1fr} }
 .now{padding:14px 16px; display:grid; gap:6px; align-content:start}
 .now .txt{font-size:1rem}
-.log{padding:8px; max-height:260px; overflow:auto; display:grid; gap:2px; align-content:start}
+.log{padding:8px; max-height:300px; overflow:auto; display:grid; gap:2px; align-content:start}
 .log button{font:inherit; text-align:left; cursor:pointer; display:grid; grid-template-columns:72px minmax(0,1fr); gap:8px; padding:5px 8px; border-radius:6px; border:1px solid transparent; background:none; color:var(--fg); font-size:.8rem}
 .log button:hover{background:var(--surface-2)}
 .log button.past{color:var(--muted)}
@@ -102,17 +74,18 @@ button:focus-visible, input:focus-visible, select:focus-visible{outline:2px soli
 .log button span:first-child{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
 .legend{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.78rem; color:var(--muted); padding:0 2px}
 .legend span{display:inline-flex; gap:6px; align-items:center}
-.legend i{width:20px; height:11px; border-radius:3px; border:1.6px solid var(--k); background:color-mix(in srgb, var(--k) 22%, var(--surface))}
+.legend i{width:22px; height:11px; border-radius:2px; border:1.5px solid var(--k); background:color-mix(in srgb, var(--k) 25%, var(--surface)); position:relative}
+.legend i.h::before{content:""; position:absolute; right:0; top:0; bottom:0; width:5px; background:var(--k)}
 .legend i.d{border-style:dashed}
-footer{font-size:.82rem; color:var(--muted); border-top:1px solid var(--line); padding-top:14px; display:grid; gap:6px}
+footer{font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); padding-top:12px; display:grid; gap:6px}
 .err{padding:16px; color:var(--bad)}
 </style>
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">esun-sue-simulator · sim/ traces · UEC 1.1 §5.1 LLR, §5.2 CBFC</div>
-    <h1>LLR + CBFC Packet Viewer</h1>
-    <p class="muted">Replays what the link simulator actually did: every frame, every control block and every state change of the two MACs on one 800G link. Frames are drawn to scale; a 1 KB frame is about 10 ns long on a 64 ns link.</p>
+    <div class="eyebrow">esun-sue-simulator · trace replay · UEC 1.1 §5.1 LLR · §5.2 CBFC</div>
+    <h1>Scale-up Packet Viewer: XPU NIC → switch port</h1>
+    <p class="muted">One hop of a scale-up network, replayed from the discrete-event simulator. XPU A's on-die SUE NIC sends 1 KB frames over an 800G cable to port 1 of an ESUN switch, which buffers them and forwards them out of port 7. Every packet, control block, counter and buffer slot below comes from the trace; frames on the cable are drawn to scale.</p>
   </header>
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="Scenario"></nav>
@@ -138,20 +111,13 @@ footer{font-size:.82rem; color:var(--muted); border-top:1px solid var(--line); p
           <option value="25">25 ns/s</option><option value="60">60 ns/s</option><option value="150">150 ns/s</option>
         </select></label>
       <label for="pauseAt"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
-      <label for="span">Ladder window
-        <select id="span"><option value="120">120 ns</option><option value="250" selected>250 ns</option><option value="500">500 ns</option><option value="1000">1 µs</option></select></label>
     </div>
     <div class="tl">
       <canvas id="cMarks" aria-hidden="true"></canvas>
       <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
     </div>
-    <div class="scroll"><canvas id="cLink" aria-label="Link view"></canvas></div>
+    <div class="scroll"><canvas id="cNet" aria-label="Network view: XPU A, its NIC, the cable and the switch"></canvas></div>
   </section>
-
-  <div class="macs">
-    <section class="card mac" id="macA"></section>
-    <section class="card mac" id="macB"></section>
-  </div>
 
   <div class="notes">
     <section class="card now" aria-live="polite">
@@ -163,24 +129,28 @@ footer{font-size:.82rem; color:var(--muted); border-top:1px solid var(--line); p
   </div>
 
   <section class="card">
-    <div class="ctl" style="padding-bottom:0"><span class="eyebrow">Ladder: time runs down, now is the bottom edge</span></div>
-    <div class="scroll"><canvas id="cLadder" aria-label="Time-position ladder diagram"></canvas></div>
+    <div class="ctl" style="padding-bottom:0">
+      <span class="eyebrow">Flow graph · NIC port 0 ↔ switch port 1 · time runs down, now is the bottom edge</span>
+      <label for="span" style="margin-left:auto">Window
+        <select id="span"><option value="120">120 ns</option><option value="250" selected>250 ns</option><option value="500">500 ns</option><option value="1000">1 µs</option></select></label>
+    </div>
+    <div class="scroll"><canvas id="cLadder" aria-label="Flow graph"></canvas></div>
   </section>
 
   <div class="legend">
-    <span><i style="--k:var(--data)"></i>data frame (label = LLR seq)</span>
-    <span><i class="d" style="--k:var(--data)"></i>replayed frame</span>
-    <span><i style="--k:var(--cc)"></i>CC_Update frame</span>
+    <span><i class="h" style="--k:var(--data)"></i>data frame (header at the front, label = LLR seq)</span>
+    <span><i class="h d" style="--k:var(--data)"></i>replayed frame</span>
+    <span><i class="h" style="--k:var(--cc)"></i>CC_Update frame</span>
     <span><i style="--k:var(--ack)"></i>LLR ACK / NACK</span>
-    <span><i style="--k:var(--cf)"></i>CF_Update</span>
+    <span><i style="--k:var(--cf)"></i>CF_Update (credits back)</span>
     <span><i style="--k:var(--init)"></i>INIT / INIT_ECHO</span>
-    <span><i style="--k:var(--bad)"></i>corrupted</span>
+    <span><i style="--k:var(--bad)"></i>FCS error</span>
     <span><i class="d" style="--k:var(--down)"></i>lost: link down</span>
   </div>
 
   <footer>
-    <div>Traces are generated by <code>tools/make_traces.py</code>, which runs <code>sim/</code> with tracing on. Captions come from <code>sim/trace.py</code> and are derived from the events, not written per scenario. Control blocks (8 B) are really 0.08 ns long; they are drawn wider so you can see them.</div>
-    <div>Model limits (see <code>docs/experiments/llr-cbfc.md</code>): one link, one VC, both ends start initialised, no PCS-status timer.</div>
+    <div><b>How the model maps to the hardware.</b> The simulator models one full-duplex link. Its sender is drawn as XPU A's NIC: an always-full send queue in HBM, the CBFC credit gate, LLR transmit with its replay buffer, and the MAC/PCS/SerDes. Its receiver is drawn as switch port 1: FCS check and LLR receive, then the lossless ingress buffer that CBFC credits describe. The receiver's drain rate is drawn as the egress port forwarding at that rate. Control blocks (8 B) ride in fixed slots every 2048 B of link time and are drawn wider than their true 0.08 ns.</div>
+    <div><b>Not modelled yet</b> (drawn dimmed): the switch's parse/lookup/scheduling latency (0 ns here), the second hop to XPU B, and DMA timing from HBM. One VC, both ends start initialised, no PCS-status timer. Traces: <code>tools/make_traces.py</code>; captions: <code>sim/trace.py</code>; limits: <code>docs/experiments/llr-cbfc.md</code>.</div>
   </footer>
 </div>
 
@@ -194,257 +164,445 @@ if (!TR || !TR.length){
   document.querySelector(".wrap").insertAdjacentHTML("beforeend", '<div class="card err">traces.js did not load. Run <code>tools/make_traces.py</code> and open this page next to it.</div>');
   return;
 }
+const ALL1 = (1 << 20) - 1;
 
-// ---------- data prep ----------
+// ---------------------------------------------------------------- data prep
 function prep(tr){
-  const frames = [], ctl = [], snaps = {A:[], B:[]}, rx = [], deliv = [];
+  const frames = [], ctl = [], snaps = {A:[], B:[]}, rx = [], deliv = [], acc = new Map();
   for (const e of tr.events){
-    if (e.ev === "frame") frames.push(e);
+    if (e.ev === "frame"){ if (e.dir === "a2b") frames.push(e); }
     else if (e.ev === "ctlos") ctl.push(e);
     else if (e.ev === "mac") snaps[e.mac].push(e);
-    else if (e.ev === "rx") rx.push(e);
-    else if (e.ev === "deliver") deliv.push(e.t);
+    else if (e.ev === "rx" && e.mac === "B"){ rx.push(e); if (e.res === "accept" && e.kind === "data" && !acc.has(e.fid)) acc.set(e.fid, e); }
+    else if (e.ev === "deliver") deliv.push(e);
   }
-  // replayed seqs for colouring buffer cells: seq -> first replay time
-  return Object.assign({}, tr, {frames, ctl, snaps, rx, deliv, dur:tr.cfg.sim_ns, prop:tr.cfg.prop_ns});
+  // switch ingress buffer: a frame enters when the port accepts it and leaves through the egress port,
+  // which takes size / drain rate (the drain the simulator models)
+  const egNs = tr.cfg.frame / (tr.cfg.cbfc.drain_gbps / 8);
+  const qitems = deliv.map(e => { const a = acc.get(e.fid); return {fid:e.fid, seq:a ? a.seq : null, tin:a ? a.t : e.t - egNs, ts:e.t - egNs, te:e.t, lat:e.lat}; });
+  const firsts = frames.filter(f => f.kind === "data" && !f.replay).map(f => f.t0);
+  return Object.assign({}, tr, {frames, ctl, snaps, rx, deliv, qitems, firsts, egNs, dur:tr.cfg.sim_ns, prop:tr.cfg.prop_ns});
 }
 const D = TR.map(prep);
 const lastAt = (arr, t) => { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi){ const m = (lo + hi) >> 1; if (arr[m].t <= t){ r = m; lo = m + 1; } else hi = m - 1; } return r; };
-const countAt = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m + 1; else hi = m; } return lo; };
+const countLE = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m + 1; else hi = m; } return lo; };
+const isDown = (d, t) => d.cfg.down.some(([a,b]) => a <= t && t < b);
 
-// ---------- theme ----------
+// ---------------------------------------------------------------- theme + canvas helpers
 let C = {};
-function readTheme(){
-  const cs = getComputedStyle(document.documentElement);
-  for (const k of ["bg","surface","surface-2","fg","muted","line","accent","data","cc","ack","cf","init","bad","down","ok"]) C[k] = cs.getPropertyValue("--" + k).trim();
-}
+const TOK = ["bg","surface","surface-2","fg","muted","line","accent","canvas","grid","chassis","chassis-line","block","block-line","block-hd","data","cc","ack","cf","init","bad","down","ok","mem"];
+function readTheme(){ const cs = getComputedStyle(document.documentElement); for (const k of TOK) C[k] = cs.getPropertyValue("--" + k).trim(); }
 readTheme();
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); draw(); });
-new MutationObserver(() => { readTheme(); draw(); }).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); drawAll(); });
+new MutationObserver(() => { readTheme(); drawAll(); }).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
 const alpha = (hex, a) => { const m = hex.replace("#",""); const n = parseInt(m.length === 3 ? m.split("").map(x=>x+x).join("") : m, 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; };
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace", BODY = "Inter, system-ui, sans-serif";
 
-function fit(cv){
+function fit(cv, lw, lh){
   const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
   if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
-  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return [g, r.width, r.height];
+  const g = cv.getContext("2d");
+  if (lw) g.setTransform(dpr * r.width / lw, 0, 0, dpr * r.height / lh, 0, 0);
+  else g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [g, lw || r.width, lh || r.height];
 }
-function rrect(g, x, y, w, h, r){ g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
-
-const ctlStyle = k => ({LLR_ACK:["ack","A"], LLR_NACK:["ack","NACK"], CF_UPDATE:["cf","CF"], LLR_INIT:["init","INIT"], LLR_INIT_ECHO:["init","ECHO"]}[k] || ["muted", k]);
-const isDown = (d, t) => d.cfg.down.some(([a,b]) => a <= t && t < b);
-const ALL1 = (1 << 20) - 1;
-
-// ---------- link view ----------
-function drawLink(d, t){
-  const [g, W, H] = fit($("cLink"));
-  g.clearRect(0, 0, W, H);
-  const mw = 112, xa = mw + 14, xb = W - mw - 14, L = xb - xa;
-  const yF = 92, yR = 168, fh = 30;
-  const down = isDown(d, t);
-  // MAC boxes
-  for (const [x, name, sub] of [[0, "MAC A", "sender"], [W - mw, "MAC B", "receiver"]]){
-    g.fillStyle = C["surface-2"]; g.strokeStyle = C.line; g.lineWidth = 1; rrect(g, x + .5, 40.5, mw - 1, 160, 10); g.fill(); g.stroke();
-    g.fillStyle = C.fg; g.font = "600 14px " + getComputedStyle(document.body).getPropertyValue("--f-display"); g.textAlign = "center";
-    g.fillText(name, x + mw/2, 66); g.fillStyle = C.muted; g.font = "11px Inter, system-ui, sans-serif"; g.fillText(sub, x + mw/2, 82);
+function rr(g, x, y, w, h, r){ g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
+function T(g, s, x, y, o = {}){
+  g.font = `${o.w || 500} ${o.s || 10}px ${o.mono === false ? BODY : MONO}`;
+  g.fillStyle = o.c || C.fg; g.textAlign = o.a || "left"; g.textBaseline = o.b || "alphabetic";
+  g.fillText(s, x, y);
+}
+function block(g, x, y, w, h, title, o = {}){
+  rr(g, x + .5, y + .5, w - 1, h - 1, 5);
+  g.fillStyle = o.fill || C.block; g.fill();
+  g.strokeStyle = o.hot ? o.hot : C["block-line"]; g.lineWidth = o.hot ? 1.6 : 1;
+  g.setLineDash(o.dim ? [4,3] : []); g.stroke(); g.setLineDash([]);
+  if (title){
+    g.save(); rr(g, x + .5, y + .5, w - 1, 17, [5,5,0,0]); g.clip();
+    g.fillStyle = o.hot ? alpha(o.hot, .18) : C["block-hd"]; g.fillRect(x, y, w, 17); g.restore();
+    T(g, title, x + 6, y + 12, {s:8.6, w:700, c:o.dim ? C.muted : C.fg});
   }
-  // lanes
-  g.lineWidth = 1.5; g.setLineDash(down ? [5,5] : []);
-  g.strokeStyle = down ? C.bad : C.line;
-  for (const y of [yF, yR]){ g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.stroke(); }
+}
+function chassis(g, x, y, w, h, title, sub){
+  rr(g, x, y, w, h, 9); g.fillStyle = C.chassis; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1.4; g.stroke();
+  g.fillStyle = alpha(C["chassis-line"], .25); for (const [cx, cy] of [[x+9,y+9],[x+w-9,y+9],[x+9,y+h-9],[x+w-9,y+h-9]]){ g.beginPath(); g.arc(cx, cy, 2.6, 0, 7); g.fill(); }
+  T(g, title, x + 20, y + 22, {s:12.5, w:700, mono:false});
+  if (sub) T(g, sub, x + 20, y + 36, {s:9, c:C.muted});
+}
+function led(g, x, y, col, on){ g.beginPath(); g.arc(x, y, 3.4, 0, 7); g.fillStyle = on ? col : alpha(col, .25); g.fill();
+  if (on){ g.beginPath(); g.arc(x, y, 6, 0, 7); g.fillStyle = alpha(col, .18); g.fill(); } }
+function arrow(g, x0, y0, x1, y1, col, active, t, label){
+  g.strokeStyle = active ? col : alpha(C.muted, .45); g.lineWidth = active ? 2 : 1.2;
+  g.setLineDash(active ? [6,4] : []); g.lineDashOffset = active ? -t * 1.5 : 0;
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
+  const a = Math.atan2(y1 - y0, x1 - x0), s = 6;
+  g.fillStyle = active ? col : alpha(C.muted, .6);
+  g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - s*Math.cos(a - .45), y1 - s*Math.sin(a - .45)); g.lineTo(x1 - s*Math.cos(a + .45), y1 - s*Math.sin(a + .45)); g.closePath(); g.fill();
+  if (label) T(g, label, (x0 + x1)/2, (y0 + y1)/2 - 5, {s:7.6, a:"center", c:active ? col : C.muted, w:600});
+}
+// a packet: payload body plus a solid header band at the leading edge
+function pkt(g, x, y, w, h, col, label, o = {}){
+  const dir = o.dir || 1;
+  rr(g, x, y, Math.max(2, w), h, 2.5); g.fillStyle = alpha(col, o.op != null ? o.op : .26); g.fill();
+  g.setLineDash(o.dash ? [4,2.5] : []); g.strokeStyle = col; g.lineWidth = 1.3; g.stroke(); g.setLineDash([]);
+  const hw = Math.min(6, w * .22);
+  if (w > 6){ g.fillStyle = col; dir > 0 ? g.fillRect(x + w - hw, y + 1, hw - 1, h - 2) : g.fillRect(x + 1, y + 1, hw - 1, h - 2); }
+  if (label && w > 22) T(g, label, x + w/2 - dir * hw/2, y + h/2 + .5, {s:o.fs || 9, w:700, a:"center", b:"middle", c:o.tc || C.fg});
+}
+const ctlStyle = k => ({LLR_ACK:["ack","ACK"], LLR_NACK:["ack","NACK"], CF_UPDATE:["cf","CF"], LLR_INIT:["init","INIT"], LLR_INIT_ECHO:["init","ECHO"]}[k] || ["muted", k]);
+const ctlLabel = c => { const [, lab] = ctlStyle(c.kind); return (c.kind === "LLR_ACK" || c.kind === "LLR_NACK" || c.kind === "LLR_INIT" || c.kind === "LLR_INIT_ECHO") ? `${lab} ${c.seq === ALL1 ? "–" : c.seq}` : (c.cf != null ? `CF ${c.cf}` : lab); };
+
+// ---------------------------------------------------------------- layout (logical units)
+const W = 1300, H = 540;
+const LTX = 176, LRX = 276;                  // cable lanes
+const XA = 410, XB = 828;                    // cable ends (NIC port 0, switch port 1)
+const B_ = {
+  host:[12,44,398,476], hbm:[26,104,104,402], nic:[140,74,262,438],
+  gate:[150,120,78,382], llr:[236,120,92,112], ser:[334,120,62,112], nrx:[236,246,160,60], rbuf:[236,318,160,184],
+  sw:[XB,44,402,476], prx:[842,120,104,112], ptx:[842,246,104,60], ibuf:[958,120,116,382],
+  pipe:[1086,120,62,186], eg:[1158,120,62,112], stats:[1086,318,134,184],
+};
+
+function drawNet(d, t){
+  const [g] = fit($("cNet"), W, H);
+  g.fillStyle = C.canvas; g.fillRect(0, 0, W, H);
+  g.fillStyle = C.grid; for (let x = 10; x < W; x += 20) for (let y = 10; y < H; y += 20) g.fillRect(x, y, 1.2, 1.2);
+  const down = isDown(d, t), llrOn = d.cfg.llr.enabled;
+  const a = d.snaps.A[Math.max(0, lastAt(d.snaps.A, t))], b = d.snaps.B[Math.max(0, lastAt(d.snaps.B, t))];
+  const ser = d.frames.find(f => f.t0 <= t && t < f.t1);                     // frame being serialised by the NIC
+  const rxRecent = (() => { for (let i = lastAt(d.rx, t); i >= 0; i--){ const r = d.rx[i]; if (t - r.t > 12) break; return r; } return null; })();
+  const ctlIn = (() => { let r = null; for (const c of d.ctl) if (c.dir === "b2a" && c.fate === "ok" && c.arrive <= t && t - c.arrive < 14) r = c; return r; })();
+  const ctlOut = (() => { let r = null; for (const c of d.ctl) if (c.dir === "b2a" && c.t1 <= t && t - c.t1 < 14) r = c; return r; })();
+  const queued = d.qitems.filter(q => q.tin <= t && t < q.ts), egr = d.qitems.find(q => q.ts <= t && t < q.te);
+  const fwd = countLE(d.qitems.map(q => q.te), t);
+
+  // ---------------- XPU A host + NIC
+  chassis(g, ...B_.host, "XPU A", "");
+  T(g, "accelerator · HBM + on-die NIC", B_.host[0] + 70, B_.host[1] + 22, {s:8.4, c:C.muted});
+  // HBM
+  block(g, ...B_.hbm, "HBM", {fill:alpha(C.mem, .06)});
+  { const [x, y, w, h] = B_.hbm;
+    for (let i = 0; i < 4; i++){ g.fillStyle = alpha(C.mem, .14); g.fillRect(x + 8 + i * 23, y + 24, 19, 26); g.strokeStyle = alpha(C.mem, .5); g.strokeRect(x + 8.5 + i * 23, y + 24.5, 18, 25); }
+    T(g, "send queue", x + 8, y + 66, {s:8.4, w:700, c:C.mem});
+    T(g, "1 KB messages", x + 8, y + 78, {s:7.6, c:C.muted});
+    const next = countLE(d.firsts, t) + 1;
+    for (let i = 0; i < 12; i++){
+      const yy = y + 90 + i * 24; if (yy + 18 > y + h - 32) break;
+      pkt(g, x + 10, yy, w - 20, 17, C.data, "#" + (next + i), {op: i === 0 ? .32 : .12, fs:8.4});
+    }
+    T(g, "backlogged source", x + 8, y + h - 18, {s:7.4, c:C.muted});
+    T(g, "(always full)", x + 8, y + h - 8, {s:7.4, c:C.muted});
+  }
+  // NIC
+  rr(g, B_.nic[0], B_.nic[1], B_.nic[2], B_.nic[3], 7); g.fillStyle = alpha(C.accent, .04); g.fill(); g.strokeStyle = alpha(C.accent, .5); g.lineWidth = 1.2; g.setLineDash([5,3]); g.stroke(); g.setLineDash([]);
+  T(g, "SUE NIC · port 0 · 800G", B_.nic[0] + 10, B_.nic[1] + 16, {s:9.4, w:700, c:C.accent});
+  T(g, "CBFC", B_.nic[0] + 10, B_.nic[1] + 30, {s:7.6, c:C.muted}); T(g, "LLR TX", B_.llr[0] + 4, B_.nic[1] + 30, {s:7.6, c:C.muted}); T(g, "PHY", B_.ser[0] + 4, B_.nic[1] + 30, {s:7.6, c:C.muted});
+
+  // DMA arrow (timing not modelled)
+  const newSer = ser && !ser.replay && ser.kind === "data";
+  arrow(g, B_.hbm[0] + B_.hbm[2], LTX, B_.gate[0], LTX, C.data, newSer, t, "DMA");
+
+  // credit gate
+  { const [x, y, w, h] = B_.gate, st = a.stalled && d.cfg.cbfc.total_credits;
+    block(g, x, y, w, h, "Credit gate", {hot: st ? C.bad : null});
+    const gx = x + 24, gy = y + 66, gh = h - 130, frac = Math.min(1, a.cr_used / a.cl);
+    rr(g, gx, gy, 30, gh, 4); g.fillStyle = C["surface-2"]; g.fill(); g.strokeStyle = C["block-line"]; g.stroke();
+    g.fillStyle = frac > .9 ? C.bad : C.cf; rr(g, gx + 2, gy + gh - 2 - (gh - 4) * frac, 26, (gh - 4) * frac, 3); g.fill();
+    for (let k = 1; k < 4; k++){ g.strokeStyle = alpha(C.muted, .35); g.beginPath(); g.moveTo(gx - 4, gy + gh * k / 4); g.lineTo(gx, gy + gh * k / 4); g.stroke(); }
+    T(g, "credits in use", x + 6, y + 30, {s:7.4, c:C.muted});
+    T(g, `${a.cr_used}`, x + w/2, y + 46, {s:13, w:700, a:"center"});
+    T(g, `of ${a.cl} × 64 B`, x + w/2, y + 58, {s:7.4, a:"center", c:C.muted});
+    T(g, "1 KB = 16 cr", x + w/2, y + h - 54, {s:7.4, a:"center", c:C.muted});
+    if (st){ rr(g, x + 6, y + h - 44, w - 12, 30, 4); g.fillStyle = alpha(C.bad, .16); g.fill(); g.strokeStyle = C.bad; g.stroke();
+      T(g, "STALLED", x + w/2, y + h - 31, {s:8.6, w:700, a:"center", c:C.bad}); T(g, "wait for CF", x + w/2, y + h - 20, {s:7.2, a:"center", c:C.bad}); }
+    else T(g, "open", x + w/2, y + h - 24, {s:8.6, w:700, a:"center", c:C.ok});
+  }
+  arrow(g, B_.gate[0] + B_.gate[2], LTX, B_.llr[0], LTX, C.data, newSer, t);
+
+  // LLR TX
+  { const [x, y, w, h] = B_.llr;
+    const sc = {ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[a.llr] || C.muted;
+    block(g, x, y, w, h, "LLR transmit", {hot: llrOn && a.llr !== "ADVANCE" ? sc : null, dim:!llrOn});
+    if (!llrOn){ T(g, "LLR off", x + w/2, y + 60, {s:10, w:700, a:"center", c:C.muted}); }
+    else {
+      rr(g, x + 6, y + 23, w - 12, 15, 7.5); g.fillStyle = alpha(sc, .16); g.fill(); g.strokeStyle = sc; g.lineWidth = 1.2; g.stroke();
+      T(g, a.llr, x + w/2, y + 31, {s:8.4, w:700, a:"center", b:"middle", c:sc});
+      const rows = [["next seq", a.tx_seq], ["acked", a.acked === ALL1 ? "–" : a.acked], ["retries", `${a.replay_ct}/${d.cfg.llr.replay_ct_max}`]];
+      rows.forEach(([k, v], i) => { T(g, k, x + 7, y + 54 + i * 13, {s:7.6, c:C.muted}); T(g, String(v), x + w - 7, y + 54 + i * 13, {s:8.6, w:700, a:"right"}); });
+      led(g, x + 12, y + h - 10, C.init, a.timer); T(g, a.timer ? "timer running" : "timer idle", x + 20, y + h - 7, {s:7, c:a.timer ? C.init : C.muted});
+    }
+  }
+  arrow(g, B_.llr[0] + B_.llr[2], LTX, B_.ser[0], LTX, C.data, !!ser, t);
+
+  // MAC / PCS / SerDes TX
+  { const [x, y, w, h] = B_.ser;
+    block(g, x, y, w, h, "MAC·PHY", {hot: ser ? C.data : null});
+    T(g, "PCS", x + 6, y + 30, {s:7.4, c:C.muted}); T(g, "SerDes TX", x + 6, y + 40, {s:7.4, c:C.muted});
+    if (ser){
+      const p = (t - ser.t0) / (ser.t1 - ser.t0);
+      const col = ser.kind === "cc_update" ? C.cc : C.data;
+      pkt(g, x + 6, LTX - 9, w - 12, 18, col, ser.kind === "cc_update" ? "CC" : (ser.seq ?? "#" + ser.fid), {dash:ser.replay, fs:8.6});
+      rr(g, x + 6, y + h - 22, w - 12, 5, 2.5); g.fillStyle = C["surface-2"]; g.fill();
+      g.fillStyle = col; rr(g, x + 6, y + h - 22, (w - 12) * p, 5, 2.5); g.fill();
+      T(g, ser.replay ? "replaying" : "serialising", x + w/2, y + h - 7, {s:7, a:"center", c:ser.replay ? C.ack : C.muted});
+    } else T(g, "idle", x + w/2, LTX + 3, {s:8, a:"center", c:C.muted});
+  }
+
+  // replay buffer (NIC SRAM)
+  { const [x, y, w, h] = B_.rbuf;
+    block(g, x, y, w, h, "Replay buffer · NIC SRAM", {dim:!llrOn, fill: llrOn ? alpha(C.mem, .05) : null});
+    if (!llrOn) T(g, "not used (LLR off)", x + w/2, y + h/2, {s:8.6, a:"center", c:C.muted});
+    else {
+      const kb = a.out_data / 1024, rep = a.llr === "REPLAY";
+      T(g, `${a.buf.length} frames · ${kb.toFixed(0)} KB of 64 KB`, x + 7, y + 31, {s:7.8, c:C.muted});
+      const cols = 8, cw = 17.5, ch = 13, gx = x + 6, gy = y + 40;
+      a.buf.slice(0, 64).forEach((s, i) => {
+        const cx = gx + (i % cols) * (cw + 1.8), cy = gy + Math.floor(i / cols) * (ch + 3);
+        const live = ser && ser.replay && ser.seq === s;
+        rr(g, cx, cy, cw, ch, 2); g.fillStyle = live ? C.ack : alpha(rep ? C.ack : C.data, .2); g.fill();
+        g.strokeStyle = rep ? C.ack : alpha(C.data, .7); g.lineWidth = 1; g.stroke();
+        T(g, String(s), cx + cw/2, cy + ch/2 + .5, {s:7, w:600, a:"center", b:"middle", c:live ? C.surface : C.fg});
+      });
+      if (a.buf.length > 64) T(g, `+${a.buf.length - 64}`, x + w - 8, y + h - 6, {s:7.4, a:"right", c:C.muted});
+      if (!a.buf.length) T(g, "empty", x + w/2, y + 90, {s:8.6, a:"center", c:C.muted});
+    }
+  }
+  // replay path: buffer -> serdes
+  if (llrOn) arrow(g, B_.ser[0] + 31, B_.rbuf[1], B_.ser[0] + 31, B_.ser[1] + B_.ser[3], C.ack, !!(ser && ser.replay), t);
+  // copy into replay buffer
+  if (llrOn) arrow(g, B_.llr[0] + 30, B_.llr[1] + B_.llr[3], B_.llr[0] + 30, B_.rbuf[1], C.mem, !!(newSer), t, "copy");
+
+  // NIC RX: CtlOS decode
+  { const [x, y, w, h] = B_.nrx;
+    block(g, x, y, w, h, "SerDes RX · CtlOS decode", {hot: ctlIn ? C[ctlStyle(ctlIn.kind)[0]] : null});
+    if (ctlIn){
+      const k = ctlIn.kind, s = ctlIn.seq;
+      const what = k === "LLR_ACK" ? `frees replay slots ≤ ${s}` : k === "LLR_NACK" ? `replay from seq ${(s + 1) & ALL1}` :
+        k === "CF_UPDATE" ? "returns credits to the gate" : k === "LLR_INIT_ECHO" ? "INIT done → ADVANCE" : "";
+      T(g, ctlLabel(ctlIn), x + 7, y + 33, {s:9, w:700, c:C[ctlStyle(k)[0]]});
+      T(g, what, x + 7, y + 48, {s:7.8, c:C.muted});
+    } else T(g, "listening", x + 7, y + 38, {s:8, c:C.muted});
+  }
+  const ci = ctlIn && ctlIn.kind;
+  arrow(g, B_.nrx[0] + 52, B_.nrx[1], B_.nrx[0] + 52, B_.llr[1] + B_.llr[3], C.ack, ci === "LLR_ACK" || ci === "LLR_NACK" || ci === "LLR_INIT_ECHO", t);
+  arrow(g, B_.nrx[0], LRX, B_.gate[0] + B_.gate[2], LRX, C.cf, ci === "CF_UPDATE", t);
+
+  // ---------------- cable + ports
+  for (const [x, lab] of [[XA, "port 0"], [XB, "port 1"]]){
+    for (const y of [LTX, LRX]){ rr(g, x - 7, y - 11, 14, 22, 3); g.fillStyle = C["block-hd"]; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1; g.stroke(); }
+    led(g, x, LTX - 20, down ? C.bad : C.ok, true);
+    T(g, lab, x, LRX + 22, {s:7.6, a:"center", c:C.muted});
+  }
+  T(g, down ? "LOS" : "link up", XA, LTX - 30, {s:7, a:"center", c:down ? C.bad : C.ok, w:700});
+  T(g, down ? "LOS" : "link up", XB - 12, LTX - 30, {s:7, a:"right", c:down ? C.bad : C.ok, w:700});
+  // cable jacket
+  rr(g, XA + 7, LTX - 22, XB - XA - 14, LRX - LTX + 44, 10);
+  g.fillStyle = alpha(down ? C.bad : C.muted, .05); g.fill(); g.strokeStyle = alpha(down ? C.bad : C.muted, .3); g.setLineDash(down ? [6,4] : []); g.stroke(); g.setLineDash([]);
+  g.lineWidth = 1.4; g.strokeStyle = down ? alpha(C.bad, .7) : alpha(C.muted, .55); g.setLineDash(down ? [5,5] : []);
+  for (const y of [LTX, LRX]){ g.beginPath(); g.moveTo(XA + 7, y); g.lineTo(XB - 7, y); g.stroke(); }
   g.setLineDash([]);
-  g.fillStyle = C.muted; g.font = "10px 'JetBrains Mono', monospace"; g.textAlign = "left";
-  g.fillText("A → B: frames + A's control blocks", xa, yF - fh/2 - 22);
-  g.fillText("B → A: B's control blocks (ACK/NACK, CF_Update, ECHO)", xa, yR + 30);
-  g.textAlign = "right";
-  g.fillText(`${d.cfg.cable_m} m · ${d.cfg.rate_gbps}G · one way ${d.prop.toFixed(1)} ns`, xb, yR + 30);
-  if (down){ g.fillStyle = C.bad; g.font = "600 12px 'JetBrains Mono', monospace"; g.textAlign = "center"; g.fillText("LINK DOWN", (xa + xb)/2, (yF + yR)/2 + 4); }
-  const px = f => xa + f * L;
-  // frames
-  g.textAlign = "center"; g.textBaseline = "middle";
+  T(g, "TX lane → data frames + NIC control blocks", XA + 34, LTX - 30, {s:7.6, c:C.muted});
+  T(g, "← RX lane: switch control blocks (ACK/NACK, CF_Update, ECHO)", XA + 34, LRX + 36, {s:7.6, c:C.muted});
+  T(g, `${d.cfg.cable_m} m DAC + MAC/PHY · ${d.prop.toFixed(1)} ns one way · ${d.cfg.rate_gbps}G`, (XA + XB)/2, LTX + 52, {s:8, a:"center", c:C.muted});
+  T(g, "1 KB frame ≈ 10.4 ns on the wire (to scale)", (XA + XB)/2, LTX + 64, {s:7.4, a:"center", c:alpha(C.muted, .8)});
+  if (down){ T(g, "LINK DOWN", (XA + XB)/2, (LTX + LRX)/2 + 30, {s:13, w:700, a:"center", c:C.bad}); }
+  const L = XB - XA, px = f => XA + f * L;
   for (const f of d.frames){
-    if (f.dir !== "a2b" || f.t0 > t || f.arrive < t) continue;
+    if (f.t0 > t || f.arrive < t) continue;
     const front = (t - f.t0) / d.prop, back = (t - f.t1) / d.prop;
     if (front <= 0 || back >= 1) continue;
     const x0 = px(Math.max(0, back)), x1 = px(Math.min(1, front));
-    const col = f.kind === "cc_update" ? C.cc : C.data;
-    let fill = alpha(col, .22), stroke = col, txt = C.fg, op = 1;
-    if (f.fate === "bad" && front > .5){ stroke = C.bad; fill = alpha(C.bad, .18); txt = C.bad; }
-    if (f.fate === "down"){ stroke = C.down; fill = alpha(C.down, .15); txt = C.muted; op = Math.max(.15, 1 - front); }
-    g.globalAlpha = op;
-    rrect(g, x0, yF - fh/2, Math.max(2, x1 - x0), fh, 4); g.fillStyle = fill; g.fill();
-    g.setLineDash(f.replay ? [5,3] : []); g.strokeStyle = stroke; g.lineWidth = 1.6; g.stroke(); g.setLineDash([]);
-    if (x1 - x0 > 26){
-      g.fillStyle = txt; g.font = "600 11px 'JetBrains Mono', monospace";
-      g.fillText(f.kind === "cc_update" ? "CC" : (f.seq == null ? "#" + f.fid : String(f.seq)), (x0 + x1)/2, yF);
-    }
-    if (f.fate === "bad" && front > .5 && back < .5){ g.fillStyle = C.bad; g.font = "600 13px Inter, sans-serif"; g.fillText("⚡", px(.5), yF - fh/2 - 9); }
+    let col = f.kind === "cc_update" ? C.cc : C.data, op = .26, tc = C.fg;
+    if (f.fate === "bad" && front > .5){ col = C.bad; tc = C.bad; }
+    if (f.fate === "down"){ col = C.down; op = .12; tc = C.muted; g.globalAlpha = Math.max(.15, 1 - front); }
+    pkt(g, x0, LTX - 11, x1 - x0, 22, col, f.kind === "cc_update" ? "CC" : (f.seq == null ? "#" + f.fid : String(f.seq)), {dash:f.replay || f.fate === "down", op, tc, fs:9.4});
+    if (f.fate === "bad" && front > .5 && back < .5) T(g, "⚡ bit error", px(.5), LTX - 16, {s:8.6, w:700, a:"center", c:C.bad, mono:false});
     g.globalAlpha = 1;
   }
-  // control blocks
   for (const c of d.ctl){
     if (c.t1 > t || c.arrive < t) continue;
     const f = (t - c.t1) / d.prop; if (f < 0 || f > 1) continue;
-    const quiet = c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1;   // A acks nothing: reverse path is idle
-    const [k, lab] = ctlStyle(c.kind);
-    const label = c.kind === "LLR_ACK" || c.kind === "LLR_NACK" ? `${lab} ${c.seq === ALL1 ? "–" : c.seq}` : lab;
-    const x = c.dir === "a2b" ? px(f) : px(1 - f), y = c.dir === "a2b" ? yF - fh/2 - 8 : yR;
-    g.font = "600 9.5px 'JetBrains Mono', monospace";
-    const w = g.measureText(label).width + 10;
-    g.globalAlpha = quiet ? .3 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
-    let col = C[k];
-    if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
-    rrect(g, x - w/2, y - 8, w, 16, 8); g.fillStyle = alpha(col, .2); g.fill(); g.strokeStyle = col; g.lineWidth = 1.3; g.stroke();
-    g.fillStyle = C.fg; g.fillText(label, x, y + .5);
+    const quiet = c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1;
+    const [k] = ctlStyle(c.kind), lab = ctlLabel(c);
+    const x = c.dir === "a2b" ? px(f) : px(1 - f), y = c.dir === "a2b" ? LTX + 22 : LRX;
+    g.font = `700 8.4px ${MONO}`; const w = g.measureText(lab).width + 10;
+    g.globalAlpha = quiet ? .25 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
+    let col = C[k]; if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
+    rr(g, x - w/2, y - 7.5, w, 15, 3); g.fillStyle = alpha(col, .2); g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke();
+    T(g, lab, x, y + .5, {s:8.4, w:700, a:"center", b:"middle"});
     g.globalAlpha = 1;
   }
-  // receive verdicts at B (last ~8 ns)
-  for (let i = d.rx.length - 1; i >= 0; i--){
-    const r = d.rx[i]; if (r.t > t) continue; if (t - r.t > 8) break;
-    if (r.mac !== "B" || r.res === "accept") continue;
-    const lab = {bad:"FCS ✕", ooo:"out of order", dup:"duplicate"}[r.res];
-    g.fillStyle = r.res === "bad" ? C.bad : C.ack; g.font = "600 11px 'JetBrains Mono', monospace";
-    g.globalAlpha = 1 - (t - r.t) / 8; g.fillText(`${lab} · ${r.seq ?? ""}`, W - mw/2, 186); g.globalAlpha = 1;
+
+  // ---------------- switch
+  chassis(g, ...B_.sw, "Switch", "ESUN scale-up switch · 64 × 800G");
+  // port 1 RX
+  { const [x, y, w, h] = B_.prx;
+    const vc = rxRecent ? ({accept:C.ok, bad:C.bad, ooo:C.ack, dup:C.muted}[rxRecent.res]) : null;
+    block(g, x, y, w, h, "Port 1 RX", {hot:vc && rxRecent.res !== "accept" ? vc : null});
+    T(g, "SerDes·PCS·MAC", x + 6, y + 30, {s:7.4, c:C.muted});
+    T(g, llrOn ? "FCS · LLR receive" : "FCS check", x + 6, y + 40, {s:7.4, c:C.muted});
+    if (llrOn){
+      T(g, "next_rx_seq", x + 6, y + 56, {s:7.6, c:C.muted}); T(g, String(b.next_rx), x + w - 6, y + 56, {s:8.6, w:700, a:"right"});
+      const ac = {SEND_ACKS:C.ok, SEND_NACK:C.ack, NACK_SENT:C.ack}[b.ack_state] || C.muted;
+      rr(g, x + 6, y + 63, w - 12, 14, 7); g.fillStyle = alpha(ac, .15); g.fill(); g.strokeStyle = ac; g.stroke();
+      T(g, b.ack_state, x + w/2, y + 70.5, {s:7.8, w:700, a:"center", b:"middle", c:ac});
+    }
+    if (rxRecent){
+      const lab = {accept:"✓ accept", bad:"✕ FCS bad", ooo:"✕ out of order", dup:"✕ duplicate"}[rxRecent.res];
+      g.globalAlpha = Math.max(.3, 1 - (t - rxRecent.t) / 12);
+      T(g, lab + (rxRecent.seq != null ? ` · ${rxRecent.seq}` : ""), x + w/2, y + h - 10, {s:8.4, w:700, a:"center", c:vc});
+      g.globalAlpha = 1;
+    }
   }
-  g.textBaseline = "alphabetic";
+  const accNow = rxRecent && rxRecent.res === "accept" && rxRecent.kind === "data" && t - rxRecent.t < 10;
+  arrow(g, B_.prx[0] + B_.prx[2], LTX, B_.ibuf[0], LTX, C.data, accNow, t);
+  // port 1 TX
+  { const [x, y, w, h] = B_.ptx;
+    block(g, x, y, w, h, "Port 1 TX · CtlOS", {hot:ctlOut && ctlOut.kind !== "LLR_ACK" ? C[ctlStyle(ctlOut.kind)[0]] : null});
+    if (ctlOut){ T(g, ctlLabel(ctlOut), x + 6, y + 34, {s:9, w:700, c:C[ctlStyle(ctlOut.kind)[0]]});
+      T(g, ctlOut.fate === "ok" ? "sent in a control slot" : (ctlOut.fate === "down" ? "lost: link down" : "corrupted on the wire"), x + 6, y + 48, {s:7.4, c:ctlOut.fate === "ok" ? C.muted : C.bad}); }
+    else T(g, "next slot every 20 ns", x + 6, y + 38, {s:7.4, c:C.muted});
+  }
+  arrow(g, B_.ibuf[0], LRX, B_.ptx[0] + B_.ptx[2], LRX, C.cf, !!(ctlOut && ctlOut.kind === "CF_UPDATE"), t, "CF");
+  // ingress buffer
+  { const [x, y, w, h] = B_.ibuf;
+    const tot = d.cfg.cbfc.total_credits, frac = Math.min(1, b.occ / tot);
+    block(g, x, y, w, h, "Ingress buffer", {fill:alpha(C.mem, .05)});
+    T(g, "shared SRAM · VC0", x + 6, y + 30, {s:7.2, c:C.muted});
+    rr(g, x + 6, y + 37, w - 12, 7, 3.5); g.fillStyle = C["surface-2"]; g.fill(); g.strokeStyle = C["block-line"]; g.stroke();
+    g.fillStyle = frac > .9 ? C.bad : C.mem; rr(g, x + 6, y + 37, (w - 12) * frac, 7, 3.5); g.fill();
+    T(g, `${b.occ} / ${tot} credits`, x + 6, y + 56, {s:7.8, w:600});
+    const rows = Math.floor((h - 76) / 20);
+    queued.slice(0, rows).forEach((q, i) => pkt(g, x + 8, y + 66 + i * 20, w - 16, 16, C.data, `${q.seq ?? "#" + q.fid}`, {fs:8.2}));
+    if (queued.length > rows) T(g, `+${queued.length - rows} more`, x + w/2, y + h - 6, {s:7.4, a:"center", c:C.muted});
+    if (!queued.length) T(g, "empty", x + w/2, y + 90, {s:8.2, a:"center", c:C.muted});
+  }
+  arrow(g, B_.ibuf[0] + B_.ibuf[2], LTX, B_.pipe[0], LTX, C.data, !!egr, t);
+  // pipeline (latency not modelled)
+  { const [x, y, w, h] = B_.pipe;
+    block(g, x, y, w, h, "Pipeline", {dim:true});
+    const st = [["Parser", "ETH · SUE hdr"], ["Lookup", "dst → port 7"], ["Traffic mgr", "queue · sched"]];
+    st.forEach(([n, s], i) => { const yy = y + 24 + i * 46;
+      rr(g, x + 5, yy, w - 10, 38, 3); g.fillStyle = egr ? alpha(C.data, .1) : C["surface-2"]; g.fill(); g.strokeStyle = alpha(C.muted, .4); g.stroke();
+      T(g, n, x + w/2, yy + 15, {s:7.8, w:700, a:"center"}); T(g, s, x + w/2, yy + 28, {s:6.6, a:"center", c:C.muted}); });
+    T(g, "0 ns in model", x + w/2, y + h - 6, {s:6.8, a:"center", c:C.muted});
+  }
+  arrow(g, B_.pipe[0] + B_.pipe[2], LTX, B_.eg[0], LTX, C.data, !!egr, t);
+  // egress port 7
+  { const [x, y, w, h] = B_.eg;
+    block(g, x, y, w, h, "Port 7 TX", {hot: egr ? C.data : null});
+    T(g, `${d.cfg.cbfc.drain_gbps} Gb/s`, x + 6, y + 30, {s:7.6, w:700, c:d.cfg.cbfc.drain_gbps < d.cfg.rate_gbps ? C.bad : C.muted});
+    T(g, d.cfg.cbfc.drain_gbps < d.cfg.rate_gbps ? "congested" : "line rate", x + 6, y + 40, {s:7, c:C.muted});
+    if (egr){
+      const p = (t - egr.ts) / (egr.te - egr.ts);
+      pkt(g, x + 5, LTX - 9, w - 10, 18, C.data, String(egr.seq ?? "#" + egr.fid), {fs:8.4});
+      rr(g, x + 5, y + h - 22, w - 10, 5, 2.5); g.fillStyle = C["surface-2"]; g.fill(); g.fillStyle = C.data; rr(g, x + 5, y + h - 22, (w - 10) * p, 5, 2.5); g.fill();
+      T(g, "forwarding", x + w/2, y + h - 7, {s:7, a:"center", c:C.muted});
+    } else T(g, "idle", x + w/2, LTX + 3, {s:8, a:"center", c:C.muted});
+    led(g, x + w - 10, y + 30, C.ok, !!egr);
+  }
+  // hop 2 stub (not modelled)
+  g.strokeStyle = alpha(C.muted, .5); g.setLineDash([3,4]); g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(B_.eg[0] + B_.eg[2], LTX); g.lineTo(1290, LTX); g.stroke(); g.setLineDash([]);
+  T(g, "to XPU B", 1262, LTX - 8, {s:7.6, a:"center", c:C.muted, w:700}); T(g, "hop 2", 1262, LTX + 14, {s:7, a:"center", c:C.muted}); T(g, "not modelled", 1262, LTX + 24, {s:7, a:"center", c:C.muted});
+  if (egr && (t - egr.ts) / (egr.te - egr.ts) > .02){ const p = (t - egr.ts) / (egr.te - egr.ts); g.globalAlpha = .5; pkt(g, 1232, LTX - 7, 46 * p, 14, C.data, "", {}); g.globalAlpha = 1; }
+  // stats
+  { const [x, y, w, h] = B_.stats;
+    block(g, x, y, w, h, "Counters");
+    const last = d.qitems.filter(q => q.te <= t).pop();
+    const lostNow = d.rx.filter(r => r.t <= t && r.res === "bad" && !llrOn).length;
+    const rows = [["forwarded", fwd], ["in buffer", queued.length + (egr ? 1 : 0)], ["last latency", last ? `${last.lat.toFixed(0)} ns` : "–"],
+      ["NIC replays", d.frames.filter(f => f.t1 <= t && f.replay).length], ["FCS drops", d.rx.filter(r => r.t <= t && r.res === "bad").length],
+      ["lost (no LLR)", llrOn ? "–" : lostNow]];
+    rows.forEach(([k, v], i) => { T(g, k, x + 8, y + 36 + i * 22, {s:8, c:C.muted}); T(g, String(v), x + w - 8, y + 36 + i * 22, {s:10, w:700, a:"right"}); });
+    T(g, "latency: HBM queue → port 7", x + 8, y + h - 8, {s:6.6, c:C.muted});
+  }
 }
 
-// ---------- ladder ----------
+// ---------------------------------------------------------------- flow graph (ladder)
 function drawLadder(d, t){
-  const [g, W, H] = fit($("cLadder"));
-  g.clearRect(0, 0, W, H);
-  const span = +$("span").value, top = 22, bot = H - 14, xa = 90, xb = W - 90;
-  const t0 = t - span;
-  const y = tt => top + (tt - t0) / span * (bot - top);
-  g.font = "10px 'JetBrains Mono', monospace"; g.fillStyle = C.muted; g.textAlign = "center";
-  g.fillText("MAC A", xa, 14); g.fillText("MAC B", xb, 14);
-  // grid
+  const [g, Wd, Hd] = fit($("cLadder"));
+  g.fillStyle = C.surface; g.fillRect(0, 0, Wd, Hd);
+  const span = +$("span").value, top = 26, bot = Hd - 14, xa = 110, xb = Wd - 110;
+  const t0 = t - span, y = tt => top + (tt - t0) / span * (bot - top);
+  T(g, "NIC port 0", xa, 16, {s:10, w:700, a:"center"}); T(g, "Switch port 1", xb, 16, {s:10, w:700, a:"center"});
   const step = span <= 150 ? 20 : span <= 300 ? 50 : span <= 600 ? 100 : 200;
-  g.strokeStyle = alpha(C.muted, .18); g.lineWidth = 1; g.textAlign = "right";
-  for (let k = Math.ceil(Math.max(0, t0) / step) * step; k <= t; k += step){ const yy = y(k); g.beginPath(); g.moveTo(xa, yy); g.lineTo(xb, yy); g.stroke(); g.fillText(k + " ns", xa - 10, yy + 3); }
+  g.strokeStyle = alpha(C.muted, .15); g.lineWidth = 1;
+  for (let k = Math.ceil(Math.max(0, t0) / step) * step; k <= t; k += step){ const yy = y(k); g.beginPath(); g.moveTo(xa, yy); g.lineTo(xb, yy); g.stroke(); T(g, k + " ns", xa - 12, yy + 3, {s:9, a:"right", c:C.muted}); }
   for (const [a, b] of d.cfg.down){ if (b < t0 || a > t) continue; g.fillStyle = alpha(C.bad, .08); g.fillRect(xa, y(Math.max(a, t0)), xb - xa, y(Math.min(b, t)) - y(Math.max(a, t0))); }
-  g.strokeStyle = C.line; g.lineWidth = 2;
+  g.strokeStyle = C["chassis-line"]; g.lineWidth = 3;
   for (const x of [xa, xb]){ g.beginPath(); g.moveTo(x, top); g.lineTo(x, bot); g.stroke(); }
-  g.save(); g.beginPath(); g.rect(0, top, W, bot - top); g.clip();
-  // frames as bands
+  g.save(); g.beginPath(); g.rect(0, top, Wd, bot - top); g.clip();
   for (const f of d.frames){
-    if (f.dir !== "a2b" || f.arrive < t0 || f.t0 > t) continue;
+    if (f.arrive < t0 || f.t0 > t) continue;
     const col = f.fate === "down" ? C.down : (f.fate === "bad" ? C.bad : (f.kind === "cc_update" ? C.cc : C.data));
-    const ser = f.t1 - f.t0;
-    let endF = 1; if (f.fate === "down") endF = .5;
-    const xe = xa + (xb - xa) * endF;
+    const endF = f.fate === "down" ? .5 : 1, xe = xa + (xb - xa) * endF;
     g.beginPath(); g.moveTo(xa, y(f.t0)); g.lineTo(xe, y(f.t0 + d.prop * endF)); g.lineTo(xe, y(f.t1 + d.prop * endF)); g.lineTo(xa, y(f.t1)); g.closePath();
-    g.fillStyle = alpha(col, f.replay ? .12 : .22); g.fill();
+    g.fillStyle = alpha(col, f.replay ? .12 : .24); g.fill();
     g.setLineDash(f.replay || f.fate === "down" ? [4,3] : []); g.strokeStyle = alpha(col, .9); g.lineWidth = 1; g.stroke(); g.setLineDash([]);
-    if (f.arrive <= t && f.fate === "bad"){ g.fillStyle = C.bad; g.font = "600 12px Inter"; g.textAlign = "left"; g.fillText("✕", xb + 6, y(f.arrive) + 4); }
-    if (y(f.t1) - y(f.t0) > 9 && f.seq != null){ g.fillStyle = C.muted; g.font = "9.5px 'JetBrains Mono', monospace"; g.textAlign = "right"; g.fillText(f.seq, xa - 4, y((f.t0 + f.t1) / 2) + 3); }
-    void ser;
+    if (f.arrive <= t && f.fate === "bad") T(g, "✕ FCS", xb + 8, y(f.arrive) + 4, {s:9, w:700, c:C.bad});
+    if (y(f.t1) - y(f.t0) > 9 && f.seq != null) T(g, String(f.seq), xa - 5, y((f.t0 + f.t1)/2) + 3, {s:8.6, a:"right", c:C.muted});
   }
-  // control blocks as lines
   for (const c of d.ctl){
     if (c.arrive < t0 || c.t1 > t) continue;
     if (c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1) continue;
-    const [k, lab] = ctlStyle(c.kind);
-    const col = c.fate === "ok" ? C[k] : (c.fate === "down" ? C.down : C.bad);
-    const [x0, x1] = c.dir === "b2a" ? [xb, xa] : [xa, xb];
-    const endF = c.fate === "ok" ? 1 : .5;
+    const [k] = ctlStyle(c.kind), col = c.fate === "ok" ? C[k] : (c.fate === "down" ? C.down : C.bad);
+    const [x0, x1] = c.dir === "b2a" ? [xb, xa] : [xa, xb], endF = c.fate === "ok" ? 1 : .5;
     g.strokeStyle = col; g.lineWidth = c.kind === "LLR_NACK" || c.kind.startsWith("LLR_INIT") ? 2 : 1;
-    g.globalAlpha = c.kind === "LLR_ACK" ? .55 : 1;
-    g.setLineDash(c.fate === "ok" ? [] : [3,3]);
+    g.globalAlpha = c.kind === "LLR_ACK" ? .55 : 1; g.setLineDash(c.fate === "ok" ? [] : [3,3]);
     g.beginPath(); g.moveTo(x0, y(c.t1)); g.lineTo(x0 + (x1 - x0) * endF, y(c.t1 + d.prop * endF)); g.stroke(); g.setLineDash([]);
-    if (c.kind !== "LLR_ACK" && c.kind !== "CF_UPDATE"){
-      g.fillStyle = col; g.font = "600 10px 'JetBrains Mono', monospace"; g.textAlign = c.dir === "b2a" ? "left" : "right";
-      g.fillText(c.kind === "LLR_NACK" ? `NACK ${c.seq}` + (c.fate === "ok" ? "" : " (lost)") : lab, x0 + (c.dir === "b2a" ? 6 : -6), y(c.t1) + 3);
-    }
+    if (c.kind !== "LLR_ACK" && c.kind !== "CF_UPDATE")
+      T(g, c.kind === "LLR_NACK" ? `NACK ${c.seq}` + (c.fate === "ok" ? "" : " (lost)") : ctlLabel(c), x0 + (c.dir === "b2a" ? 6 : -6), y(c.t1) + 3, {s:9, w:700, c:col, a:c.dir === "b2a" ? "left" : "right"});
     g.globalAlpha = 1;
   }
   g.restore();
-  // now line
   g.strokeStyle = C.accent; g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa - 30, bot); g.lineTo(xb + 30, bot); g.stroke();
-  g.fillStyle = C.accent; g.textAlign = "left"; g.font = "600 10px 'JetBrains Mono', monospace"; g.fillText("now", xb + 8, bot - 3);
+  T(g, "now", xb + 34, bot + 3, {s:9, w:700, c:C.accent});
 }
 
-// ---------- timeline marks ----------
 function drawMarks(d){
-  const [g, W, H] = fit($("cMarks"));
-  g.clearRect(0, 0, W, H);
-  for (const [a, b] of d.cfg.down){ g.fillStyle = alpha(C.bad, .18); g.fillRect(a / d.dur * W, 0, (b - a) / d.dur * W, H); }
+  const [g, Wd, Hd] = fit($("cMarks"));
+  g.clearRect(0, 0, Wd, Hd);
+  for (const [a, b] of d.cfg.down){ g.fillStyle = alpha(C.bad, .18); g.fillRect(a / d.dur * Wd, 0, (b - a) / d.dur * Wd, Hd); }
   for (const n of d.notes){
     const k = {bad:"bad", nack:"ack", replay:"ack", timer:"init", flush:"bad", init:"init", cc:"cf", stall:"cf", overflow:"bad", down:"bad", up:"ok", dup:"muted", ooo:"ack", deliver:"ok"}[n.kind] || "muted";
-    g.fillStyle = C[k]; g.fillRect(Math.round(n.t / d.dur * (W - 3)), 3, 3, H - 6);
+    g.fillStyle = C[k]; g.fillRect(Math.round(n.t / d.dur * (Wd - 3)), 2, 3, Hd - 4);
   }
 }
 
-// ---------- MAC panels ----------
-function cells(seqs, replaying){
-  if (!seqs.length) return '<em>empty</em>';
-  const show = seqs.slice(0, 40).map(s => `<i class="${replaying ? "rp" : ""}">${s}</i>`).join("");
-  return show + (seqs.length > 40 ? `<em>+${seqs.length - 40}</em>` : "");
-}
-function bar(v, m){ const p = Math.min(100, v / m * 100); return `<div class="bar"><div class="track"><div class="fill${p > 90 ? " hi" : ""}" style="width:${p}%"></div></div><b>${v} / ${m}</b></div>`; }
-const seqTxt = s => s === ALL1 ? "–" : s;
-function drawMacs(d, t){
-  const a = d.snaps.A[Math.max(0, lastAt(d.snaps.A, t))], b = d.snaps.B[Math.max(0, lastAt(d.snaps.B, t))];
-  const llr = d.cfg.llr.enabled;
-  $("macA").innerHTML = `
-    <h2>MAC A <small>sender · LLR transmit + CBFC credits</small></h2>
-    <div class="kv">
-      <div><span>LLR state</span><b><i class="pill ${llr ? a.llr : "off"}" style="font-style:normal">${llr ? a.llr : "LLR off"}</i></b></div>
-      <div><span>next tx seq</span><b>${llr ? a.tx_seq : "–"}</b></div>
-      <div><span>last ACKed</span><b>${llr ? seqTxt(a.acked) : "–"}</b></div>
-      <div><span>replay timer</span><b>${a.timer ? "running" : "idle"}</b></div>
-      <div><span>replay_ct</span><b>${a.replay_ct} / ${d.cfg.llr.replay_ct_max}</b></div>
-    </div>
-    <div class="sub">Replay buffer · ${a.buf.length} frames · ${(a.out_data / 1024).toFixed(0)} KB</div>
-    <div class="cells">${cells(a.buf, a.llr === "REPLAY")}</div>
-    <div class="sub">Credits in use (receiver buffer at B) ${a.stalled ? '<i class="pill stall" style="font-style:normal">waiting for credits</i>' : ""}</div>
-    ${bar(a.cr_used, a.cl)}`;
-  const got = countAt(d.deliv, t);
-  $("macB").innerHTML = `
-    <h2>MAC B <small>receiver · LLR receive + CBFC buffer</small></h2>
-    <div class="kv">
-      <div><span>ACK state</span><b><i class="pill ${llr ? b.ack_state : "off"}" style="font-style:normal">${llr ? b.ack_state : "LLR off"}</i></b></div>
-      <div><span>next_rx_seq</span><b>${llr ? b.next_rx : "–"}</b></div>
-      <div><span>delivered</span><b>${got}</b></div>
-      <div><span>drains at</span><b>${d.cfg.cbfc.drain_gbps} Gb/s</b></div>
-    </div>
-    <div class="sub">Receive buffer · ${b.rxq} frame(s) waiting to drain</div>
-    ${bar(b.occ, d.cfg.cbfc.total_credits)}`;
-}
-
-// ---------- notes ----------
+// ---------------------------------------------------------------- captions
 function noteIdx(d, t){ let r = -1; for (let i = 0; i < d.notes.length; i++){ if (d.notes[i].t <= t + 1e-6) r = i; else break; } return r; }
 function buildLog(d){
-  const L = $("log"); L.textContent = "";
+  const Lg = $("log"); Lg.textContent = "";
   d.notes.forEach((n, i) => {
     const b = document.createElement("button"); b.dataset.i = i;
     b.innerHTML = "<span></span><span></span>"; b.firstChild.textContent = n.t.toFixed(1) + " ns"; b.lastChild.textContent = n.text;
-    b.onclick = () => { stop(); setT(n.t); }; L.appendChild(b);
+    b.onclick = () => { stop(); setT(n.t); }; Lg.appendChild(b);
   });
 }
 let lastNote = -2;
 function drawNotes(d, t){
   const i = noteIdx(d, t);
   if (i === lastNote) return; lastNote = i;
-  $("nowTxt").textContent = i < 0 ? "Press Play. The captions below follow the simulator's events." : d.notes[i].text;
+  $("nowTxt").textContent = i < 0 ? "Press Play. Frames leave XPU A's send queue, pass the NIC's credit gate and LLR, cross the cable and enter the switch." : d.notes[i].text;
   $("nowT").textContent = i < 0 ? "" : `at ${d.notes[i].t.toFixed(1)} ns`;
   [...$("log").children].forEach((b, k) => { b.className = k === i ? "cur" : (k < i ? "past" : ""); });
   const cur = $("log").children[i]; if (cur && playing) cur.scrollIntoView({block:"nearest"});
 }
 
-// ---------- main loop ----------
+// ---------------------------------------------------------------- main loop
 let d = D[0], t = 0, playing = false, lastFrame = 0;
-function draw(){
+function drawAll(){
   $("clock").textContent = `t = ${t.toFixed(1)} ns`;
   $("scrub").value = t;
-  drawLink(d, t); drawLadder(d, t); drawMacs(d, t); drawNotes(d, t);
+  drawNet(d, t); drawLadder(d, t); drawNotes(d, t);
 }
-function setT(v){ t = Math.max(0, Math.min(d.dur, v)); draw(); }
+function setT(v){ t = Math.max(0, Math.min(d.dur, v)); drawAll(); }
 function tick(now){
   if (!playing) return;
   const dt = Math.min(100, now - lastFrame) / 1000; lastFrame = now;
-  let nt = t + dt * +$("speed").value;
+  const nt = t + dt * +$("speed").value;
   if ($("pauseAt").checked){ const n = d.notes.find(n => n.t > t + 1e-6 && n.t <= nt); if (n){ setT(n.t); stop(); return; } }
   if (nt >= d.dur){ setT(d.dur); stop(); return; }
   setT(nt); requestAnimationFrame(tick);
@@ -461,12 +619,12 @@ function pick(id){
   const c = d.cfg, r = d.result;
   const bits = [`${c.cable_m} m · ${c.rate_gbps}G`, `${c.frame} B frames`,
     c.llr.enabled ? `LLR: replay timer ${c.llr.replay_timer_ns} ns, replay_ct_max ${c.llr.replay_ct_max}` : "LLR off",
-    `CBFC: ${c.cbfc.total_credits} credits × ${c.cbfc.credit_size} B, drain ${c.cbfc.drain_gbps} Gb/s`,
+    `CBFC: ${c.cbfc.total_credits} credits × ${c.cbfc.credit_size} B`, `egress ${c.cbfc.drain_gbps} Gb/s`,
     c.down.length ? `link down ${c.down.map(([a,b]) => a + "–" + b + " ns").join(", ")}` : null,
-    `result: ${r.delivered} delivered, ${r.lost} lost, ${r.replayed} replayed`];
+    `result: ${r.delivered} forwarded, ${r.lost} lost, ${r.replayed} replayed`];
   $("sCfg").innerHTML = ""; for (const s of bits.filter(Boolean)){ const e = document.createElement("span"); e.textContent = s; $("sCfg").appendChild(e); }
   $("scrub").max = d.dur;
-  buildLog(d); drawMarks(d); draw();
+  buildLog(d); drawMarks(d); drawAll();
   if (location.hash.slice(1) !== d.id) history.replaceState(null, "", "#" + d.id);
 }
 
@@ -478,7 +636,7 @@ $("bPlay").onclick = () => playing ? stop() : play();
 $("bNextN").onclick = () => { stop(); const n = d.notes.find(n => n.t > t + 1e-6); setT(n ? n.t : d.dur); };
 $("bPrevN").onclick = () => { stop(); const ns = d.notes.filter(n => n.t < t - 1e-6); setT(ns.length ? ns[ns.length - 1].t : 0); };
 $("scrub").oninput = e => { stop(); setT(+e.target.value); };
-$("span").onchange = draw;
+$("span").onchange = drawAll;
 $("cMarks").onclick = e => { const r = e.target.getBoundingClientRect(); stop(); setT((e.clientX - r.left) / r.width * d.dur); };
 document.addEventListener("keydown", e => {
   if (e.target.closest && e.target.closest("input, select, textarea")) return;
@@ -486,8 +644,11 @@ document.addEventListener("keydown", e => {
   else if (e.key === "ArrowRight"){ e.preventDefault(); stop(); setT(t + (e.shiftKey ? 10 : 1)); }
   else if (e.key === "ArrowLeft"){ e.preventDefault(); stop(); setT(t - (e.shiftKey ? 10 : 1)); }
 });
-window.addEventListener("resize", () => { drawMarks(d); draw(); });
+window.addEventListener("resize", () => { drawMarks(d); drawAll(); });
 window.addEventListener("hashchange", () => pick(location.hash.slice(1)));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawAll());
+const q = new URLSearchParams(location.search);
 pick(location.hash.slice(1) || D[0].id);
+if (q.has("t")) setT(+q.get("t"));        // ?t=200 opens at a given time (handy for screenshots)
 })();
 </script>

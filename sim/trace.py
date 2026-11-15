@@ -14,9 +14,13 @@
     deliver  a frame reached the client
     mac      a state snapshot of one MAC (only when something changed)
 
-`annotate()` turns the events into short captions. Each one is derived from
+`annotate()` turns the events into short captions, naming A as the NIC and B as
+the switch port it is cabled to (the viewer draws the link that way). Each one is derived from
 what the simulator did, not written by hand.
 """
+
+
+WHO = {"A": "NIC", "B": "Switch port"}
 
 
 def annotate(events: list[dict], link_down: list | None = None) -> list[dict]:
@@ -41,62 +45,62 @@ def annotate(events: list[dict], link_down: list | None = None) -> list[dict]:
                 expected = None if e["seq"] is None else e["seq"] + 1
                 ooo_run = dup_run = False
             elif e["res"] == "bad" and e["seq"] is None:
-                note(e["t"], "bad", "B: a frame fails the FCS check and is dropped. Without LLR nothing at the "
-                                    "link will resend it.")
+                note(e["t"], "bad", "Switch port: a frame fails the FCS check and is dropped. Without LLR nothing "
+                                    "on this link will resend it.")
             elif e["res"] == "bad":
-                note(e["t"], "bad", f"B: seq {e['seq']} fails the FCS check and is discarded. B will NACK.")
+                note(e["t"], "bad", f"Switch port: seq {e['seq']} fails the FCS check and is discarded. It will NACK.")
             elif e["res"] == "ooo" and not ooo_run:
                 ooo_run = True
                 exp = f", still waiting for seq {expected}" if expected is not None else ""
-                note(e["t"], "ooo", f"B discards seq {e['seq']}: out of order{exp}. "
+                note(e["t"], "ooo", f"Switch port discards seq {e['seq']}: out of order{exp}. "
                                     "LLR keeps nothing out of order and sends no second NACK.")
             elif e["res"] == "dup" and not dup_run:
                 dup_run = True
-                note(e["t"], "dup", f"B silently drops seq {e['seq']}: a duplicate of a frame it already has.")
+                note(e["t"], "dup", f"Switch port silently drops seq {e['seq']}: a duplicate of a frame it already has.")
         elif ev == "ctlos" and e["dir"] == "b2a" and e["kind"] == "LLR_NACK":
             lost = "" if e["fate"] == "ok" else " The NACK is lost on the wire."
-            note(e["t"], "nack", f"B sends LLR NACK {e['seq']}: replay everything after seq {e['seq']}.{lost}")
+            note(e["t"], "nack", f"Switch port sends LLR NACK {e['seq']}: replay everything after seq {e['seq']}.{lost}")
         elif ev == "replay" and e["mac"] == "A":
             why = "after the NACK" if e["cause"] == "nack" else "after the replay timer"
-            note(e["t"], "replay", f"A enters REPLAY {why}: resends {e['n']} frame(s) from seq {e['start']} "
+            note(e["t"], "replay", f"NIC enters REPLAY {why}: resends {e['n']} frame(s) from seq {e['start']} "
                                    "out of its replay buffer, without spending credits again.")
         elif ev == "timer" and e["mac"] == "A":
             if e["action"] == "flush":
-                note(e["t"], "timer", f"A's replay timer expires again and the retry count has reached "
+                note(e["t"], "timer", f"The NIC's replay timer expires again and the retry count has reached "
                                       f"replay_ct_max ({e['replay_ct']}): LLR gives up.")
             else:
-                note(e["t"], "timer", "A's replay timer expires with no ACK progress, so A replays.")
+                note(e["t"], "timer", "The NIC's replay timer expires with no ACK progress, so it replays.")
         elif ev == "flush" and e["mac"] == "A":
             had = sum(1 for f in e["fids"] if f in got)
-            extra = (f" B already had {had} of them; only their ACKs were lost." if had else "")
-            note(e["t"], "flush", f"FLUSH: A throws away {len(e['seqs'])} frame(s) "
+            extra = (f" The switch already had {had} of them; only their ACKs were lost." if had else "")
+            note(e["t"], "flush", f"FLUSH: the NIC throws away {len(e['seqs'])} frame(s) "
                                   f"(seq {e['seqs'][0]}–{e['seqs'][-1]}).{extra} The rest are now the "
                                   "transport's problem." if e["seqs"] else "FLUSH: the replay buffer was already empty.")
         elif ev == "ctlos" and e["kind"] == "LLR_INIT" and not init_seen:
             init_seen = True
-            note(e["t"], "init", f"A sends LLR_INIT {e['seq']} to agree on sequence numbers again.")
+            note(e["t"], "init", f"The NIC sends LLR_INIT {e['seq']} to agree on sequence numbers again.")
         elif ev == "ctlos" and e["kind"] == "LLR_INIT_ECHO" and e["fate"] == "ok" and not echo_seen:
             echo_seen = True
-            note(e["t"], "init", "B echoes the INIT. When the echo arrives, A goes back to ADVANCE.")
+            note(e["t"], "init", "The switch port echoes the INIT. When the echo arrives, the NIC goes back to ADVANCE.")
         elif ev == "cc":
             if e["lost"] > 0:
-                note(e["t"], "cc", f"{e['mac']}: a CC_Update shows {e['lost']} credits were spent on frames "
+                note(e["t"], "cc", f"{WHO[e['mac']]}: a CC_Update shows {e['lost']} credits were spent on frames "
                                    "that never arrived. They go back to the sender in the next CF_Update.")
             else:
-                note(e["t"], "cc", f"{e['mac']}: CC_Update gives negative lost credits ({e['lost']}): "
+                note(e["t"], "cc", f"{WHO[e['mac']]}: CC_Update gives negative lost credits ({e['lost']}): "
                                    "the spec's \"serious error\".")
         elif ev == "overflow":
-            note(e["t"], "overflow", f"{e['mac']}: a lossless frame does not fit the receive buffer and is dropped.")
+            note(e["t"], "overflow", f"{WHO[e['mac']]}: a lossless frame does not fit the ingress buffer and is dropped.")
         elif ev == "deliver":
             got.add(e["fid"])
         if ev == "deliver" and not delivered:
             delivered = True
-            note(e["t"], "deliver", f"The first frame reaches B's client {e['lat']:.0f} ns after it was queued.")
+            note(e["t"], "deliver", f"The first frame leaves the switch's egress port {e['lat']:.0f} ns after the NIC queued it.")
         elif ev == "mac" and e["mac"] == "A":
             if e["stalled"] and not last_stall and not stall_seen:
                 stall_seen = True
-                note(e["t"], "stall", f"A is out of credits ({e['cr_used']} of {e['cl']} in use) "
-                                      "and waits for a CF_Update.")
+                note(e["t"], "stall", f"The NIC is out of credits ({e['cr_used']} of {e['cl']} in use) "
+                                      "and waits for a CF_Update from the switch.")
             last_stall = e["stalled"]
     notes.sort(key=lambda n: n["t"])
     return notes

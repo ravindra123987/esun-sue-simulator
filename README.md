@@ -11,7 +11,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M0 | Read the specs, build the delta table | draft done: [docs/delta-table.md](docs/delta-table.md) |
 | M1 | Scapy layers, Wireshark dissector, golden pcaps | first cut: [sue/](sue/), [wireshark/](wireshark/), [pcaps/golden/](pcaps/golden/) |
 | M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | dissector polished for porting: [wireshark/UPSTREAM.md](wireshark/UPSTREAM.md); issue drafted, not posted |
-| M2 | LLR + CBFC link simulator | first cut (one link): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [docs/viz/](docs/viz/) |
+| M2 | LLR + CBFC link simulator | first cut (one link): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [live](https://ravindra123987.github.io/esun-sue-simulator/viz/), [docs/viz/](docs/viz/) |
 | M3 | SUE-T endpoint in the simulator | not started |
 | M4 | netns emulator with a user-space switch | not started |
 | M5 | Multi-plane, three-way comparison | not started |
@@ -50,7 +50,7 @@ tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/09-ufh16-conversation.pca
 
 ## Packet viewer
 
-[docs/viz/index.html](docs/viz/index.html) replays what the link simulator actually did, in seven scenarios: a clean link, a bit error, a bit error with a lost NACK, a slow receiver, a short outage that LLR absorbs, a long outage that ends in FLUSH, and the same bit error with LLR off. It shows frames to scale on the wire, both MACs' LLR and CBFC state, a time-position ladder diagram, and captions that `sim/trace.py` derives from the events. Open the file in a browser; it needs only `traces.js` next to it.
+[docs/viz/index.html](docs/viz/index.html) replays what the link simulator actually did, in seven scenarios: a clean link, a bit error, a bit error with a lost NACK, a slow receiver, a short outage that LLR absorbs, a long outage that ends in FLUSH, and the same bit error with LLR off. It shows frames to scale on the wire, both MACs' LLR and CBFC state, a time-position ladder diagram, and captions that `sim/trace.py` derives from the events. It is published at **https://ravindra123987.github.io/esun-sue-simulator/viz/** (GitHub Pages, serving `docs/`), or open the file locally; it needs only `traces.js` next to it.
 
 To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (link, LLR and CBFC settings, plus optional corruption hooks) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
 

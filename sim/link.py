@@ -46,49 +46,64 @@ class Result:
     wire: dict = field(default_factory=dict)
 
 
+class LinkSession:
+    """One link that can be advanced a step at a time (tools/live.py) or run to the end (run_link)."""
+
+    def __init__(self, link: LinkCfg = None, llr: LLRCfg = None, cbfc: CBFCCfg = None, frame_size=1024,
+                 hooks=None, trace: list | None = None):
+        self.link, self.llr, self.cbfc = link or LinkCfg(), llr or LLRCfg(), cbfc or CBFCCfg()
+        sim = self.sim = Sim()
+        sim.trace = trace
+        self.a2b, self.b2a = Wire(sim, self.link, "a2b"), Wire(sim, self.link, "b2a")
+        self.got = []
+
+        def sink(fr, now):
+            self.got.append((fr.fid, now - fr.born, fr.size, now))
+            if sim.trace is not None:
+                sim.log("deliver", fid=fr.fid, lat=round(now - fr.born, 3))
+
+        self.A = Mac(sim, "A", self.link, self.llr, self.cbfc, self.a2b, source=Backlog(frame_size))
+        self.B = Mac(sim, "B", self.link, self.llr, self.cbfc, self.b2a, sink=sink)
+        self.a2b.peer, self.b2a.peer = self.B, self.A
+        if hooks:
+            hooks(sim, self.A, self.B, self.a2b, self.b2a)
+        if trace is not None:
+            def snap():
+                self.A.snap_if_changed()
+                self.B.snap_if_changed()
+            sim.after_event = snap
+            snap()
+        self.A.start()
+        self.B.start()
+        if trace is not None:
+            sim.after_event()                   # state after the first frame is queued at t = 0
+
+    def run(self, until: float):
+        self.sim.run(until)
+
+    def result(self, warmup_ns=2_000.0) -> Result:
+        got, A, B, sim_ns = self.got, self.A, self.B, self.sim.now
+        fids = [g[0] for g in got]
+        in_order = all(x < y for x, y in zip(fids, fids[1:]))
+        window = [g for g in got if g[3] >= warmup_ns]
+        span = sim_ns - warmup_ns
+        lat = sorted(g[1] for g in got) or [0.0]
+        # FLUSH can discard frames the receiver already has (only their ACKs were lost)
+        lost = (set(A.lost_fids) | set(B.lost_fids)) - set(fids)
+        return Result(
+            sim_ns=sim_ns, delivered=len(got), delivered_bytes=sum(g[2] for g in got),
+            goodput_gbps=sum(g[2] for g in window) * 8 / span if span > 0 else 0.0,
+            in_order=in_order, duplicates=len(fids) - len(set(fids)), lost=len(lost),
+            lat_p50_ns=lat[len(lat) // 2], lat_p99_ns=lat[min(len(lat) - 1, int(len(lat) * 0.99))],
+            a=dict(A.stats), b=dict(B.stats), wire={"a2b": dict(self.a2b.stats), "b2a": dict(self.b2a.stats)})
+
+
 def run_link(link: LinkCfg = None, llr: LLRCfg = None, cbfc: CBFCCfg = None, frame_size=1024,
              sim_ns=20_000.0, warmup_ns=2_000.0, hooks=None, trace: list | None = None) -> Result:
     """Run one link. Pass an empty list as `trace` to record every event (sim/trace.py)."""
-    link, llr, cbfc = link or LinkCfg(), llr or LLRCfg(), cbfc or CBFCCfg()
-    sim = Sim()
-    sim.trace = trace
-    a2b, b2a = Wire(sim, link, "a2b"), Wire(sim, link, "b2a")
-    got = []
-
-    def sink(fr, now):
-        got.append((fr.fid, now - fr.born, fr.size, now))
-        if sim.trace is not None:
-            sim.log("deliver", fid=fr.fid, lat=round(now - fr.born, 3))
-
-    src = Backlog(frame_size)
-    A = Mac(sim, "A", link, llr, cbfc, a2b, source=src)
-    B = Mac(sim, "B", link, llr, cbfc, b2a, sink=sink)
-    a2b.peer, b2a.peer = B, A
-    if hooks:
-        hooks(sim, A, B, a2b, b2a)
-    if trace is not None:
-        def snap():
-            A.snap_if_changed()
-            B.snap_if_changed()
-        sim.after_event = snap
-        snap()
-    A.start()
-    B.start()
-    sim.run(sim_ns)
-
-    fids = [g[0] for g in got]
-    in_order = all(x < y for x, y in zip(fids, fids[1:]))
-    window = [g for g in got if g[3] >= warmup_ns]
-    span = sim_ns - warmup_ns
-    lat = sorted(g[1] for g in got) or [0.0]
-    # FLUSH can discard frames the receiver already has (only their ACKs were lost)
-    lost = (set(A.lost_fids) | set(B.lost_fids)) - set(fids)
-    return Result(
-        sim_ns=sim_ns, delivered=len(got), delivered_bytes=sum(g[2] for g in got),
-        goodput_gbps=sum(g[2] for g in window) * 8 / span if span > 0 else 0.0,
-        in_order=in_order, duplicates=len(fids) - len(set(fids)), lost=len(lost),
-        lat_p50_ns=lat[len(lat) // 2], lat_p99_ns=lat[min(len(lat) - 1, int(len(lat) * 0.99))],
-        a=dict(A.stats), b=dict(B.stats), wire={"a2b": dict(a2b.stats), "b2a": dict(b2a.stats)})
+    s = LinkSession(link, llr, cbfc, frame_size, hooks, trace)
+    s.run(sim_ns)
+    return s.result(warmup_ns)
 
 
 def link_rtt_ns(link: LinkCfg, llr: LLRCfg) -> float:

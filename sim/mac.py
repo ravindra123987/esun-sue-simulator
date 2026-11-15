@@ -389,7 +389,9 @@ class Mac:
             return
         self.draining = True
         fr = self.rxbuf[0]
-        self.sim.after(fr.size / (self.cbfc.drain_gbps / 8.0), self._drained)
+        dt = fr.size / (self.cbfc.drain_gbps / 8.0)
+        self._log("egress", fid=fr.fid, t_end=round(self.sim.now + dt, 3))
+        self.sim.after(dt, self._drained)
 
     def _drained(self):
         fr = self.rxbuf.popleft()

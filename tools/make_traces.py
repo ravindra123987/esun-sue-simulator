@@ -92,8 +92,9 @@ SCENARIOS = [
 ]
 
 
-def run(sc):
-    link = LinkCfg(**sc.get("link", {}))
+def setup(sc):
+    """Configs, corruption hooks and the viewer's cfg block for one scenario (shared with tools/live.py)."""
+    link = LinkCfg(**{k: (list(v) if k == "down" else v) for k, v in sc.get("link", {}).items()})
     llr = LLRCfg(**sc.get("llr", {}))
     cbfc = CBFCCfg(**sc.get("cbfc", {}))
 
@@ -102,16 +103,22 @@ def run(sc):
             a2b.corrupt_hook = sc["a2b"]()          # fresh hook each run: hooks are stateful
         if "b2a" in sc:
             b2a.corrupt_hook = sc["b2a"]()
+    cfg = {"rate_gbps": link.rate_gbps, "cable_m": link.cable_m, "prop_ns": round(link.prop_ns, 3),
+           "frame": 1024, "down": [list(d) for d in link.down], "sim_ns": sc.get("sim_ns"),
+           "llr": {"enabled": llr.enabled, "replay_timer_ns": llr.replay_timer_ns,
+                   "replay_ct_max": llr.replay_ct_max, "ctlos_spacing": llr.ctlos_spacing},
+           "cbfc": {"total_credits": cbfc.total_credits, "credit_size": cbfc.credit_size,
+                    "drain_gbps": cbfc.drain_gbps}}
+    return link, llr, cbfc, hooks, cfg
+
+
+def run(sc):
+    link, llr, cbfc, hooks, cfg = setup(sc)
     tr = []
     r = run_link(link=link, llr=llr, cbfc=cbfc, sim_ns=sc["sim_ns"], warmup_ns=0, hooks=hooks, trace=tr)
     return {
         "id": sc["id"], "title": sc["title"], "summary": sc["summary"], "watch": sc["watch"],
-        "cfg": {"rate_gbps": link.rate_gbps, "cable_m": link.cable_m, "prop_ns": round(link.prop_ns, 3),
-                "frame": 1024, "down": link.down, "sim_ns": sc["sim_ns"],
-                "llr": {"enabled": llr.enabled, "replay_timer_ns": llr.replay_timer_ns,
-                        "replay_ct_max": llr.replay_ct_max, "ctlos_spacing": llr.ctlos_spacing},
-                "cbfc": {"total_credits": cbfc.total_credits, "credit_size": cbfc.credit_size,
-                         "drain_gbps": cbfc.drain_gbps}},
+        "cfg": cfg,
         "result": {"delivered": r.delivered, "lost": r.lost, "in_order": r.in_order,
                    "replayed": r.a["replayed"], "goodput_gbps": round(r.goodput_gbps, 1)},
         "events": tr,

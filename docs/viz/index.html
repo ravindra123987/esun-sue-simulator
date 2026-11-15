@@ -60,6 +60,17 @@ button:focus-visible, input:focus-visible, select:focus-visible{outline:2px soli
 
 .scroll{overflow-x:auto}
 #cNet{display:block; width:100%; min-width:1000px; aspect-ratio:1300 / 540; border-top:1px solid var(--line)}
+#cNet.simple{aspect-ratio:1300 / 400; min-width:900px}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden}
+.ctl .seg button{border:0; border-radius:0; background:var(--surface); min-width:0; padding:5px 10px}
+.ctl .seg button[aria-pressed="true"]{background:color-mix(in srgb, var(--accent) 16%, var(--surface)); color:var(--fg); font-weight:600}
+.ctl .seg button:disabled{opacity:.45; cursor:not-allowed}
+.ctl.live{border-top:1px solid var(--line); background:color-mix(in srgb, var(--bad) 5%, var(--surface))}
+.badge{display:inline-flex; align-items:center; gap:6px; font-family:var(--f-mono); font-weight:700; font-size:.75rem; color:var(--bad)}
+.badge i{width:8px; height:8px; border-radius:50%; background:var(--bad); animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){ .badge i{animation:none} }
+[hidden]{display:none !important}
 #cLadder{display:block; width:100%; min-width:660px; height:280px}
 
 .notes{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px}
@@ -83,9 +94,9 @@ footer{font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); pa
 
 <div class="wrap">
   <header class="top">
-    <div class="eyebrow">esun-sue-simulator · trace replay · UEC 1.1 §5.1 LLR · §5.2 CBFC</div>
+    <div class="eyebrow">esun-sue-simulator · UEC 1.1 §5.1 LLR · §5.2 CBFC</div>
     <h1>Scale-up Packet Viewer: XPU NIC → switch port</h1>
-    <p class="muted">One hop of a scale-up network, replayed from the discrete-event simulator. XPU A's on-die SUE NIC sends 1 KB frames over an 800G cable to port 1 of an ESUN switch, which buffers them and forwards them out of port 7. Every packet, control block, counter and buffer slot below comes from the trace; frames on the cable are drawn to scale.</p>
+    <p class="muted">One hop of a scale-up network: XPU A's NIC sends frames over an 800G cable to a switch, which buffers them and forwards them on. Everything that moves is what the simulator did. <b>Simple</b> shows the essentials, <b>Detailed</b> opens up every block, and <b>Live</b> runs the simulator while you watch (local only).</p>
   </header>
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="Scenario"></nav>
@@ -111,8 +122,24 @@ footer{font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); pa
           <option value="25">25 ns/s</option><option value="60">60 ns/s</option><option value="150">150 ns/s</option>
         </select></label>
       <label for="pauseAt"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
+      <span class="seg" role="group" aria-label="View">
+        <button id="vSimple" aria-pressed="true">Simple</button><button id="vDetail" aria-pressed="false">Detailed</button></span>
+      <span class="seg" role="group" aria-label="Source">
+        <button id="sRec" aria-pressed="true" title="Replay the recorded runs in traces.js">Recorded</button><button id="sLive" aria-pressed="false">Live</button></span>
     </div>
-    <div class="tl">
+    <div class="ctl live" id="livebar" hidden>
+      <span class="badge"><i></i>LIVE</span>
+      <span class="muted" id="liveInfo">simulator running in tools/live.py</span>
+      <button data-cmd="corrupt_frame">⚡ Corrupt next frame</button>
+      <button data-cmd="lose_nack">Lose next NACK</button>
+      <button data-cmd="link_down" data-arg="400">Cut link 400 ns</button>
+      <button data-cmd="link_down" data-arg="1500">Cut link 1.5 µs</button>
+      <button data-cmd="egress" data-arg="400">Egress 400G</button>
+      <button data-cmd="egress" data-arg="800">Egress 800G</button>
+      <button id="bRestart">Restart</button>
+    </div>
+    <div class="ctl" id="livehint" hidden><span class="muted">Live mode needs the local simulator: run <code>.venv/bin/python tools/live.py</code> and open <code>http://127.0.0.1:8765/</code>.</span></div>
+    <div class="tl" id="tl">
       <canvas id="cMarks" aria-hidden="true"></canvas>
       <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
     </div>
@@ -128,7 +155,7 @@ footer{font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); pa
     <section class="card log" id="log" aria-label="Events"></section>
   </div>
 
-  <section class="card">
+  <section class="card" id="ladderCard">
     <div class="ctl" style="padding-bottom:0">
       <span class="eyebrow">Flow graph · NIC port 0 ↔ switch port 1 · time runs down, now is the bottom edge</span>
       <label for="span" style="margin-left:auto">Window
@@ -150,7 +177,7 @@ footer{font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); pa
 
   <footer>
     <div><b>How the model maps to the hardware.</b> The simulator models one full-duplex link. Its sender is drawn as XPU A's NIC: an always-full send queue in HBM, the CBFC credit gate, LLR transmit with its replay buffer, and the MAC/PCS/SerDes. Its receiver is drawn as switch port 1: FCS check and LLR receive, then the lossless ingress buffer that CBFC credits describe. The receiver's drain rate is drawn as the egress port forwarding at that rate. Control blocks (8 B) ride in fixed slots every 2048 B of link time and are drawn wider than their true 0.08 ns.</div>
-    <div><b>Not modelled yet</b> (drawn dimmed): the switch's parse/lookup/scheduling latency (0 ns here), the second hop to XPU B, and DMA timing from HBM. One VC, both ends start initialised, no PCS-status timer. Traces: <code>tools/make_traces.py</code>; captions: <code>sim/trace.py</code>; limits: <code>docs/experiments/llr-cbfc.md</code>.</div>
+    <div><b>Not modelled yet</b> (drawn dimmed): the switch's parse/lookup/scheduling latency (0 ns here), the second hop to XPU B, and DMA timing from HBM. One VC, both ends start initialised, no PCS-status timer. Recorded runs: <code>tools/make_traces.py</code>; live runs: <code>tools/live.py</code> (local, standard library only); captions: <code>sim/trace.py</code>; limits: <code>docs/experiments/llr-cbfc.md</code>.</div>
   </footer>
 </div>
 
@@ -167,26 +194,67 @@ if (!TR || !TR.length){
 const ALL1 = (1 << 20) - 1;
 
 // ---------------------------------------------------------------- data prep
-function prep(tr){
-  const frames = [], ctl = [], snaps = {A:[], B:[]}, rx = [], deliv = [], acc = new Map();
-  for (const e of tr.events){
-    if (e.ev === "frame"){ if (e.dir === "a2b") frames.push(e); }
-    else if (e.ev === "ctlos") ctl.push(e);
-    else if (e.ev === "mac") snaps[e.mac].push(e);
-    else if (e.ev === "rx" && e.mac === "B"){ rx.push(e); if (e.res === "accept" && e.kind === "data" && !acc.has(e.fid)) acc.set(e.fid, e); }
-    else if (e.ev === "deliver") deliv.push(e);
-  }
-  // switch ingress buffer: a frame enters when the port accepts it and leaves through the egress port,
-  // which takes size / drain rate (the drain the simulator models)
-  const egNs = tr.cfg.frame / (tr.cfg.cbfc.drain_gbps / 8);
-  const qitems = deliv.map(e => { const a = acc.get(e.fid); return {fid:e.fid, seq:a ? a.seq : null, tin:a ? a.t : e.t - egNs, ts:e.t - egNs, te:e.t, lat:e.lat}; });
-  const firsts = frames.filter(f => f.kind === "data" && !f.replay).map(f => f.t0);
-  return Object.assign({}, tr, {frames, ctl, snaps, rx, deliv, qitems, firsts, egNs, dur:tr.cfg.sim_ns, prop:tr.cfg.prop_ns});
-}
-const D = TR.map(prep);
 const lastAt = (arr, t) => { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi){ const m = (lo + hi) >> 1; if (arr[m].t <= t){ r = m; lo = m + 1; } else hi = m - 1; } return r; };
 const countLE = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m + 1; else hi = m; } return lo; };
 const isDown = (d, t) => d.cfg.down.some(([a,b]) => a <= t && t < b);
+// One scenario's data. Recorded traces are ingested in one go; live mode ingests each batch the
+// simulator sends back, so everything here can grow (and is pruned behind the playhead).
+function newData(meta, cfg){
+  return {id:meta.id, title:meta.title, summary:meta.summary, watch:meta.watch, result:meta.result || null, cfg,
+    frames:[], ctl:[], snaps:{A:[], B:[]}, rx:[], q:[], qBy:new Map(), firsts:[], fwd:[], lat:[], replays:[], fcs:[], notes:[],
+    dur:cfg.sim_ns || 0, prop:cfg.prop_ns, live:false};
+}
+function ingest(d, events){
+  for (const e of events){
+    switch (e.ev){
+      case "frame":
+        if (e.dir !== "a2b") break;
+        d.frames.push(e);
+        if (e.replay) d.replays.push(e.t1); else if (e.kind === "data") d.firsts.push(e.t0);
+        break;
+      case "ctlos": d.ctl.push(e); break;
+      case "mac": d.snaps[e.mac].push(e); break;
+      case "rx":
+        if (e.mac !== "B") break;
+        d.rx.push(e);
+        if (e.res === "bad") d.fcs.push(e.t);
+        if (e.res === "accept" && e.kind === "data" && !d.qBy.has(e.fid)){ const it = {fid:e.fid, seq:e.seq, tin:e.t, ts:null, te:null}; d.q.push(it); d.qBy.set(e.fid, it); }
+        break;
+      case "egress": { const it = d.qBy.get(e.fid); if (it){ it.ts = e.t; it.te = e.t_end; } break; }
+      case "deliver": d.fwd.push(e.t); d.lat.push(e); break;
+    }
+  }
+}
+function addNotes(d, notes){ if (!notes.length) return false; d.notes.push(...notes); d.notes.sort((x, y) => x.t - y.t); return true; }
+// live mode: drop objects far behind the playhead (running counters keep plain numbers)
+function prune(d, t){
+  const cut = t - 1500;
+  if (d.frames.length > 1500) d.frames = d.frames.filter(f => f.arrive >= cut);
+  if (d.ctl.length > 1500) d.ctl = d.ctl.filter(c => c.arrive >= cut);
+  if (d.rx.length > 1500) d.rx = d.rx.filter(r => r.t >= cut);
+  if (d.lat.length > 1500) d.lat = d.lat.slice(-200);
+  if (d.q.length > 1500){ d.q = d.q.filter(i => i.te == null || i.te >= cut); d.qBy = new Map(d.q.map(i => [i.fid, i])); }
+  for (const k of ["A", "B"]){ const arr = d.snaps[k]; if (arr.length > 1500){ const i = Math.max(0, lastAt(arr, cut)); d.snaps[k] = arr.slice(i); } }
+}
+// everything the two renderers need at time t
+function view(d, t){
+  const a = d.snaps.A[Math.max(0, lastAt(d.snaps.A, t))], b = d.snaps.B[Math.max(0, lastAt(d.snaps.B, t))];
+  let ser = null; for (let i = d.frames.length - 1; i >= 0; i--){ const f = d.frames[i]; if (f.t1 < t - 40) break; if (f.t0 <= t && t < f.t1){ ser = f; break; } }
+  let rxRecent = null; for (let i = lastAt(d.rx, t); i >= 0; i--){ const r = d.rx[i]; if (t - r.t <= 12) rxRecent = r; break; }
+  let ctlIn = null, ctlOut = null;
+  for (let i = d.ctl.length - 1; i >= 0; i--){
+    const c = d.ctl[i]; if (c.t1 < t - 120) break;
+    if (c.dir !== "b2a") continue;
+    if (!ctlIn && c.fate === "ok" && c.arrive <= t && t - c.arrive < 14) ctlIn = c;
+    if (!ctlOut && c.t1 <= t && t - c.t1 < 14) ctlOut = c;
+  }
+  const queued = [], egrL = [];
+  for (const i of d.q){ if (i.tin > t) continue; if (i.ts == null || t < i.ts) queued.push(i); else if (t < i.te) egrL.push(i); }
+  let last = null; for (let i = d.lat.length - 1; i >= 0; i--) if (d.lat[i].t <= t){ last = d.lat[i]; break; }
+  return {a, b, ser, rxRecent, ctlIn, ctlOut, queued, egr:egrL[0] || null, last, down:isDown(d, t), llrOn:d.cfg.llr.enabled,
+    fwd:countLE(d.fwd, t), replays:countLE(d.replays, t), fcs:countLE(d.fcs, t), next:countLE(d.firsts, t) + 1};
+}
+const D = TR.map(tr => { const d = newData(tr, tr.cfg); ingest(d, tr.events); d.notes = tr.notes.slice(); return d; });
 
 // ---------------------------------------------------------------- theme + canvas helpers
 let C = {};
@@ -268,14 +336,7 @@ function drawNet(d, t){
   const [g] = fit($("cNet"), W, H);
   g.fillStyle = C.canvas; g.fillRect(0, 0, W, H);
   g.fillStyle = C.grid; for (let x = 10; x < W; x += 20) for (let y = 10; y < H; y += 20) g.fillRect(x, y, 1.2, 1.2);
-  const down = isDown(d, t), llrOn = d.cfg.llr.enabled;
-  const a = d.snaps.A[Math.max(0, lastAt(d.snaps.A, t))], b = d.snaps.B[Math.max(0, lastAt(d.snaps.B, t))];
-  const ser = d.frames.find(f => f.t0 <= t && t < f.t1);                     // frame being serialised by the NIC
-  const rxRecent = (() => { for (let i = lastAt(d.rx, t); i >= 0; i--){ const r = d.rx[i]; if (t - r.t > 12) break; return r; } return null; })();
-  const ctlIn = (() => { let r = null; for (const c of d.ctl) if (c.dir === "b2a" && c.fate === "ok" && c.arrive <= t && t - c.arrive < 14) r = c; return r; })();
-  const ctlOut = (() => { let r = null; for (const c of d.ctl) if (c.dir === "b2a" && c.t1 <= t && t - c.t1 < 14) r = c; return r; })();
-  const queued = d.qitems.filter(q => q.tin <= t && t < q.ts), egr = d.qitems.find(q => q.ts <= t && t < q.te);
-  const fwd = countLE(d.qitems.map(q => q.te), t);
+  const V = view(d, t), {down, llrOn, a, b, ser, rxRecent, ctlIn, ctlOut, queued, egr, fwd} = V;
 
   // ---------------- XPU A host + NIC
   chassis(g, ...B_.host, "XPU A", "");
@@ -286,7 +347,7 @@ function drawNet(d, t){
     for (let i = 0; i < 4; i++){ g.fillStyle = alpha(C.mem, .14); g.fillRect(x + 8 + i * 23, y + 24, 19, 26); g.strokeStyle = alpha(C.mem, .5); g.strokeRect(x + 8.5 + i * 23, y + 24.5, 18, 25); }
     T(g, "send queue", x + 8, y + 66, {s:8.4, w:700, c:C.mem});
     T(g, "1 KB messages", x + 8, y + 78, {s:7.6, c:C.muted});
-    const next = countLE(d.firsts, t) + 1;
+    const next = V.next;
     for (let i = 0; i < 12; i++){
       const yy = y + 90 + i * 24; if (yy + 18 > y + h - 32) break;
       pkt(g, x + 10, yy, w - 20, 17, C.data, "#" + (next + i), {op: i === 0 ? .32 : .12, fs:8.4});
@@ -388,51 +449,7 @@ function drawNet(d, t){
   arrow(g, B_.nrx[0] + 52, B_.nrx[1], B_.nrx[0] + 52, B_.llr[1] + B_.llr[3], C.ack, ci === "LLR_ACK" || ci === "LLR_NACK" || ci === "LLR_INIT_ECHO", t);
   arrow(g, B_.nrx[0], LRX, B_.gate[0] + B_.gate[2], LRX, C.cf, ci === "CF_UPDATE", t);
 
-  // ---------------- cable + ports
-  for (const [x, lab] of [[XA, "port 0"], [XB, "port 1"]]){
-    for (const y of [LTX, LRX]){ rr(g, x - 7, y - 11, 14, 22, 3); g.fillStyle = C["block-hd"]; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1; g.stroke(); }
-    led(g, x, LTX - 20, down ? C.bad : C.ok, true);
-    T(g, lab, x, LRX + 22, {s:7.6, a:"center", c:C.muted});
-  }
-  T(g, down ? "LOS" : "link up", XA, LTX - 30, {s:7, a:"center", c:down ? C.bad : C.ok, w:700});
-  T(g, down ? "LOS" : "link up", XB - 12, LTX - 30, {s:7, a:"right", c:down ? C.bad : C.ok, w:700});
-  // cable jacket
-  rr(g, XA + 7, LTX - 22, XB - XA - 14, LRX - LTX + 44, 10);
-  g.fillStyle = alpha(down ? C.bad : C.muted, .05); g.fill(); g.strokeStyle = alpha(down ? C.bad : C.muted, .3); g.setLineDash(down ? [6,4] : []); g.stroke(); g.setLineDash([]);
-  g.lineWidth = 1.4; g.strokeStyle = down ? alpha(C.bad, .7) : alpha(C.muted, .55); g.setLineDash(down ? [5,5] : []);
-  for (const y of [LTX, LRX]){ g.beginPath(); g.moveTo(XA + 7, y); g.lineTo(XB - 7, y); g.stroke(); }
-  g.setLineDash([]);
-  T(g, "TX lane → data frames + NIC control blocks", XA + 34, LTX - 30, {s:7.6, c:C.muted});
-  T(g, "← RX lane: switch control blocks (ACK/NACK, CF_Update, ECHO)", XA + 34, LRX + 36, {s:7.6, c:C.muted});
-  T(g, `${d.cfg.cable_m} m DAC + MAC/PHY · ${d.prop.toFixed(1)} ns one way · ${d.cfg.rate_gbps}G`, (XA + XB)/2, LTX + 52, {s:8, a:"center", c:C.muted});
-  T(g, "1 KB frame ≈ 10.4 ns on the wire (to scale)", (XA + XB)/2, LTX + 64, {s:7.4, a:"center", c:alpha(C.muted, .8)});
-  if (down){ T(g, "LINK DOWN", (XA + XB)/2, (LTX + LRX)/2 + 30, {s:13, w:700, a:"center", c:C.bad}); }
-  const L = XB - XA, px = f => XA + f * L;
-  for (const f of d.frames){
-    if (f.t0 > t || f.arrive < t) continue;
-    const front = (t - f.t0) / d.prop, back = (t - f.t1) / d.prop;
-    if (front <= 0 || back >= 1) continue;
-    const x0 = px(Math.max(0, back)), x1 = px(Math.min(1, front));
-    let col = f.kind === "cc_update" ? C.cc : C.data, op = .26, tc = C.fg;
-    if (f.fate === "bad" && front > .5){ col = C.bad; tc = C.bad; }
-    if (f.fate === "down"){ col = C.down; op = .12; tc = C.muted; g.globalAlpha = Math.max(.15, 1 - front); }
-    pkt(g, x0, LTX - 11, x1 - x0, 22, col, f.kind === "cc_update" ? "CC" : (f.seq == null ? "#" + f.fid : String(f.seq)), {dash:f.replay || f.fate === "down", op, tc, fs:9.4});
-    if (f.fate === "bad" && front > .5 && back < .5) T(g, "⚡ bit error", px(.5), LTX - 16, {s:8.6, w:700, a:"center", c:C.bad, mono:false});
-    g.globalAlpha = 1;
-  }
-  for (const c of d.ctl){
-    if (c.t1 > t || c.arrive < t) continue;
-    const f = (t - c.t1) / d.prop; if (f < 0 || f > 1) continue;
-    const quiet = c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1;
-    const [k] = ctlStyle(c.kind), lab = ctlLabel(c);
-    const x = c.dir === "a2b" ? px(f) : px(1 - f), y = c.dir === "a2b" ? LTX + 22 : LRX;
-    g.font = `700 8.4px ${MONO}`; const w = g.measureText(lab).width + 10;
-    g.globalAlpha = quiet ? .25 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
-    let col = C[k]; if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
-    rr(g, x - w/2, y - 7.5, w, 15, 3); g.fillStyle = alpha(col, .2); g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke();
-    T(g, lab, x, y + .5, {s:8.4, w:700, a:"center", b:"middle"});
-    g.globalAlpha = 1;
-  }
+  drawCable(g, d, t, V, XA, XB, LTX, LRX, 1);
 
   // ---------------- switch
   chassis(g, ...B_.sw, "Switch", "ESUN scale-up switch · 64 × 800G");
@@ -510,13 +527,171 @@ function drawNet(d, t){
   // stats
   { const [x, y, w, h] = B_.stats;
     block(g, x, y, w, h, "Counters");
-    const last = d.qitems.filter(q => q.te <= t).pop();
-    const lostNow = d.rx.filter(r => r.t <= t && r.res === "bad" && !llrOn).length;
+    const last = V.last;
     const rows = [["forwarded", fwd], ["in buffer", queued.length + (egr ? 1 : 0)], ["last latency", last ? `${last.lat.toFixed(0)} ns` : "–"],
-      ["NIC replays", d.frames.filter(f => f.t1 <= t && f.replay).length], ["FCS drops", d.rx.filter(r => r.t <= t && r.res === "bad").length],
-      ["lost (no LLR)", llrOn ? "–" : lostNow]];
+      ["NIC replays", V.replays], ["FCS drops", V.fcs], ["lost (no LLR)", llrOn ? "–" : V.fcs]];
     rows.forEach(([k, v], i) => { T(g, k, x + 8, y + 36 + i * 22, {s:8, c:C.muted}); T(g, String(v), x + w - 8, y + 36 + i * 22, {s:10, w:700, a:"right"}); });
     T(g, "latency: HBM queue → port 7", x + 8, y + h - 8, {s:6.6, c:C.muted});
+  }
+}
+
+// ---------------------------------------------------------------- simple view: NIC, cable, switch
+const SW = 1300, SH = 400, SXA = 452, SXB = 848, STX = 150, SRX = 250;
+function drawSimple(d, t){
+  const [g] = fit($("cNet"), SW, SH);
+  g.fillStyle = C.canvas; g.fillRect(0, 0, SW, SH);
+  g.fillStyle = C.grid; for (let x = 10; x < SW; x += 20) for (let y = 10; y < SH; y += 20) g.fillRect(x, y, 1.2, 1.2);
+  const V = view(d, t), {a, b, ser, rxRecent, queued, egr, llrOn} = V;
+  const tot = d.cfg.cbfc.total_credits;
+
+  // ---- XPU A NIC
+  chassis(g, 20, 34, 424, 340, "XPU A · NIC", "");
+  T(g, "sends 1 KB frames to the switch", 140, 56, {s:11, c:C.muted, mono:false});
+  // credits
+  { const st = a.stalled, frac = Math.min(1, a.cr_used / a.cl);
+    T(g, "Credits in use", 40, 94, {s:12, w:600, mono:false});
+    T(g, `${a.cr_used} / ${a.cl}`, 424, 94, {s:12, w:700, a:"right", c:st ? C.bad : C.fg});
+    rr(g, 40, 102, 384, 14, 7); g.fillStyle = C["surface-2"]; g.fill(); g.strokeStyle = C["block-line"]; g.lineWidth = 1; g.stroke();
+    g.fillStyle = frac > .9 ? C.bad : C.cf; rr(g, 40, 102, 384 * frac, 14, 7); g.fill();
+    T(g, st ? "Out of credits: waiting for the switch to free buffer space" : "Each frame needs 16 credits of switch buffer before it may be sent",
+      40, 132, {s:10.5, c:st ? C.bad : C.muted, mono:false, w:st ? 600 : 400});
+  }
+  // LLR
+  { const sc = {ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[a.llr] || C.muted;
+    T(g, "Link-level retry", 40, 166, {s:12, w:600, mono:false});
+    if (!llrOn) T(g, "off", 170, 166, {s:12, w:700, c:C.muted});
+    else {
+      const lab = {ADVANCE:"sending new frames", REPLAY:"resending from buffer", INIT:"re-syncing", FLUSH:"gave up"}[a.llr] || a.llr;
+      g.font = `700 11px ${MONO}`; const w = g.measureText(lab).width + 18;
+      rr(g, 168, 153, w, 18, 9); g.fillStyle = alpha(sc, .16); g.fill(); g.strokeStyle = sc; g.lineWidth = 1.2; g.stroke();
+      T(g, lab, 168 + w/2, 162.5, {s:11, w:700, a:"center", b:"middle", c:sc});
+    }
+  }
+  // replay buffer
+  { T(g, "Replay buffer", 40, 200, {s:12, w:600, mono:false});
+    if (!llrOn){ T(g, "not used without LLR: a corrupted frame is simply lost", 40, 222, {s:10.5, c:C.muted, mono:false}); }
+    else {
+      T(g, `${a.buf.length} frame${a.buf.length === 1 ? "" : "s"} kept until the switch ACKs them`, 150, 200, {s:10.5, c:C.muted, mono:false});
+      const rep = a.llr === "REPLAY", cols = 12, cw = 29, ch = 22;
+      a.buf.slice(0, 48).forEach((sq, i) => {
+        const cx = 40 + (i % cols) * (cw + 3), cy = 212 + Math.floor(i / cols) * (ch + 4);
+        const live = ser && ser.replay && ser.seq === sq;
+        rr(g, cx, cy, cw, ch, 3); g.fillStyle = live ? C.ack : alpha(rep ? C.ack : C.data, .2); g.fill();
+        g.strokeStyle = rep ? C.ack : alpha(C.data, .75); g.lineWidth = 1; g.stroke();
+        T(g, String(sq), cx + cw/2, cy + ch/2 + .5, {s:10, w:700, a:"center", b:"middle", c:live ? C.surface : C.fg});
+      });
+      if (a.buf.length > 48) T(g, `+${a.buf.length - 48} more`, 424, 352, {s:10, a:"right", c:C.muted});
+      if (!a.buf.length) T(g, "empty", 40, 230, {s:11, c:C.muted});
+    }
+  }
+  if (ser) T(g, ser.replay ? `resending seq ${ser.seq}` : (ser.kind === "cc_update" ? "sending CC_Update" : `sending ${ser.seq != null ? "seq " + ser.seq : "#" + ser.fid}`),
+    436, STX + 30, {s:10.5, w:700, a:"right", c:ser.replay ? C.ack : C.data});
+
+  // ---- cable
+  drawCable(g, d, t, V, SXA, SXB, STX, SRX, 1.3);
+
+  // ---- switch
+  chassis(g, SXB, 34, 432, 340, "Switch", "");
+  T(g, "port 1 in → buffer → port 7 out", SXB + 82, 56, {s:11, c:C.muted, mono:false});
+  // port 1
+  { const x = 870, y = 80, w = 118, h = 200;
+    const vc = rxRecent ? ({accept:C.ok, bad:C.bad, ooo:C.ack, dup:C.muted}[rxRecent.res]) : null;
+    block(g, x, y, w, h, "", {hot:vc && rxRecent.res !== "accept" ? vc : null});
+    T(g, "Port 1", x + 10, y + 22, {s:13, w:700, mono:false});
+    T(g, "checks every frame", x + 10, y + 38, {s:9.5, c:C.muted, mono:false});
+    if (llrOn){ T(g, "expects seq", x + 10, y + 70, {s:10, c:C.muted, mono:false}); T(g, String(b.next_rx), x + w - 10, y + 70, {s:13, w:700, a:"right"}); }
+    if (rxRecent){
+      const big = {accept:"✓", bad:"✕", ooo:"✕", dup:"✕"}[rxRecent.res];
+      const why = {accept:"accepted", bad:"bad checksum", ooo:"out of order", dup:"duplicate"}[rxRecent.res];
+      g.globalAlpha = Math.max(.35, 1 - (t - rxRecent.t) / 12);
+      T(g, big, x + w/2, y + 128, {s:34, w:700, a:"center", c:vc, mono:false});
+      T(g, why + (rxRecent.seq != null ? ` · ${rxRecent.seq}` : ""), x + w/2, y + 152, {s:10, w:700, a:"center", c:vc});
+      g.globalAlpha = 1;
+    }
+    if (llrOn && b.ack_state !== "SEND_ACKS"){ T(g, "NACK sent,", x + w/2, y + h - 24, {s:9.5, a:"center", c:C.ack, w:600, mono:false}); T(g, "waiting for resend", x + w/2, y + h - 10, {s:9.5, a:"center", c:C.ack, w:600, mono:false}); }
+  }
+  arrow(g, 988, STX, 1004, STX, C.data, !!(rxRecent && rxRecent.res === "accept" && t - rxRecent.t < 10), t);
+  // buffer
+  { const x = 1004, y = 80, w = 124, h = 278, frac = Math.min(1, b.occ / tot);
+    block(g, x, y, w, h, "", {fill:alpha(C.mem, .05)});
+    T(g, "Buffer", x + 10, y + 22, {s:13, w:700, mono:false});
+    T(g, `${b.occ} / ${tot} credits`, x + 10, y + 38, {s:9.5, c:C.muted});
+    rr(g, x + 10, y + 46, w - 20, 8, 4); g.fillStyle = C["surface-2"]; g.fill(); g.fillStyle = frac > .9 ? C.bad : C.mem; rr(g, x + 10, y + 46, (w - 20) * frac, 8, 4); g.fill();
+    const rows = 9;
+    queued.slice(0, rows).forEach((q, i) => pkt(g, x + 10, y + 66 + i * 22, w - 20, 18, C.data, String(q.seq ?? "#" + q.fid), {fs:10}));
+    if (queued.length > rows) T(g, `+${queued.length - rows} more`, x + w/2, y + h - 8, {s:9.5, a:"center", c:C.muted});
+    if (!queued.length) T(g, "empty", x + w/2, y + 90, {s:11, a:"center", c:C.muted});
+  }
+  arrow(g, 1128, STX, 1144, STX, C.data, !!egr, t);
+  // port 7
+  { const x = 1144, y = 80, w = 118, h = 200, slow = d.cfg.cbfc.drain_gbps < d.cfg.rate_gbps;
+    block(g, x, y, w, h, "", {hot:egr ? C.data : null});
+    T(g, "Port 7", x + 10, y + 22, {s:13, w:700, mono:false});
+    T(g, "out to XPU B", x + 10, y + 38, {s:9.5, c:C.muted, mono:false});
+    T(g, `${d.cfg.cbfc.drain_gbps} Gb/s`, x + 10, y + 60, {s:11, w:700, c:slow ? C.bad : C.muted});
+    if (egr){
+      const p = (t - egr.ts) / (egr.te - egr.ts);
+      pkt(g, x + 10, y + 86, w - 20, 20, C.data, String(egr.seq ?? "#" + egr.fid), {fs:10});
+      rr(g, x + 10, y + 112, w - 20, 5, 2.5); g.fillStyle = C["surface-2"]; g.fill(); g.fillStyle = C.data; rr(g, x + 10, y + 112, (w - 20) * p, 5, 2.5); g.fill();
+      T(g, "sending out", x + w/2, y + 132, {s:9.5, a:"center", c:C.muted, mono:false});
+    } else T(g, "idle", x + w/2, y + 100, {s:11, a:"center", c:C.muted});
+    T(g, "forwarded", x + 10, y + h - 30, {s:10, c:C.muted, mono:false});
+    T(g, String(V.fwd), x + w - 10, y + h - 30, {s:15, w:700, a:"right"});
+    if (!llrOn) { T(g, "lost", x + 10, y + h - 10, {s:10, c:C.muted, mono:false}); T(g, String(V.fcs), x + w - 10, y + h - 10, {s:13, w:700, a:"right", c:V.fcs ? C.bad : C.fg}); }
+  }
+}
+
+// the cable between NIC port 0 and switch port 1; k scales the text (1 = detailed view)
+function drawCable(g, d, t, V, xa, xb, ytx, yrx, k){
+  const down = V.down, fs = n => n * k;
+  for (const [x, lab] of [[xa, "port 0"], [xb, "port 1"]]){
+    for (const y of [ytx, yrx]){ rr(g, x - 7, y - 11, 14, 22, 3); g.fillStyle = C["block-hd"]; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1; g.stroke(); }
+    led(g, x, ytx - 20, down ? C.bad : C.ok, true);
+    T(g, lab, x, yrx + 16 + 6 * k, {s:fs(7.6), a:"center", c:C.muted});
+  }
+  T(g, down ? "LOS" : "link up", xa, ytx - 30, {s:fs(7), a:"center", c:down ? C.bad : C.ok, w:700});
+  T(g, down ? "LOS" : "link up", xb - 12, ytx - 30, {s:fs(7), a:"right", c:down ? C.bad : C.ok, w:700});
+  rr(g, xa + 7, ytx - 22, xb - xa - 14, yrx - ytx + 44, 10);
+  g.fillStyle = alpha(down ? C.bad : C.muted, .05); g.fill(); g.strokeStyle = alpha(down ? C.bad : C.muted, .3); g.setLineDash(down ? [6,4] : []); g.stroke(); g.setLineDash([]);
+  g.lineWidth = 1.4; g.strokeStyle = down ? alpha(C.bad, .7) : alpha(C.muted, .55); g.setLineDash(down ? [5,5] : []);
+  for (const y of [ytx, yrx]){ g.beginPath(); g.moveTo(xa + 7, y); g.lineTo(xb - 7, y); g.stroke(); }
+  g.setLineDash([]);
+  if (k === 1){
+    T(g, "TX lane → data frames + NIC control blocks", xa + 34, ytx - 30, {s:7.6, c:C.muted});
+    T(g, "← RX lane: switch control blocks (ACK/NACK, CF_Update, ECHO)", xa + 34, yrx + 36, {s:7.6, c:C.muted});
+    T(g, "1 KB frame ≈ 10.4 ns on the wire (to scale)", (xa + xb)/2, ytx + 64, {s:7.4, a:"center", c:alpha(C.muted, .8)});
+  } else {
+    T(g, "data →", xa + 40, ytx - 28, {s:fs(7.6), c:C.muted, w:600});
+    T(g, "← ACK / NACK / credits", xb - 40, yrx + 34, {s:fs(7.6), a:"right", c:C.muted, w:600});
+  }
+  T(g, `${d.cfg.cable_m} m cable · ${d.prop.toFixed(1)} ns one way · ${d.cfg.rate_gbps}G`, (xa + xb)/2, k === 1 ? ytx + 52 : (ytx + yrx)/2 + 4, {s:fs(8), a:"center", c:C.muted});
+  if (down) T(g, "LINK DOWN", (xa + xb)/2, (ytx + yrx)/2 + (k === 1 ? 30 : 26), {s:fs(13), w:700, a:"center", c:C.bad});
+  const L = xb - xa, px = f => xa + f * L, fh = 22 * Math.min(k, 1.25);
+  for (const f of d.frames){
+    if (f.t0 > t || f.arrive < t) continue;
+    const front = (t - f.t0) / d.prop, back = (t - f.t1) / d.prop;
+    if (front <= 0 || back >= 1) continue;
+    const x0 = px(Math.max(0, back)), x1 = px(Math.min(1, front));
+    let col = f.kind === "cc_update" ? C.cc : C.data, op = .26, tc = C.fg;
+    if (f.fate === "bad" && front > .5){ col = C.bad; tc = C.bad; }
+    if (f.fate === "down"){ col = C.down; op = .12; tc = C.muted; g.globalAlpha = Math.max(.15, 1 - front); }
+    pkt(g, x0, ytx - fh/2, x1 - x0, fh, col, f.kind === "cc_update" ? "CC" : (f.seq == null ? "#" + f.fid : String(f.seq)), {dash:f.replay || f.fate === "down", op, tc, fs:fs(9.4)});
+    if (f.fate === "bad" && front > .5 && back < .5) T(g, "⚡ bit error", px(.5), ytx - fh/2 - 5, {s:fs(8.6), w:700, a:"center", c:C.bad, mono:false});
+    g.globalAlpha = 1;
+  }
+  for (const c of d.ctl){
+    if (c.t1 > t || c.arrive < t) continue;
+    const f = (t - c.t1) / d.prop; if (f < 0 || f > 1) continue;
+    const quiet = c.dir === "a2b" && c.kind === "LLR_ACK" && c.seq === ALL1;
+    if (quiet && k !== 1) continue;
+    const [kk] = ctlStyle(c.kind), lab = ctlLabel(c);
+    const x = c.dir === "a2b" ? px(f) : px(1 - f), y = c.dir === "a2b" ? ytx + fh/2 + 11 : yrx;
+    g.font = `700 ${fs(8.4)}px ${MONO}`; const w = g.measureText(lab).width + 10, h = 15 * Math.min(k, 1.25);
+    g.globalAlpha = quiet ? .25 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
+    let col = C[kk]; if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
+    rr(g, x - w/2, y - h/2, w, h, 3); g.fillStyle = alpha(col, .2); g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke();
+    T(g, lab, x, y + .5, {s:fs(8.4), w:700, a:"center", b:"middle"});
+    g.globalAlpha = 1;
   }
 }
 
@@ -592,40 +767,104 @@ function drawNotes(d, t){
 }
 
 // ---------------------------------------------------------------- main loop
-let d = D[0], t = 0, playing = false, lastFrame = 0;
+let d = D[0], t = 0, playing = false, lastFrame = 0, mode = "simple";
+try { if (localStorage.getItem("sue-viz-view") === "detail") mode = "detail"; } catch (e) {}
+const LIVE = {avail:false, on:false, id:null, busy:false, simT:0, metas:[], waiting:false, gen:0};
+const LOOK = 40;                 // ns the simulator stays ahead of the picture (a frame is logged when its last bit leaves)
+
 function drawAll(){
-  $("clock").textContent = `t = ${t.toFixed(1)} ns`;
-  $("scrub").value = t;
-  drawNet(d, t); drawLadder(d, t); drawNotes(d, t);
+  if (!d.snaps.A.length || !d.snaps.B.length) return;   // live: nothing from the simulator yet
+  $("clock").textContent = `t = ${t.toFixed(1)} ns` + (LIVE.on && LIVE.waiting ? "  (waiting for the simulator)" : "");
+  if (!LIVE.on) $("scrub").value = t;
+  $("cNet").classList.toggle("simple", mode === "simple");
+  if (mode === "simple") drawSimple(d, t); else drawNet(d, t);
+  if (mode === "detail") drawLadder(d, t);
+  drawNotes(d, t);
 }
-function setT(v){ t = Math.max(0, Math.min(d.dur, v)); drawAll(); }
+function setT(v){ t = Math.max(0, LIVE.on ? Math.min(v, Math.max(0, LIVE.simT - LOOK)) : Math.min(d.dur, v)); drawAll(); }
 function tick(now){
   if (!playing) return;
   const dt = Math.min(100, now - lastFrame) / 1000; lastFrame = now;
-  const nt = t + dt * +$("speed").value;
+  let nt = t + dt * +$("speed").value;
+  if (LIVE.on){
+    pump();
+    const lim = LIVE.simT - LOOK; LIVE.waiting = nt > lim; if (nt > lim) nt = Math.max(t, lim);
+    prune(d, nt);
+  }
   if ($("pauseAt").checked){ const n = d.notes.find(n => n.t > t + 1e-6 && n.t <= nt); if (n){ setT(n.t); stop(); return; } }
-  if (nt >= d.dur){ setT(d.dur); stop(); return; }
+  if (!LIVE.on && nt >= d.dur){ setT(d.dur); stop(); return; }
   setT(nt); requestAnimationFrame(tick);
 }
-function play(){ if (t >= d.dur) t = 0; playing = true; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
-function stop(){ playing = false; $("bPlay").textContent = t >= d.dur ? "Replay" : "Play"; }
+function play(){ if (!LIVE.on && t >= d.dur) t = 0; playing = true; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
+function stop(){ playing = false; $("bPlay").textContent = !LIVE.on && t >= d.dur ? "Replay" : "Play"; }
 
-function pick(id){
-  stop();
-  d = D.find(x => x.id === id) || D[0]; t = 0; lastNote = -2;
+// ---------------- live client
+async function api(path, body){
+  const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j;
+}
+async function pump(){
+  if (!LIVE.on || LIVE.busy) return;
+  const want = t + LOOK + 20 + +$("speed").value * .6;
+  if (LIVE.simT >= want) return;
+  LIVE.busy = true; const gen = LIVE.gen;
+  try {
+    const r = await api("/live/step", {id:LIVE.id, until:want});
+    if (gen !== LIVE.gen) return;                       // restarted meanwhile
+    ingest(d, r.events); LIVE.simT = r.t;
+    if (addNotes(d, r.notes)){ buildLog(d); lastNote = -2; }
+  } catch (e){ $("liveInfo").textContent = "simulator unreachable: " + e.message; stop(); }
+  finally { if (gen === LIVE.gen) LIVE.busy = false; }
+}
+async function startLive(id){
+  stop(); LIVE.gen++; LIVE.busy = false;
+  const meta = LIVE.metas.find(m => m.id === id) || LIVE.metas[0];
+  const r = await api("/live/new", {scenario:meta.id});
+  LIVE.id = r.id; LIVE.simT = 0;
+  d = newData(meta, r.cfg); d.live = true; t = 0; lastNote = -2;
+  const first = await api("/live/step", {id:LIVE.id, until:LOOK + 60});
+  ingest(d, first.events); LIVE.simT = first.t; addNotes(d, first.notes);
+  showScenario(); buildLog(d); drawAll();
+  $("liveInfo").textContent = `simulator running: ${meta.title}` + (meta.id === "clean" ? "" : " (its scripted faults still happen)");
+  play();
+}
+
+// ---------------- scenario + mode switching
+function showScenario(){
   for (const b of $("tabs").children) b.setAttribute("aria-selected", b.dataset.id === d.id ? "true" : "false");
-  $("sTitle").textContent = d.title; $("sSum").textContent = d.summary;
-  $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(d.watch);
+  $("sTitle").textContent = (LIVE.on ? "Live · " : "") + d.title; $("sSum").textContent = d.summary;
+  $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(LIVE.on ? "Use the buttons above to break things while it runs: every reaction you see is the simulator's." : d.watch);
   const c = d.cfg, r = d.result;
   const bits = [`${c.cable_m} m · ${c.rate_gbps}G`, `${c.frame} B frames`,
     c.llr.enabled ? `LLR: replay timer ${c.llr.replay_timer_ns} ns, replay_ct_max ${c.llr.replay_ct_max}` : "LLR off",
     `CBFC: ${c.cbfc.total_credits} credits × ${c.cbfc.credit_size} B`, `egress ${c.cbfc.drain_gbps} Gb/s`,
-    c.down.length ? `link down ${c.down.map(([a,b]) => a + "–" + b + " ns").join(", ")}` : null,
-    `result: ${r.delivered} forwarded, ${r.lost} lost, ${r.replayed} replayed`];
+    c.down.length && !LIVE.on ? `link down ${c.down.map(([a,b]) => a + "–" + b + " ns").join(", ")}` : null,
+    r && !LIVE.on ? `result: ${r.delivered} forwarded, ${r.lost} lost, ${r.replayed} replayed` : null];
   $("sCfg").innerHTML = ""; for (const s of bits.filter(Boolean)){ const e = document.createElement("span"); e.textContent = s; $("sCfg").appendChild(e); }
+}
+function pick(id){
+  if (LIVE.on){ startLive(id); return; }
+  stop();
+  d = D.find(x => x.id === id) || D[0]; t = 0; lastNote = -2;
+  showScenario();
   $("scrub").max = d.dur;
   buildLog(d); drawMarks(d); drawAll();
-  if (location.hash.slice(1) !== d.id) history.replaceState(null, "", "#" + d.id);
+  if (location.hash.slice(1) !== d.id) history.replaceState(null, "", "#" + d.id + (location.search.includes("live") ? "" : ""));
+}
+function setMode(m){
+  mode = m; try { localStorage.setItem("sue-viz-view", m); } catch (e) {}
+  $("vSimple").setAttribute("aria-pressed", m === "simple"); $("vDetail").setAttribute("aria-pressed", m === "detail");
+  $("ladderCard").hidden = m === "simple";
+  drawAll();
+}
+function setSource(live){
+  if (live && !LIVE.avail){ $("livehint").hidden = false; return; }
+  LIVE.on = live; $("livehint").hidden = true;
+  $("sRec").setAttribute("aria-pressed", !live); $("sLive").setAttribute("aria-pressed", live);
+  $("livebar").hidden = !live; $("tl").hidden = live;
+  $("bPrevN").disabled = $("bNextN").disabled = live;
+  if (live){ $("pauseAt").checked = false; startLive(d.id); }
+  else { LIVE.gen++; stop(); $("pauseAt").checked = true; pick(d.id); }
 }
 
 for (const x of D){
@@ -637,18 +876,41 @@ $("bNextN").onclick = () => { stop(); const n = d.notes.find(n => n.t > t + 1e-6
 $("bPrevN").onclick = () => { stop(); const ns = d.notes.filter(n => n.t < t - 1e-6); setT(ns.length ? ns[ns.length - 1].t : 0); };
 $("scrub").oninput = e => { stop(); setT(+e.target.value); };
 $("span").onchange = drawAll;
+$("vSimple").onclick = () => setMode("simple"); $("vDetail").onclick = () => setMode("detail");
+$("sRec").onclick = () => setSource(false); $("sLive").onclick = () => setSource(true);
+$("bRestart").onclick = () => startLive(d.id);
+for (const b of document.querySelectorAll("#livebar [data-cmd]")){
+  b.onclick = async () => {
+    try {
+      const r = await api("/live/cmd", {id:LIVE.id, cmd:b.dataset.cmd, arg:b.dataset.arg ? +b.dataset.arg : null});
+      d.cfg = r.cfg; showScenario();
+      if (!playing) play();
+    } catch (e){ $("liveInfo").textContent = "command failed: " + e.message; }
+  };
+}
 $("cMarks").onclick = e => { const r = e.target.getBoundingClientRect(); stop(); setT((e.clientX - r.left) / r.width * d.dur); };
 document.addEventListener("keydown", e => {
   if (e.target.closest && e.target.closest("input, select, textarea")) return;
   if (e.key === " " && !(e.target.closest && e.target.closest("button"))){ e.preventDefault(); $("bPlay").click(); }
-  else if (e.key === "ArrowRight"){ e.preventDefault(); stop(); setT(t + (e.shiftKey ? 10 : 1)); }
-  else if (e.key === "ArrowLeft"){ e.preventDefault(); stop(); setT(t - (e.shiftKey ? 10 : 1)); }
+  else if (e.key === "ArrowRight" && !LIVE.on){ e.preventDefault(); stop(); setT(t + (e.shiftKey ? 10 : 1)); }
+  else if (e.key === "ArrowLeft" && !LIVE.on){ e.preventDefault(); stop(); setT(t - (e.shiftKey ? 10 : 1)); }
 });
-window.addEventListener("resize", () => { drawMarks(d); drawAll(); });
+window.addEventListener("resize", () => { if (!LIVE.on) drawMarks(d); drawAll(); });
 window.addEventListener("hashchange", () => pick(location.hash.slice(1)));
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawAll());
 const q = new URLSearchParams(location.search);
+if (q.get("view") === "detail" || q.get("view") === "simple") mode = q.get("view");
+setMode(mode);
 pick(location.hash.slice(1) || D[0].id);
 if (q.has("t")) setT(+q.get("t"));        // ?t=200 opens at a given time (handy for screenshots)
+// live mode is available when the page is served by tools/live.py
+if (location.protocol.startsWith("http")){
+  fetch("/live/hello").then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.ok) return;
+    LIVE.avail = true; LIVE.metas = j.scenarios;
+    $("sLive").title = "Drive the page from the running simulator";
+    if (q.has("live")) setSource(true);
+  }).catch(() => {});
+}
 })();
 </script>

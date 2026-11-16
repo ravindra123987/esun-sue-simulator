@@ -135,6 +135,8 @@ class Fabric:
             m.start()
         for ep in self.eps:
             ep.kick_xpu()
+        if trace is not None:
+            sim.after_event()                   # state at t = 0, before the first event
 
     def run(self, until: float, stop_when_done=True, step=500.0):
         """Advance to `until`, or until the workload says it is finished."""

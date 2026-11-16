@@ -48,6 +48,10 @@ def test_commands_change_the_running_simulation():
     assert [(n["kind"], n["at"]) for n in out["notes"]][:2] == [("down", "h1"), ("up", "h1")]
 
 
+def test_live_offers_only_link_scenarios_for_now():
+    assert all(s.get("kind", "link") == "link" for s in L.SCENARIOS) and len(L.SCENARIOS) < len(MT.SCENARIOS)
+
+
 def test_one_request_never_runs_away():
     lv = L.Live(scenario("clean"))
     assert lv.step(1e12)["t"] == L.MAX_STEP_NS

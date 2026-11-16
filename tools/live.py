@@ -32,9 +32,10 @@ sys.path.insert(0, str(ROOT))
 from sim.model import CtlOS, Frame          # noqa: E402
 from sim.path import PathSession            # noqa: E402
 from sim.trace import Annotator             # noqa: E402
-from tools.make_traces import SCENARIOS, setup  # noqa: E402
+from tools.make_traces import SCENARIOS as ALL_SCENARIOS, setup  # noqa: E402
 
 DOCS = ROOT / "docs"
+SCENARIOS = [s for s in ALL_SCENARIOS if s.get("kind", "link") == "link"]   # endpoint scenarios: docs/viz/ROADMAP.md
 MAX_STEP_NS = 5_000.0       # one request never advances the simulation further than this
 IDLE_S = 600                # sessions nobody has asked about for this long are dropped
 

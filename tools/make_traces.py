@@ -1,17 +1,22 @@
-"""Run the visualiser scenarios through the two-hop simulator and write docs/viz/traces.js.
+"""Run the visualiser scenarios through the simulator and write docs/viz/traces.js.
 
     .venv/bin/python tools/make_traces.py
 
-The path is XPU A -> switch -> XPU B (sim/path.py). Every frame, control block and state
-change in the viewer comes from these runs.
+Link-layer scenarios run the two-hop path XPU A -> switch -> XPU B (sim/path.py). Endpoint
+scenarios run two SUE-T instances on the one-hop fabric (sim/fabric.py) and are relabelled
+to the same names, so the viewer draws both on one picture. Every frame, control block and
+state change in the viewer comes from these runs.
 """
 
 import json
 from pathlib import Path
 
+from sim.fabric import Fabric
 from sim.model import CBFCCfg, CtlOS, Frame, LinkCfg, LLRCfg
 from sim.path import PathSession
+from sim.suet import SUETCfg
 from sim.trace import annotate
+from sim.workloads import AllToAll
 
 OUT = Path(__file__).resolve().parent.parent / "docs" / "viz" / "traces.js"
 
@@ -99,11 +104,67 @@ SCENARIOS = [
                  "frames go on to XPU B with a hole. Only the transport (RODL) could recover it.",
          watch="No NACK, no replay, no replay buffers. The credits the lost frame used come back only when a "
                "CC_Update shows them missing."),
+    # ---- SUE-T endpoint (M3): two SUE-T instances on the one-hop fabric, same picture
+    dict(id="suet-stores", kind="endpoint", title="SUE-T: packed stores, operational ACK", sim_ns=1300,
+         wl=dict(op="store", bytes=16384, senders=["A"]), suet=dict(ack_mode="operational"),
+         summary="XPU A issues 64 stores of 256 B to XPU B at 1.6 Tb/s, twice what one 800G port carries. The "
+                 "first one leaves alone; while it is on the wire the queue builds, so the next packets carry "
+                 "up to eight stores each (2 KB). XPU B acknowledges once its XPU has executed them; the ACK "
+                 "comes back as a 64 B packet because nothing else is going A's way.",
+         watch="Packet labels: PSN and how many transactions are inside. Click a #store to follow it from the "
+               "XPU's queue into a PSN, across both hops and back as an ACK. The Counters tab shows the wire "
+               "efficiency climbing as packets fill up."),
+    dict(id="suet-delivery", kind="endpoint", title="SUE-T: delivery ACK mode", sim_ns=1400,
+         wl=dict(op="store", bytes=16384, senders=["A"]), suet=dict(ack_mode="delivery"),
+         summary="The same 64 stores with delivery ACKs: XPU B acknowledges on arrival, and its XPU's response "
+                 "to every store travels back as a 16 B command on the response TC. Those response packets "
+                 "are what operational ACK mode saves.",
+         watch="Twice as many packets cross the fabric. The purple packets going left are response commands "
+               "(packed eight at a time, like requests); they need ACKs of their own, carried by A's requests."),
+    dict(id="suet-loads", kind="endpoint", title="SUE-T: loads, data in the ACK", sim_ns=1300,
+         wl=dict(op="load", bytes=8192, senders=["A"]), suet=dict(ack_mode="operational"),
+         summary="XPU A loads 32 × 256 B from XPU B. Load requests carry no data (a 92 B packet for eight of "
+                 "them); the data comes back as SES responses inside an ACK packet, up to 2 KB per packet.",
+         watch="Tiny packets right, big ones left. A load is complete when its data arrives, not when the "
+               "request is acknowledged."),
+    dict(id="suet-bidir", kind="endpoint", title="SUE-T: traffic both ways, free ACKs", sim_ns=1500,
+         wl=dict(op="store", bytes=32768, senders=["A", "B"]), suet=dict(ack_mode="operational"),
+         summary="Both XPUs store 32 KB to each other. Every request header carries the ACK state for the "
+                 "other direction, so almost no ACK packets are needed: this is the case SUE-T is designed for.",
+         watch="Look for 'carries the ACK' captions and the small number of bare ACK packets in the Counters."),
+    dict(id="suet-gbn", kind="endpoint", title="RODL Go-Back-N (LLR off)", sim_ns=2200,
+         wl=dict(op="store", bytes=16384, senders=["A"]), suet=dict(ack_mode="operational"), llr=dict(enabled=False),
+         corrupt={"a2s": lambda: corrupt(frame_fid(3))}, sw=dict(cc_interval_ns=600),
+         summary="LLR is off and the packet with PSN 2 is corrupted on hop 1. The switch drops it; XPU B sees "
+                 "PSN 3 when it expects 2, drops everything after the gap and NACKs once. XPU A goes back to "
+                 "PSN 2 and resends the hold buffer in order: a path round trip of traffic, not a link one.",
+         watch="Compare with 'Bit error on hop 1': there LLR repaired the loss inside hop 1 in one link round trip "
+               "and RODL never knew. Here the transport does it end to end."),
+    dict(id="suet-lite", kind="endpoint", title="SUE-lite: a loss closes the PDC", sim_ns=1500,
+         wl=dict(op="store", bytes=16384, senders=["A"]), suet=dict(ack_mode="operational", retx=False),
+         llr=dict(enabled=False), corrupt={"a2s": lambda: corrupt(frame_fid(3))}, sw=dict(cc_interval_ns=600),
+         summary="The same loss on a SUE-lite instance (no transport retransmission, §7.8). The NACK has nothing "
+                 "to trigger: XPU A closes the connection and every store in flight fails; a later packet would "
+                 "re-establish the PDC with syn.",
+         watch="The 'fails' captions. SUE-lite is only viable where the link itself is lossless, which at real "
+               "error rates means LLR on."),
+    dict(id="suet-slow-xpu", kind="endpoint", title="SUE-T: slow XPU, no packing", sim_ns=1200,
+         wl=dict(op="store", bytes=4096, senders=["A"]), suet=dict(ack_mode="operational", xpu_gbps=200),
+         summary="XPU A issues stores at only 200 Gb/s into an 800G port. The queue never builds, so every "
+                 "packet carries one 256 B store (292 B on the wire) and every packet gets its own ACK.",
+         watch="Wire efficiency in the Counters stays below 80%: §7.3's work-conserving scheduler never waits "
+               "to pack. Packing is a property of the load, not of the scheduler."),
 ]
+
+# fabric names (sim/fabric.py) -> the viewer's path names
+EP_MACS = {"N0.0": "A", "S0.0": "S1", "S0.1": "S7", "N1.0": "B"}
+EP_DIRS = {"n0p0>s0": "a2s", "s0>n0p0": "s2a", "s0>n1p0": "s2b", "n1p0>s0": "b2s"}
+EP_XPU = {0: "A", 1: "B"}
+EP_WIRES = {v: k for k, v in EP_DIRS.items()}
 
 
 def setup(sc):
-    """PathSession arguments and the viewer's cfg block for one scenario (shared with tools/live.py)."""
+    """PathSession arguments and the viewer's cfg block for a link scenario (shared with tools/live.py)."""
     def link(k, seed):
         kw = dict(sc.get(k, {}))
         if "down" in kw:
@@ -116,7 +177,7 @@ def setup(sc):
     def hooks(sim, macs, wires):
         for name, make in sc.get("corrupt", {}).items():
             wires[name].corrupt_hook = make()        # fresh hook each run: hooks are stateful
-    cfg = {"rate_gbps": hop1.rate_gbps, "frame": 1024, "sim_ns": sc.get("sim_ns"),
+    cfg = {"kind": "link", "rate_gbps": hop1.rate_gbps, "frame": 1024, "sim_ns": sc.get("sim_ns"),
            "hops": [{"cable_m": h.cable_m, "prop_ns": round(h.prop_ns, 3), "down": [list(d) for d in h.down]}
                     for h in (hop1, hop2)],
            "llr": {"enabled": llr.enabled, "replay_timer_ns": llr.replay_timer_ns,
@@ -127,11 +188,55 @@ def setup(sc):
     return kw, cfg
 
 
+def setup_endpoint(sc):
+    """Fabric arguments and the viewer's cfg block for an endpoint scenario."""
+    link = LinkCfg(**sc.get("link", {}))
+    llr = LLRCfg(**sc.get("llr", {}))
+    sw, nic = CBFCCfg(**sc.get("sw", {})), CBFCCfg(**sc.get("nic", {}))
+    su = SUETCfg(**sc.get("suet", {}))
+    wl = sc["wl"]
+    senders = [k for k, v in EP_XPU.items() if v in wl.get("senders", ["A", "B"])]
+
+    def hooks(f):
+        for name, make in sc.get("corrupt", {}).items():
+            f.wires[EP_WIRES[name]].corrupt_hook = make()
+    cfg = {"kind": "endpoint", "rate_gbps": link.rate_gbps, "frame": None, "sim_ns": sc.get("sim_ns"),
+           "hops": [{"cable_m": link.cable_m, "prop_ns": round(link.prop_ns, 3), "down": []} for _ in range(2)],
+           "llr": {"enabled": llr.enabled, "replay_timer_ns": llr.replay_timer_ns,
+                   "replay_ct_max": llr.replay_ct_max, "ctlos_spacing": llr.ctlos_spacing},
+           "credits": {"S1": sw.total_credits, "B": nic.total_credits}, "credit_size": sw.credit_size,
+           "nic_gbps": nic.drain_gbps,
+           "suet": {"ack_mode": su.ack_mode, "retx": su.retx, "stack": su.stack, "max_pack": su.max_pack,
+                    "max_payload": su.max_payload, "xpu_gbps": su.xpu_gbps, "tx_buf": su.tx_buf,
+                    "ack_hold_ns": su.ack_hold_ns, "rto_ns": su.rto_ns, "window": su.window, "resp_cmd": su.resp_cmd},
+           "wl": {"op": wl["op"], "bytes": wl["bytes"], "size": wl.get("size", 256), "senders": wl.get("senders", ["A", "B"])}}
+    kw = dict(n=2, ports=1, link=link, llr=llr, nic=nic, sw=sw, suet=su, hooks=hooks,
+              workload=AllToAll(2, bytes_per_peer=wl["bytes"], size=wl.get("size", 256), op=wl["op"], senders=senders))
+    return kw, cfg
+
+
+def relabel(events):
+    """Fabric names -> path names, in place."""
+    for e in events:
+        if "mac" in e:
+            e["mac"] = EP_MACS.get(e["mac"], e["mac"])
+        if "dir" in e:
+            e["dir"] = EP_DIRS.get(e["dir"], e["dir"])
+        if "xpu" in e:
+            e["xpu"] = EP_XPU[e["xpu"]]
+            for k in ("dst", "src", "peer"):
+                if k in e:
+                    e[k] = EP_XPU[e[k]]
+    return events
+
+
 def down_of(cfg):
     return {i + 1: h["down"] for i, h in enumerate(cfg["hops"]) if h["down"]}
 
 
 def run(sc):
+    if sc.get("kind", "link") == "endpoint":
+        return run_endpoint(sc)
     kw, cfg = setup(sc)
     tr = []
     s = PathSession(trace=tr, **kw)
@@ -147,13 +252,33 @@ def run(sc):
     }
 
 
+def run_endpoint(sc):
+    kw, cfg = setup_endpoint(sc)
+    tr = []
+    f = Fabric(trace=tr, **kw)
+    f.run(sc["sim_ns"], stop_when_done=False)
+    r = f.result()
+    relabel(tr)
+    return {
+        "id": sc["id"], "title": sc["title"], "summary": sc["summary"], "watch": sc["watch"],
+        "cfg": cfg,
+        "result": {"delivered": r.done, "lost": r.failed, "in_order": True,
+                   "replayed": r.mac["nic"]["replayed"] + r.mac["sw"]["replayed"],
+                   "done": r.done, "failed": r.failed, "retx": r.ep["retx_pkts"], "nacks": r.ep["nacks_tx"],
+                   "pkts": r.ep["tx_pkts"], "acks": r.ep["acks_tx"], "eff": round(r.efficiency, 3),
+                   "pack": round(r.pack_avg, 2), "total": f.workload.total},
+        "events": tr,
+        "notes": annotate(tr, {}, cfg),
+    }
+
+
 def build():
     return [run(sc) for sc in SCENARIOS]
 
 
 def render(traces) -> str:
     body = json.dumps(traces, separators=(",", ":"))
-    return ("// Generated by tools/make_traces.py from the two-hop simulator (sim/path.py). Do not edit.\n"
+    return ("// Generated by tools/make_traces.py from the simulator (sim/path.py, sim/fabric.py). Do not edit.\n"
             f"window.SUE_TRACES = {body};\n")
 
 

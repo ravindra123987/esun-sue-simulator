@@ -81,6 +81,40 @@ def test_scenarios_show_what_their_titles_promise(traces):
         assert all(n["at"] in ("A", "S1", "S7", "B", "h1", "h2") for n in t["notes"])
 
 
+def test_endpoint_scenarios_show_what_their_titles_promise(traces):
+    st = traces["suet-stores"]
+    assert st["cfg"]["kind"] == "endpoint" and st["result"]["done"] == 64 and st["result"]["pack"] > 4
+    assert "pack" in kinds(st, "A") and "accept" in kinds(st, "B") and "done" in kinds(st, "A")
+    assert max(e["n"] for e in st["events"] if e["ev"] == "pkt_tx" and e["kind"] == "req") == 8     # 2 KB cap
+    dl = traces["suet-delivery"]
+    assert dl["result"]["pkts"] > 2 * st["result"]["pkts"] and any(e["ev"] == "txn_in" and e["kind"] == "resp" for e in dl["events"])
+    assert dl["result"]["eff"] < st["result"]["eff"]
+    ld = traces["suet-loads"]
+    assert any(e["ev"] == "pkt_tx" and e["kind"] == "ack" and e["data"] > 0 for e in ld["events"])
+    bd = traces["suet-bidir"]
+    assert any("carries" in n["text"] for n in bd["notes"]) and bd["result"]["acks"] < bd["result"]["pkts"] / 4
+    gb = traces["suet-gbn"]
+    k = kinds(gb)
+    assert k.index("bad") < k.index("gap") < k.index("rnack") < k.index("goback") < k.index("retx")
+    assert gb["result"]["done"] == 64 and gb["result"]["retx"] >= 1 and gb["result"]["failed"] == 0
+    lt = traces["suet-lite"]
+    assert "fatal" in kinds(lt, "A") and lt["result"]["failed"] == 64 and lt["result"]["retx"] == 0
+    sx = traces["suet-slow-xpu"]
+    assert sx["result"]["pack"] == 1.0 and sx["result"]["eff"] < 0.8
+    for t in traces.values():
+        if t["cfg"]["kind"] != "endpoint":
+            continue
+        assert all(n["at"] in ("A", "S1", "S7", "B") for n in t["notes"])
+        # packets the other way leave port 1 only after port 7 accepted them, like forward ones
+        acc = {e["fid"]: e["t"] for e in t["events"] if e["ev"] == "rx" and e["mac"] == "S7" and e["res"] == "accept" and e["kind"] == "data"}
+        for e in t["events"]:
+            if e["ev"] == "frame" and e["dir"] == "s2a" and e["kind"] == "data":
+                assert acc[e["fid"]] <= e["t0"] + 1e-6, (t["id"], e)
+        # every packet on the wire was logged by its endpoint
+        sent = {e["fid"] for e in t["events"] if e["ev"] == "pkt_tx"}
+        assert all(e["fid"] in sent for e in t["events"] if e["ev"] == "frame" and e["kind"] == "data")
+
+
 def test_flush_caption_counts_the_frames(traces):
     t = traces["outage-flush"]
     flush = next(e for e in t["events"] if e["ev"] == "flush")

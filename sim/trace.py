@@ -21,12 +21,23 @@ a2s / s2a (hop 1) or s2b / b2s (hop 2). `PathSession(..., trace=[])` (sim/path.p
 
 sim/link.py (one link, MACs A and B, wires a2b/b2a) records the same events without fwd.
 
+Endpoint scenarios (sim/fabric.py with two XPUs, relabelled by tools/make_traces.py to the same
+A / S1 / S7 / B names) add the SUE-T events of sim/suet.py, with `xpu` A or B:
+
+    txn_in   the XPU issued a transaction: id, dst, op, size, tc, kind (req | resp), ref
+    pkt_tx   a packet left a port: fid, kind (req | ack), psn, n packed, cack/nack carried, retx, size, pay
+    pkt_rx   what RODL did with a packet: accept | dup | gap | ack (with the ACK state it carried)
+    rodl     timeout | go_back | fatal
+    txn      a transaction completed (ok) or failed, with its latency
+
 `Annotator` turns path events into short captions. Each caption says where it happened
 (`at`: a MAC, h1/h2 for a cable, cmd for a live command) and is derived from what the
 simulator did, not written by hand.
 """
 
 from .path import HOPS, NAMES
+
+XPU = {"A": "XPU A", "B": "XPU B"}
 
 RX_HOP = {rx: (i + 1, tx, rev) for i, (tx, rx, fwd, rev) in enumerate(HOPS)}     # receiver -> hop
 TX_HOP = {tx: (i + 1, rx, fwd) for i, (tx, rx, fwd, rev) in enumerate(HOPS)}     # sender -> hop
@@ -49,6 +60,21 @@ class Annotator:
         self.snap = {}
         self.got = set()
         self.delivered = self.forwarded = False
+        self.pk = {}                           # endpoint: fid -> pkt_tx event
+        self.once = set()                      # endpoint: captions given once per XPU
+        self.gap_run, self.dup_run2 = set(), set()
+        self.resp_ids = set()                  # endpoint: ids of response commands (delivery mode)
+        self.retx_said = set()                 # endpoint: XPUs whose current go-back already got a caption
+
+    def _pkt(self, fid):
+        p = self.pk.get(fid)
+        return f"#{fid}" if p is None else (f"PSN {p['psn']}" if p["kind"] == "req" else "an ACK packet")
+
+    def _first(self, key):
+        if key in self.once:
+            return False
+        self.once.add(key)
+        return True
 
     def _note(self, t, at, kind, text):
         n = {"t": round(t, 3), "at": at, "kind": kind, "text": text}
@@ -118,10 +144,12 @@ class Annotator:
         elif ev == "overflow":
             self._note(t, e["mac"], "overflow", f"{NAMES.get(e['mac'], e['mac'])}: a lossless frame does not fit "
                                                 "the buffer and is dropped. CBFC should never let this happen.")
-        elif ev == "fwd" and not self.forwarded:
+        elif ev == "fwd" and not self.forwarded and e["mac"] == "S1":
             self.forwarded = True
-            self._note(t, "S1", "fwd", f"The switch forwards frame #{e['fid']}: port 7 takes it out of port 1's "
+            self._note(t, "S1", "fwd", f"The switch forwards {self._pkt(e['fid'])}: port 7 takes it out of port 1's "
                                        "buffer, which frees those credits for XPU A.")
+        elif ev in ("txn_in", "pkt_tx", "pkt_rx", "rodl", "txn"):
+            self._endpoint(e)
         elif ev == "deliver":
             self.got.add(e["fid"])
             if not self.delivered:
@@ -136,7 +164,7 @@ class Annotator:
     def _rx(self, e):
         rx, t = e["mac"], e["t"]
         hop = RX_HOP[rx][0]
-        who, what = NAMES[rx], f"#{e['fid']}" if e["kind"] == "data" else "a CC_Update"
+        who, what = NAMES[rx], self._pkt(e["fid"]) if e["kind"] == "data" else "a CC_Update"
         if e["res"] == "accept":
             self.expected[rx] = None if e["seq"] is None else e["seq"] + 1
             self.ooo_run.discard(rx)
@@ -157,6 +185,97 @@ class Annotator:
             self.dup_run.add(rx)
             self._note(t, rx, "dup", f"{who} silently drops {what} (seq {e['seq']}): a duplicate of a frame "
                                      "it already has.")
+
+    def _endpoint(self, e):
+        """Captions for the SUE-T endpoint events (sim/suet.py)."""
+        ev, t, x = e["ev"], e["t"], e["xpu"]
+        who = XPU[x]
+        su = self.cfg.get("suet", {})
+        if ev == "txn_in":
+            if e["kind"] == "resp":
+                self.resp_ids.add(e["id"])
+                if self._first(("resp", x)):
+                    self._note(t, x, "issue", f"{who}'s XPU answers {e['op']} #{e['ref']}; in delivery ACK mode the "
+                                              f"response is a {su.get('resp_cmd', 16)} B command (#{e['id']}) queued "
+                                              f"on the response TC, like any request.")
+            elif self._first(("issue", x)):
+                self._note(t, x, "issue", f"{who}'s XPU issues {e['op']} #{e['id']} ({e['size']} B) to {XPU[e['dst']]}. "
+                                          "SUE-T queues it per {destination XPU, TC}; the port takes whatever is "
+                                          "queued the moment it is free.")
+        elif ev == "pkt_tx":
+            self.pk[e["fid"]] = e
+            to = XPU[e["dst"]]
+            if e["kind"] == "ack":
+                if e["nack"] >= 0:
+                    self._note(t, x, "rnack", f"{who} sends a RODL NACK to {to}: it expects PSN {e['nack']} and drops "
+                                             "everything else until that arrives (Go-Back-N).")
+                elif e["data"]:
+                    if self._first(("data", x)):
+                        self._note(t, x, "ack", f"{who} returns the data of {e['data']} load(s) inside an ACK packet "
+                                                f"({e['size']} B): operational ACK mode sends SES responses, not commands.")
+                elif self._first(("bare", x)):
+                    self._note(t, x, "ack", f"{who} sends a bare ACK packet (cack {e['cack']}, {e['size']} B): nothing "
+                                            f"was going to {to} within {su.get('ack_hold_ns', 100):g} ns to carry it.")
+            elif e["retx"]:
+                if x not in self.retx_said:
+                    self.retx_said.add(x)
+                    self._note(t, x, "retx", f"{who} resends PSN {e['psn']} ({e['n']} transaction(s)) to {to}, then "
+                                             "the rest of the hold buffer in order.")
+            else:
+                eff = (f"{100 * e['pay'] / (e['size'] + 20):.0f}% of the wire is data" if e["pay"] else
+                       ("no data: response commands" if e["pdus"] and all(i in self.resp_ids for i in e["pdus"]) else "no data: load requests"))
+                if self._first(("first", x)):
+                    self._note(t, x, "pack", f"{who} sends PSN {e['psn']} to {to}: {e['n']} transaction(s) in one "
+                                             f"{e['size']} B packet, {eff}.")
+                elif e["n"] > 1 and self._first(("pack", x)):
+                    self._note(t, x, "pack", f"{who} packs {e['n']} transactions into PSN {e['psn']}: the queue had "
+                                             f"built up while the port was busy. {e['size']} B on the wire, {eff}.")
+                if e["cack"] >= 0 and self._first(("piggy", x)):
+                    self._note(t, x, "ack", f"PSN {e['psn']}'s header also carries {who}'s ACK for {to}'s PSN "
+                                            f"{e['cack']}: with traffic both ways, ACKs cost nothing.")
+        elif ev == "pkt_rx":
+            frm = XPU[e["src"]]
+            if e["res"] == "gap":
+                if x not in self.gap_run:
+                    self.gap_run.add(x)
+                    self._note(t, x, "gap", f"PSN {e['psn']} reaches {who} but it expects PSN {e['expect']}: a packet "
+                                            "was lost. RODL keeps nothing out of order: it drops this one and NACKs once.")
+            elif e["res"] == "dup":
+                if x not in self.dup_run2:
+                    self.dup_run2.add(x)
+                    self._note(t, x, "rdup", f"{who} drops PSN {e['psn']} from {frm}: a duplicate (its ACK was lost or "
+                                            "late). It repeats the ACK.")
+            elif e["res"] == "accept":
+                self.gap_run.discard(x)
+                self.dup_run2.discard(x)
+                p = self.pk.get(e["fid"])
+                if self._first(("accept", x)) and p is not None:
+                    mode = ("acknowledged now: delivery ACK means delivered" if su.get("ack_mode") == "delivery"
+                            else "acknowledged once the XPU has executed all of them: operational ACK means done")
+                    self._note(t, x, "accept", f"{who} accepts PSN {e['psn']} from {frm}: {p['n']} transaction(s) go "
+                                               f"to the XPU, {mode}.")
+        elif ev == "rodl":
+            peer = XPU[e["peer"]]
+            if e["what"] == "timeout":
+                self._note(t, x, "rtimer", f"{who}'s RODL timer expires: no ACK for PSN {e['psn']} from {peer} in "
+                                          f"{su.get('rto_ns', 0):g} ns.")
+            elif e["what"] == "go_back":
+                self.retx_said.discard(x)
+                self._note(t, x, "goback", f"{who} goes back to PSN {e['psn']}: {e['n']} packet(s) to {peer} are resent "
+                                           "in order from the hold buffer.")
+            else:
+                self._note(t, x, "fatal", f"{who} closes its PDC to {peer}: without retransmission (SUE-lite) a loss "
+                                          f"is fatal, and {e['n']} transaction(s) in flight fail. The next packet "
+                                          "re-establishes the PDC with syn.")
+        elif ev == "txn":
+            if not e["ok"]:
+                if self._first(("fail", x)):
+                    self._note(t, x, "fail", f"{e['op']} #{e['id']} fails at {who}: its PDC was closed.")
+            elif self._first(("done", x, e["op"])):
+                how = "the response command arrived" if su.get("ack_mode") == "delivery" else (
+                    "its data came back" if e["op"] == "load" else "the ACK arrived")
+                self._note(t, x, "done", f"{e['op']} #{e['id']} is complete: {how} {e['lat']:.0f} ns after {who}'s "
+                                         "XPU issued it.")
 
     def _mac(self, e):
         m, t = e["mac"], e["t"]

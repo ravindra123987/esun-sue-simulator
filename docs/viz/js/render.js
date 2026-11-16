@@ -3,7 +3,7 @@
 window.SUE = window.SUE || {};
 SUE.render = (function(){
 "use strict";
-const {ALL1, view, noteIdx, PROB} = SUE.data;
+const {ALL1, view, noteIdx, PROB, pktOf, pktLabel} = SUE.data;
 
 // ---------------------------------------------------------------- theme + helpers
 let C = {};
@@ -84,6 +84,17 @@ function head(g, x, y, col, dir = 1){ g.fillStyle = col; g.beginPath(); g.moveTo
 const ctlStyle = k => ({LLR_ACK:["ack", "ACK"], LLR_NACK:["ack", "NACK"], CF_UPDATE:["cf", "CF"], LLR_INIT:["init", "INIT"], LLR_INIT_ECHO:["init", "ECHO"]}[k] || ["muted", k]);
 const ctlLabel = c => { const [, lab] = ctlStyle(c.kind); return c.kind === "CF_UPDATE" ? (c.cf != null ? `CF ${c.cf}` : "CF") : `${lab} ${c.seq === ALL1 ? "–" : c.seq}`; };
 const fidOf = (d, dir, seq) => { const f = d.seqFid[dir].get(seq); return f == null ? null : f; };
+// endpoint scenarios label frames by what they carry (PSN ×n, ACK) and colour ACKs and response commands; link scenarios use the frame id
+const fl = (d, fid, long) => { const p = pktOf(d, fid); return p ? pktLabel(p, long) : "#" + fid; };
+const fcol = (d, fid, dflt) => { const p = pktOf(d, fid); return !p ? dflt : (p.kind === "ack" ? C.ack : (p.tc % 2 ? C.mem : dflt)); };
+// a transaction waiting in a SUE-T queue (endpoint scenarios); clickable and selectable like a frame
+function txcell(g, x, y, w, h, id, op){
+  HIT.txns.push({id, x, y, w, h});
+  const sel = cur.sel && cur.sel.kind === "txn" && cur.sel.id === id;
+  if (sel){ rr(g, x - 3, y - 3, w + 6, h + 6, 5); g.fillStyle = alpha(C.accent, .22); g.fill(); }
+  rr(g, x, y, w, h, 3); g.fillStyle = alpha(C.mem, op); g.fill(); g.strokeStyle = sel ? C.accent : C.mem; g.lineWidth = sel ? 2 : 1.2; g.stroke();
+  T(g, "#" + id, x + w/2, y + h/2 + .5, {s:10.5, w:600, a:"center", b:"middle", m:true});
+}
 
 // ---------------------------------------------------------------- layout (logical 1440 x 540)
 const W = 1440, H = 540, LT = 184, LR = 262;
@@ -92,29 +103,32 @@ const R = {
   nicA:[108, 74, 202, 446], hbmA:[30, 96, 70, 416], cred:[118, 96, 88, 204], llrA:[212, 96, 90, 204], rbA:[118, 312, 184, 200],
   p1:[528, 96, 100, 204], c1:[528, 312, 100, 200], sbuf:[638, 96, 126, 416], p7:[774, 96, 138, 204], rb7:[774, 312, 138, 200],
   nicB:[1132, 74, 202, 446], rxB:[1140, 96, 90, 204], cB:[1140, 312, 90, 200], bufB:[1236, 96, 90, 416], hbmB:[1338, 96, 74, 416],
-  h1:[316, LT - 56, 200, LR - LT + 92], h2:[924, LT - 56, 200, LR - LT + 92],
+  h1:[316, LT - 56, 200, LR - LT + 116], h2:[924, LT - 56, 200, LR - LT + 116],
 };
 const BLOCK_NAMES = {hbmA:"XPU A · HBM send queue", cred:"XPU A · credit gate", llrA:"XPU A · LLR transmit", rbA:"XPU A · replay buffer",
   p1:"Switch · port 1 RX", c1:"Switch · port 1 control TX", sbuf:"Switch · ingress buffer", p7:"Switch · port 7 TX", rb7:"Switch · port 7 replay buffer",
   rxB:"XPU B · port RX", cB:"XPU B · control TX", bufB:"XPU B · RX buffer", hbmB:"XPU B · HBM", h1:"Hop 1 cable", h2:"Hop 2 cable"};
+const EP_NAMES = {hbmA:"XPU A · SUE-T transmit queue", hbmB:"XPU B · SUE-T receive", sbuf:"Switch · ingress buffers"};
+const blockName = (d, key) => (d.kind === "endpoint" && EP_NAMES[key]) || BLOCK_NAMES[key] || key;
 const STATE_COL = s => ({ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[s] || C.muted);
 const STATE_TXT = {ADVANCE:"normal", REPLAY:"replaying", INIT:"re-syncing", FLUSH:"gave up"};
 const stateTxt = (s, det) => det ? s : (STATE_TXT[s] || s);
 
 let cur = {mode:"simple", sel:null, hover:null};
-const HIT = {blocks:[], frames:[]};
+const HIT = {blocks:[], frames:[], txns:[]};
 
 function drawPath(cv, d, t, opts){
   cur = opts;
-  HIT.blocks.length = 0; HIT.frames.length = 0;
+  HIT.blocks.length = 0; HIT.frames.length = 0; HIT.txns.length = 0;
   const [g] = fit(cv, W, H);
   g.fillStyle = C.canvas; g.fillRect(0, 0, W, H);
   g.fillStyle = C.grid; for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) g.fillRect(x, y, 1.3, 1.3);
   const v = view(d, t), det = opts.mode === "detail", llrOn = d.cfg.llr.enabled;
 
-  chassis(g, CH.A, "XPU A", "sender", C["dev-a"]);
-  chassis(g, CH.S, "Switch", "store-and-forward · lookup XPU B → port 7", C["dev-s"]);
-  chassis(g, CH.B, "XPU B", "receiver", C["dev-b"]);
+  const ep = d.kind === "endpoint";
+  chassis(g, CH.A, "XPU A", ep ? "SUE-T instance" : "sender", C["dev-a"]);
+  chassis(g, CH.S, "Switch", ep ? "store-and-forward · both directions" : "store-and-forward · lookup XPU B → port 7", C["dev-s"]);
+  chassis(g, CH.B, "XPU B", ep ? "SUE-T instance" : "receiver", C["dev-b"]);
   region(g, R.nicA, "NIC · port 0 · 800G");
   region(g, R.nicB, "NIC · port 0 · 800G");
   for (const k of ["h1", "h2"]){ const [x, y, w, h] = R[k]; HIT.blocks.push({key:k, x, y, w, h}); }
@@ -139,6 +153,20 @@ function drawPath(cv, d, t, opts){
 
 function drawHbmA(g, d, v){
   const [x, y, w, h] = R.hbmA;
+  if (d.kind === "endpoint"){
+    const e = v.ep.A, ids = e.queued;
+    stage(g, "hbmA", "SUE-T", "TX queue", {fill:alpha(C.mem, .05)});
+    T(g, `${ids.length} queued`, x + 10, y + 51, {s:11, c:C.muted});
+    let i = 0;
+    for (; i < ids.length; i++){ const yy = LT - 11 + i * 26; if (yy + 22 > y + h - 78) break; txcell(g, x + 8, yy, w - 16, 22, ids[i], i === 0 ? .32 : .12); }
+    if (i < ids.length) T(g, `+${ids.length - i}`, x + w/2, LT - 11 + i * 26 + 15, {s:11, w:600, a:"center", c:C.muted});
+    if (!ids.length) T(g, "empty", x + w/2, LT + 4, {s:11.5, a:"center", c:C.muted});
+    T(g, "next PSN", x + w/2, y + h - 60, {s:10, a:"center", c:C.muted}); T(g, String(e.nextPsn), x + w/2, y + h - 46, {s:12, w:700, a:"center", m:true});
+    T(g, `${e.unacked} unacked`, x + w/2, y + h - 32, {s:10, a:"center", c:e.unacked ? C.fg : C.muted});
+    T(g, `done ${e.done}`, x + w/2, y + h - 20, {s:10, a:"center", c:C.muted});
+    if (e.failed) T(g, `failed ${e.failed}`, x + w/2, y + h - 8, {s:10, w:700, a:"center", c:C.bad});
+    return;
+  }
   stage(g, "hbmA", "HBM", "", {fill:alpha(C.mem, .05)});
   T(g, "send", x + 10, y + 37, {s:11, c:C.muted}); T(g, "queue", x + 10, y + 51, {s:11, c:C.muted});
   for (let i = 0; ; i++){
@@ -158,12 +186,12 @@ function drawSender(g, d, t, v, k, det, llrOn){
   };
   const serDraw = (x, w) => {
     if (ser){
-      const col = ser.kind === "cc_update" ? C.cc : C.data;
-      pkt(g, x, LT - 11, w, 22, col, ser.kind === "cc_update" ? "CC" : "#" + ser.fid, {dash:ser.replay, fs:11, fid:ser.kind === "data" ? ser.fid : null});
+      const col = ser.kind === "cc_update" ? C.cc : fcol(d, ser.fid, C.data);
+      pkt(g, x, LT - 11, w, 22, col, ser.kind === "cc_update" ? "CC" : fl(d, ser.fid), {dash:ser.replay, fs:11, fid:ser.kind === "data" ? ser.fid : null});
       bar(g, x, LT + 16, w, (t - ser.t0) / (ser.t1 - ser.t0), ser.replay ? C.ack : col);
     } else T(g, "idle", x + w/2, LT + 4, {s:11, a:"center", c:C.muted});
   };
-  const statusTxt = () => ser ? (ser.replay ? [`resending #${ser.fid}`, C.ack] : [ser.kind === "cc_update" ? "sending CC_Update" : `sending #${ser.fid}`, C.data])
+  const statusTxt = () => ser ? (ser.replay ? [`resending ${fl(d, ser.fid)}`, C.ack] : [ser.kind === "cc_update" ? "sending CC_Update" : `sending ${fl(d, ser.fid)}`, C.data])
     : (st ? ["waiting for credits", C.bad] : (llrOn && a.llr === "INIT" ? ["INIT sent", C.init] : ["", C.muted]));
   const cinTxt = () => { if (!cin) return null; const [kk] = ctlStyle(cin.kind);
     return [cin.kind === "CF_UPDATE" ? "← CF_Update: credits back" : cin.kind === "LLR_ACK" ? `← ACK ${cin.seq}: buffer freed` :
@@ -239,7 +267,7 @@ function drawReceiver(g, d, t, v, k, det, llrOn){
       g.beginPath(); g.arc(x + w/2, LT, 14, 0, 7); g.fillStyle = alpha(vc, .16); g.fill(); g.strokeStyle = vc; g.lineWidth = 1.6; g.stroke();
       T(g, rx.res === "accept" ? "✓" : "✕", x + w/2, LT + 1, {s:16, w:700, a:"center", b:"middle", c:vc});
       const why = {accept:"accepted", bad:"FCS bad", ooo:"out of order", dup:"duplicate"}[rx.res];
-      T(g, why, x + w/2, y + 124, {s:11, w:700, a:"center", c:vc}); T(g, rx.kind === "data" ? "#" + rx.fid : "CC", x + w/2, y + 138, {s:11, w:700, a:"center", m:true, c:vc});
+      T(g, why, x + w/2, y + 124, {s:11, w:700, a:"center", c:vc}); T(g, rx.kind === "data" ? fl(d, rx.fid) : "CC", x + w/2, y + 138, {s:11, w:700, a:"center", m:true, c:vc});
       g.globalAlpha = 1;
       if (rx.kind === "data") HIT.frames.push({fid:rx.fid, x:x + 10, y:y + 112, w:w - 20, h:32});
     } else T(g, "listening", x + w/2, LT + 4, {s:11, a:"center", c:C.muted});
@@ -264,10 +292,10 @@ function drawReceiver(g, d, t, v, k, det, llrOn){
   }
 }
 
-function stack(g, items, x, w, ymax, col = C.data){
+function stack(g, d, items, x, w, ymax, col = C.data){
   const rows = Math.floor((ymax - (LT - 11)) / 26);
   const n = Math.min(items.length, items.length > rows ? rows - 1 : rows);
-  for (let i = 0; i < n; i++) pkt(g, x, LT - 11 + i * 26, w, 22, col, "#" + items[i].fid, {fs:11, fid:items[i].fid});
+  for (let i = 0; i < n; i++) pkt(g, x, LT - 11 + i * 26, w, 22, fcol(d, items[i].fid, col), fl(d, items[i].fid), {fs:11, fid:items[i].fid});
   if (items.length > n) T(g, `+${items.length - n} more`, x + w/2, LT - 11 + n * 26 + 15, {s:11, w:600, a:"center", c:C.muted});
 }
 
@@ -276,8 +304,9 @@ function drawSwitchBuffer(g, d, t, v, det){
   stage(g, "sbuf", "Ingress buffer", `port 1 · VC0 · ${(tot * d.cfg.credit_size / 1024).toFixed(0)} KB`, {fill:alpha(C.mem, .05), hot:frac > .75 ? C.init : null});
   T(g, `${occ} / ${tot}`, x + 10, y + 60, {s:11.5, w:700, m:true}); T(g, "credits", x + w - 10, y + 60, {s:11, a:"right", c:C.muted});
   gauge(g, x + 10, y + 68, w - 20, 8, frac, frac > .75 ? C.init : C.mem);
-  stack(g, v.swq, x + 10, w - 20, y + h - 26);
+  stack(g, d, v.swq, x + 10, w - 20, y + h - 26);
   if (!v.swq.length) T(g, "empty", x + w/2, LT + 4, {s:11.5, a:"center", c:C.muted});
+  if (d.kind === "endpoint" && v.swq2.length) T(g, `+ ${v.swq2.length} waiting the other way`, x + w/2, y + h - 24, {s:10.5, a:"center", c:C.mem});
   T(g, `forwarded ${v.fwd}`, x + w/2, y + h - 10, {s:10.5, a:"center", c:C.muted});
 }
 
@@ -287,7 +316,7 @@ function drawNicB(g, d, t, v, det){
     stage(g, "bufB", "RX buffer", `VC0 · ${(tot * d.cfg.credit_size / 1024).toFixed(0)} KB`, {fill:alpha(C.mem, .05), hot:frac > .75 ? C.init : null});
     T(g, `${occ}/${tot}`, x + 10, y + 60, {s:11, w:700, m:true});
     gauge(g, x + 10, y + 68, w - 20, 8, frac, frac > .75 ? C.init : C.mem);
-    stack(g, v.nq, x + 8, w - 16, y + h - 64);
+    stack(g, d, v.nq, x + 8, w - 16, y + h - 64);
     if (!v.nq.length) T(g, "empty", x + w/2, LT + 4, {s:11.5, a:"center", c:C.muted});
     const dy = y + h - 54;
     line(g, x + 8, dy - 6, x + w - 8, dy - 6, C["block-line"]);
@@ -296,6 +325,22 @@ function drawNicB(g, d, t, v, det){
     if (v.wr){ bar(g, x + 10, dy + 30, w - 20, (t - v.wr.ts) / (v.wr.te - v.wr.ts), C.mem); T(g, "writing #" + v.wr.fid, x + 10, dy + 46, {s:10, w:600, c:C.mem}); HIT.frames.push({fid:v.wr.fid, x:x + 8, y:dy + 28, w:w - 16, h:22}); }
   }
   { const [x, y, w, h] = R.hbmB;
+    if (d.kind === "endpoint"){
+      const e = v.ep.B;
+      stage(g, "hbmB", "SUE-T", "RX · XPU", {fill:alpha(C.mem, .05)});
+      T(g, "expects", x + w/2, y + 52, {s:10, a:"center", c:C.muted}); T(g, `PSN ${e.expect}`, x + w/2, y + 66, {s:12, w:700, a:"center", m:true});
+      const acc = [];
+      for (let i = d.pktRx.length - 1; i >= 0 && acc.length < 12; i--){ const r = d.pktRx[i]; if (r.t <= t && r.xpu === "B" && r.res === "accept") acc.push(r); }
+      for (let i = 0; i < acc.length; i++){
+        const yy = LT - 11 + i * 26; if (yy + 22 > y + h - 50) break;
+        const p = d.pk.get(acc[i].fid), fresh = i === 0 && t - acc[i].t < 12;
+        pkt(g, x + 8, yy, w - 16, 22, C.mem, p ? `P${p.psn}` : "#" + acc[i].fid, {op:fresh ? .45 : .14, fs:10.5, fid:acc[i].fid});
+      }
+      T(g, `${e.received} received`, x + w/2, y + h - 32, {s:10, a:"center", c:C.muted});
+      if (e.done) T(g, `done ${e.done}`, x + w/2, y + h - 20, {s:10, a:"center", c:C.muted});
+      if (e.lastRx && e.lastRx.res !== "accept" && t - e.lastRx.t < 60) pill(g, x + w/2, y + h - 8, e.lastRx.res === "gap" ? "GAP" : "DUP", C.bad, {s:10});
+      return;
+    }
     stage(g, "hbmB", "HBM", "frames in", {fill:alpha(C.mem, .05)});
     T(g, String(v.deliv), x + w/2, y + 64, {s:18, w:700, a:"center", m:true});
     for (let i = 0; i < 12 && v.li - i >= 0; i++){
@@ -322,8 +367,10 @@ function drawCable(g, d, t, v, h, xa, xb, det){
   g.lineWidth = 2; g.strokeStyle = down ? alpha(C.bad, .7) : alpha(C["chassis-line"], .9); g.setLineDash(down ? [6, 5] : []);
   for (const y of [LT, LR]){ g.beginPath(); g.moveTo(xa + 8, y); g.lineTo(xb - 8, y); g.stroke(); }
   g.setLineDash([]);
-  if (!down) T(g, "data →", xa + 14, LT + 46, {s:10.5, c:C.muted});
-  T(g, det ? "← ACK · NACK · CF (faded: repeats)" : "← ACK · NACK · CF (new info only)", xb - 14, LR + 30, {s:10.5, a:"right", c:C.muted});
+  const ep = d.kind === "endpoint", yc = ep ? LR + 26 : LR;        // where the control blocks travel
+  if (!down) T(g, ep ? "packets →" : "data →", xa + 14, LT + 46, {s:10.5, c:C.muted});
+  if (ep){ T(g, "← ACKs · responses", xb - 14, LR - 18, {s:10.5, a:"right", c:C.muted}); line(g, xa + 8, yc, xb - 8, yc, alpha(C["chassis-line"], .5), 1, [2, 4]); }
+  T(g, det ? "← ACK · NACK · CF (faded: repeats)" : "← ACK · NACK · CF (new info only)", xb - 14, yc + 30, {s:10.5, a:"right", c:C.muted});
   if (down) T(g, "CABLE DOWN", cx, LT + 50, {s:13, w:700, a:"center", c:C.bad});
   const L = xb - xa - 16, px = f => xa + 8 + f * L, fh = 24;
   for (const f of d.frames[dir]){
@@ -331,12 +378,22 @@ function drawCable(g, d, t, v, h, xa, xb, det){
     const front = (t - f.t0) / prop, back = (t - f.t1) / prop;
     if (front <= 0 || back >= 1) continue;
     const x0 = px(Math.max(0, back)), x1 = px(Math.min(1, front));
-    let col = f.kind === "cc_update" ? C.cc : C.data, op = .22, tc = C.fg;
+    let col = f.kind === "cc_update" ? C.cc : fcol(d, f.fid, C.data), op = .22, tc = C.fg;
     if (f.fate === "bad" && front > .5){ col = C.bad; tc = C.bad; }
     if (f.fate === "down"){ col = C.down; op = .1; tc = C.muted; g.globalAlpha = Math.max(.15, 1 - front); }
-    pkt(g, x0, LT - fh/2, x1 - x0, fh, col, f.kind === "cc_update" ? "CC" : "#" + f.fid, {dash:f.replay || f.fate === "down", op, tc, fs:11, fid:f.kind === "data" ? f.fid : null});
+    pkt(g, x0, LT - fh/2, x1 - x0, fh, col, f.kind === "cc_update" ? "CC" : fl(d, f.fid), {dash:f.replay || f.fate === "down", op, tc, fs:11, fid:f.kind === "data" ? f.fid : null});
     if (f.fate === "bad" && front > .5 && back < .5) T(g, "⚡ bit error", px(.5), LT - fh/2 - 6, {s:11, w:700, a:"center", c:C.bad});
     g.globalAlpha = 1;
+  }
+  if (ep) for (const f of d.frames[rdir]){                          // packets going the other way, right to left
+    if (f.t0 > t || f.arrive < t) continue;
+    const front = (t - f.t0) / prop, back = (t - f.t1) / prop;
+    if (front <= 0 || back >= 1) continue;
+    const x0 = px(1 - Math.min(1, front)), x1 = px(1 - Math.max(0, back));
+    let col = f.kind === "cc_update" ? C.cc : fcol(d, f.fid, C.data), tc = C.fg;
+    if (f.fate === "bad" && front > .5){ col = C.bad; tc = C.bad; }
+    pkt(g, x0, LR - fh/2, x1 - x0, fh, col, f.kind === "cc_update" ? "CC" : fl(d, f.fid), {dash:f.replay, op:.22, tc, fs:11, fid:f.kind === "data" ? f.fid : null, dir:-1});
+    if (f.fate === "bad" && front > .5 && back < .5) T(g, "⚡ bit error", px(.5), LR + fh/2 + 12, {s:11, w:700, a:"center", c:C.bad});
   }
   for (const c of d.ctl){
     if (c.dir !== rdir && c.dir !== dir) continue;
@@ -345,7 +402,7 @@ function drawCable(g, d, t, v, h, xa, xb, det){
     const fwd = c.dir === dir, quiet = !c.news;
     if (quiet && !det) continue;
     const [kk] = ctlStyle(c.kind), lab = ctlLabel(c);
-    const x = fwd ? px(f) : px(1 - f), y = fwd ? LT + 22 : LR;
+    const x = fwd ? px(f) : px(1 - f), y = fwd ? LT + 22 : yc;
     const w = tw(g, lab, 10.5, 700, true) + 12, hh = 17;
     g.globalAlpha = quiet ? .28 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
     let col = C[kk]; if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
@@ -358,11 +415,12 @@ function drawCable(g, d, t, v, h, xa, xb, det){
 // a ring around the block the current caption is about, fading over ~25 ns
 const PULSE = {A:{stall:"cred", _:"llrA", flush:"rbA"}, S1:{nack:"c1", init:"c1", fill:"sbuf", fwd:"sbuf", _:"p1"}, S7:{flush:"rb7", _:"p7"},
   B:{nack:"cB", init:"cB", fill:"bufB", deliver:"hbmB", _:"rxB"}, h1:{_:"h1"}, h2:{_:"h2"}};
+const EP_KINDS = new Set(["issue", "pack", "retx", "ack", "rnack", "gap", "rdup", "goback", "fatal", "done", "fail", "accept", "rtimer"]), EP_BLOCK = {A:"hbmA", B:"hbmB"};
 function drawPulse(g, d, t){
   const i = noteIdx(d, t); if (i < 0) return;
   const n = d.notes[i], age = t - n.t; if (age > 25) return;
   const m = PULSE[n.at]; if (!m) return;
-  const r = R[m[n.kind] || m._]; if (!r) return;
+  const r = R[(d.kind === "endpoint" && EP_KINDS.has(n.kind) && EP_BLOCK[n.at]) || m[n.kind] || m._]; if (!r) return;
   const k = PROB.has(n.kind) ? C.bad : C.accent, a = 1 - age / 25;
   g.save(); g.globalAlpha = a;
   rr(g, r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8, 11); g.strokeStyle = k; g.lineWidth = 2.5; g.stroke();
@@ -373,6 +431,7 @@ function drawPulse(g, d, t){
 // what is under a pointer position (client coordinates) on the path canvas
 function hitTest(cv, clientX, clientY){
   const r = cv.getBoundingClientRect(), x = (clientX - r.left) * W / r.width, y = (clientY - r.top) * H / r.height;
+  for (let i = HIT.txns.length - 1; i >= 0; i--){ const f = HIT.txns[i]; if (x >= f.x - 2 && x <= f.x + f.w + 2 && y >= f.y - 2 && y <= f.y + f.h + 2) return {kind:"txn", id:f.id}; }
   for (let i = HIT.frames.length - 1; i >= 0; i--){ const f = HIT.frames[i]; if (x >= f.x - 2 && x <= f.x + f.w + 2 && y >= f.y - 2 && y <= f.y + f.h + 2) return {kind:"frame", fid:f.fid}; }
   for (let i = HIT.blocks.length - 1; i >= 0; i--){ const b = HIT.blocks[i]; if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return {kind:"block", key:b.key}; }
   return null;
@@ -402,13 +461,22 @@ function drawLadder(cv, d, t, span){
     for (const f of d.frames[dir]){
       if (f.arrive < t0 || f.t0 > t) continue;
       const isSel = selFid != null && f.fid === selFid && f.kind === "data";
-      const col = isSel ? C.accent : f.fate === "down" ? C.down : (f.fate === "bad" ? C.bad : (f.kind === "cc_update" ? C.cc : C.data));
+      const col = isSel ? C.accent : f.fate === "down" ? C.down : (f.fate === "bad" ? C.bad : (f.kind === "cc_update" ? C.cc : fcol(d, f.fid, C.data)));
       const endF = f.fate === "down" ? .5 : 1, xe = xa + (xb - xa) * endF;
       g.beginPath(); g.moveTo(xa, y(f.t0)); g.lineTo(xe, y(f.t0 + prop * endF)); g.lineTo(xe, y(f.t1 + prop * endF)); g.lineTo(xa, y(f.t1)); g.closePath();
       g.fillStyle = alpha(col, isSel ? .4 : (f.replay ? .1 : .22)); g.fill();
       g.setLineDash(f.replay || f.fate === "down" ? [4, 3] : []); g.strokeStyle = alpha(col, .9); g.lineWidth = isSel ? 2 : 1; g.stroke(); g.setLineDash([]);
       if (f.arrive <= t && f.fate === "bad") T(g, "✕ FCS", xb + 8, y(f.arrive) + 4, {s:10.5, w:700, c:C.bad});
-      if (h === 0 && y(f.t1) - y(f.t0) > 10 && f.kind === "data") T(g, "#" + f.fid, xa - 6, y((f.t0 + f.t1)/2) + 4, {s:10, a:"right", c:isSel ? C.accent : C.muted, m:true, w:isSel ? 700 : 400});
+      if (h === 0 && y(f.t1) - y(f.t0) > 10 && f.kind === "data") T(g, fl(d, f.fid), xa - 6, y((f.t0 + f.t1)/2) + 4, {s:10, a:"right", c:isSel ? C.accent : C.muted, m:true, w:isSel ? 700 : 400});
+    }
+    if (d.kind === "endpoint") for (const f of d.frames[rdir]){      // packets the other way: right to left
+      if (f.arrive < t0 || f.t0 > t || f.kind !== "data") continue;
+      const isSel = selFid != null && f.fid === selFid;
+      const col = isSel ? C.accent : (f.fate === "bad" ? C.bad : fcol(d, f.fid, C.data));
+      g.beginPath(); g.moveTo(xb, y(f.t0)); g.lineTo(xa, y(f.t0 + prop)); g.lineTo(xa, y(f.t1 + prop)); g.lineTo(xb, y(f.t1)); g.closePath();
+      g.fillStyle = alpha(col, isSel ? .4 : (f.replay ? .1 : .22)); g.fill();
+      g.setLineDash(f.replay ? [4, 3] : []); g.strokeStyle = alpha(col, .9); g.lineWidth = isSel ? 2 : 1; g.stroke(); g.setLineDash([]);
+      if (h === 1 && y(f.t1) - y(f.t0) > 10) T(g, fl(d, f.fid), xb + 6, y((f.t0 + f.t1)/2) + 4, {s:10, c:isSel ? C.accent : C.muted, m:true, w:isSel ? 700 : 400});
     }
     for (const c of d.ctl){
       if (c.dir !== rdir && c.dir !== dir) continue;
@@ -441,5 +509,5 @@ function drawMarks(cv, d){
   }
 }
 
-return {readTheme, drawPath, drawLadder, drawMarks, hitTest, BLOCK_NAMES, W, H, color:() => C};
+return {readTheme, drawPath, drawLadder, drawMarks, hitTest, BLOCK_NAMES, blockName, W, H, color:() => C};
 })();

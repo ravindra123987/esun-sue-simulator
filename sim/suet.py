@@ -198,6 +198,8 @@ class Endpoint:
 
     def enqueue(self, t: Txn):
         t.t_enq = self.sim.now
+        self._log("txn_in", id=t.id, dst=t.dst, op=t.op, size=t.size, tc=t.tc, kind=t.kind,
+                  ref=t.ref.id if t.ref is not None else None)
         key = (t.dst, t.tc)
         q = self.q.get(key)
         if q is None:
@@ -218,7 +220,8 @@ class Endpoint:
         fr = Frame(next(self.fids), pkt.size, vc=pkt.tc, dst=pkt.dst, pkt=pkt, born=now)
         self._log("pkt_tx", fid=fr.fid, kind=pkt.kind, dst=pkt.dst, tc=pkt.tc, psn=pkt.psn, n=len(pkt.pdus),
                   cack=pkt.cack, nack=pkt.nack, retx=pkt.tx > 1, size=pkt.size, port=port,
-                  pdus=[t.id for t in pkt.pdus], data=sum(len(d[1]) for d in pkt.data))
+                  pdus=[t.id for t in pkt.pdus], data=sum(len(d[1]) for d in pkt.data),
+                  pay=sum(t.payload() for t in pkt.pdus) + sum(t.size for _, L in pkt.data for t in L))
         return fr
 
     def _next_ack(self, port, now):
@@ -390,7 +393,7 @@ class Endpoint:
             for psn, loads in pkt.data:
                 for t in loads:
                     self._complete(t, True)
-            self._log("pkt_rx", fid=fr.fid, res="ack", src=pkt.src)
+            self._log("pkt_rx", fid=fr.fid, res="ack", src=pkt.src, cack=pkt.cack, nack=pkt.nack)
             return
         self.stats["rx_pkts"] += 1
         if pkt.syn and pkt.psn != p.start:
@@ -406,15 +409,15 @@ class Endpoint:
             if self.cfg.ack_mode == "delivery":
                 p.cack = pkt.psn
                 self._mark_ack(p)
-            self._log("pkt_rx", fid=fr.fid, res="accept", src=pkt.src, psn=pkt.psn)
+            self._log("pkt_rx", fid=fr.fid, res="accept", src=pkt.src, psn=pkt.psn, cack=pkt.cack, nack=pkt.nack)
             self.sim.after(self.cfg.rx_ns, self._to_xpu, p, pkt)
         elif d < 0:
             self.stats["dup_rx"] += 1
-            self._log("pkt_rx", fid=fr.fid, res="dup", src=pkt.src, psn=pkt.psn)
+            self._log("pkt_rx", fid=fr.fid, res="dup", src=pkt.src, psn=pkt.psn, cack=pkt.cack, nack=pkt.nack)
             self._mark_ack(p)
         else:
             self.stats["gap_drops"] += 1
-            self._log("pkt_rx", fid=fr.fid, res="gap", src=pkt.src, psn=pkt.psn, expect=p.expect)
+            self._log("pkt_rx", fid=fr.fid, res="gap", src=pkt.src, psn=pkt.psn, expect=p.expect, cack=pkt.cack, nack=pkt.nack)
             if not p.nack_sent:
                 p.nack_sent, p.nack = True, p.expect
                 self._ack_now(p)

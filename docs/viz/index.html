@@ -126,6 +126,9 @@
     <span><i class="h" style="--k:var(--data)"></i>data frame #id (header at the front)</span>
     <span><i class="h d" style="--k:var(--data)"></i>replayed frame</span>
     <span><i class="h" style="--k:var(--cc)"></i>CC_Update (credit check)</span>
+    <span><i class="h" style="--k:var(--data)"></i>SUE-T: PSN n ×k = packet n with k transactions</span>
+    <span><i class="h" style="--k:var(--ack)"></i>SUE-T: ACK / NACK packet (RODL)</span>
+    <span><i class="h" style="--k:var(--mem)"></i>SUE-T: response commands (delivery ACK mode)</span>
     <span><i style="--k:var(--ack)"></i>LLR ACK / NACK</span>
     <span><i style="--k:var(--cf)"></i>CF_Update: credits returned</span>
     <span><i style="--k:var(--init)"></i>INIT / ECHO</span>
@@ -143,6 +146,8 @@
       <p>Three devices and two 800G cables: XPU A's NIC sends to a switch, which forwards to XPU B's NIC. Each cable end runs its own link-level retry (LLR, UEC 1.1 §5.1) and credit-based flow control (CBFC, §5.2), so the switch is the receiver on hop 1 and the sender on hop 2. Every frame, control block and state on screen is what the simulator (<code>sim/path.py</code>) did.</p></div>
     <div><h3>Using it</h3>
       <p>Pick a scenario in the sidebar and press Play; the picture stops at each event and the banner says what happened. Click any block to inspect its state, or click a frame anywhere to follow it: it is highlighted wherever it appears, and the Inspector lists its whole journey. <b>Share moment</b> copies a link to the current scenario, view and time.</p></div>
+    <div><h3>SUE-T endpoint scenarios</h3>
+      <p>The scenarios under "SUE-T endpoint" run two SUE-T instances (<code>sim/suet.py</code>) on the same path. XPU A's HBM block becomes the transmit queue: transactions (<code>#id</code>) wait there until the port is free, then as many as fit are packed into one packet with a RODL sequence number (<code>PSN n ×k</code>). Packets cross both hops exactly like frames did, and the ACK comes back the other way: a bare ACK packet, or for free in the header of a request going that way. Click a transaction to follow it; the Counters tab shows packets, transactions per packet and wire efficiency so far. The link layer underneath (LLR, credits) is unchanged, so a lost packet with LLR off shows what the transport has to do by itself.</p></div>
     <div><h3>Live mode</h3>
       <p>Run <code>python3 tools/live.py</code> in a clone of the repo and open <code>http://127.0.0.1:8765/</code>. The page then runs the simulator a few nanoseconds ahead of what it shows. The sidebar gains fault-injection buttons per hop and a custom-run form. Live mode is local only; the published page offers Recorded.</p></div>
     <div><h3>Keyboard</h3>

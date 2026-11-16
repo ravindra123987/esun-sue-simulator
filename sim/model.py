@@ -34,6 +34,9 @@ class Frame:
     cc_snapshot: dict | None = None # CC_Update payload: {vc: S_VC_CC}
     tx_count: int = 0
     t_start: float | None = None   # when this transmission began (tracing: a CtlOS can stretch it)
+    dst: int = 0                    # switch egress port (sim/fabric.py); unused on a single link
+    pkt: object = None              # the transport packet inside (sim/suet.py), if any
+    t_rx: float = 0.0               # when the receiver accepted it into its buffer
 
 
 @dataclass
@@ -79,7 +82,8 @@ class CBFCCfg:
     enabled: bool = True
     credit_size: int = 64
     pkt_ovhd: int = 0
-    total_credits: int = 1024                 # receiver buffer in credits (per VC limit here)
+    total_credits: int = 1024                 # receiver buffer in credits, per VC
+    vcs: int = 1                              # lossless VCs (SUE-T traffic classes map onto them)
     drain_gbps: float = 800.0                 # receiver input-buffer drain rate
     cf_min_ns: float = 20.0
     cf_max_ns: float = 500.0

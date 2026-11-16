@@ -1,0 +1,933 @@
+{
+  "t1_wire": {
+    "suet": {
+      "ufh16/operational/1": {
+        "frame_eff": 0.8767,
+        "wire_eff": 0.8205,
+        "wire_eff_bare_ack": 0.6465,
+        "fwd_bytes": 292,
+        "rev_bytes": 0
+      },
+      "ufh16/operational/2": {
+        "frame_eff": 0.9209,
+        "wire_eff": 0.8889,
+        "wire_eff_bare_ack": 0.7758,
+        "fwd_bytes": 556,
+        "rev_bytes": 0
+      },
+      "ufh16/operational/4": {
+        "frame_eff": 0.9446,
+        "wire_eff": 0.9275,
+        "wire_eff_bare_ack": 0.862,
+        "fwd_bytes": 1084,
+        "rev_bytes": 0
+      },
+      "ufh16/operational/8": {
+        "frame_eff": 0.957,
+        "wire_eff": 0.9481,
+        "wire_eff_bare_ack": 0.9127,
+        "fwd_bytes": 2140,
+        "rev_bytes": 0
+      },
+      "ufh16/operational/16": {
+        "frame_eff": 0.9633,
+        "wire_eff": 0.9588,
+        "wire_eff_bare_ack": 0.9403,
+        "fwd_bytes": 4252,
+        "rev_bytes": 0
+      },
+      "ufh16/delivery/1": {
+        "frame_eff": 0.7191,
+        "wire_eff": 0.6465,
+        "wire_eff_bare_ack": 0.5565,
+        "fwd_bytes": 292,
+        "rev_bytes": 64
+      },
+      "ufh16/delivery/2": {
+        "frame_eff": 0.8258,
+        "wire_eff": 0.7758,
+        "wire_eff_bare_ack": 0.7072,
+        "fwd_bytes": 556,
+        "rev_bytes": 64
+      },
+      "ufh16/delivery/4": {
+        "frame_eff": 0.8737,
+        "wire_eff": 0.8449,
+        "wire_eff_bare_ack": 0.8025,
+        "fwd_bytes": 1084,
+        "rev_bytes": 88
+      },
+      "ufh16/delivery/8": {
+        "frame_eff": 0.8935,
+        "wire_eff": 0.8782,
+        "wire_eff_bare_ack": 0.8548,
+        "fwd_bytes": 2140,
+        "rev_bytes": 152
+      },
+      "ufh16/delivery/16": {
+        "frame_eff": 0.9038,
+        "wire_eff": 0.8959,
+        "wire_eff_bare_ack": 0.8835,
+        "fwd_bytes": 4252,
+        "rev_bytes": 280
+      },
+      "esun/operational/1": {
+        "frame_eff": 0.8366,
+        "wire_eff": 0.7853,
+        "wire_eff_bare_ack": 0.6244,
+        "fwd_bytes": 306,
+        "rev_bytes": 0
+      },
+      "esun/operational/2": {
+        "frame_eff": 0.8982,
+        "wire_eff": 0.8678,
+        "wire_eff_bare_ack": 0.7596,
+        "fwd_bytes": 570,
+        "rev_bytes": 0
+      },
+      "esun/operational/4": {
+        "frame_eff": 0.9326,
+        "wire_eff": 0.9159,
+        "wire_eff_bare_ack": 0.8519,
+        "fwd_bytes": 1098,
+        "rev_bytes": 0
+      },
+      "esun/operational/8": {
+        "frame_eff": 0.9508,
+        "wire_eff": 0.942,
+        "wire_eff_bare_ack": 0.907,
+        "fwd_bytes": 2154,
+        "rev_bytes": 0
+      },
+      "esun/operational/16": {
+        "frame_eff": 0.9602,
+        "wire_eff": 0.9557,
+        "wire_eff_bare_ack": 0.9373,
+        "fwd_bytes": 4266,
+        "rev_bytes": 0
+      },
+      "esun/delivery/1": {
+        "frame_eff": 0.6919,
+        "wire_eff": 0.6244,
+        "wire_eff_bare_ack": 0.5401,
+        "fwd_bytes": 306,
+        "rev_bytes": 64
+      },
+      "esun/delivery/2": {
+        "frame_eff": 0.8,
+        "wire_eff": 0.7529,
+        "wire_eff_bare_ack": 0.6882,
+        "fwd_bytes": 570,
+        "rev_bytes": 70
+      },
+      "esun/delivery/4": {
+        "frame_eff": 0.8533,
+        "wire_eff": 0.8258,
+        "wire_eff_bare_ack": 0.7853,
+        "fwd_bytes": 1098,
+        "rev_bytes": 102
+      },
+      "esun/delivery/8": {
+        "frame_eff": 0.8828,
+        "wire_eff": 0.8678,
+        "wire_eff_bare_ack": 0.8449,
+        "fwd_bytes": 2154,
+        "rev_bytes": 166
+      },
+      "esun/delivery/16": {
+        "frame_eff": 0.8982,
+        "wire_eff": 0.8904,
+        "wire_eff_bare_ack": 0.8782,
+        "fwd_bytes": 4266,
+        "rev_bytes": 294
+      },
+      "udp/operational/1": {
+        "frame_eff": 0.7758,
+        "wire_eff": 0.7314,
+        "wire_eff_bare_ack": 0.5899,
+        "fwd_bytes": 330,
+        "rev_bytes": 0
+      },
+      "udp/operational/2": {
+        "frame_eff": 0.862,
+        "wire_eff": 0.8339,
+        "wire_eff_bare_ack": 0.7335,
+        "fwd_bytes": 594,
+        "rev_bytes": 0
+      },
+      "udp/operational/4": {
+        "frame_eff": 0.9127,
+        "wire_eff": 0.8967,
+        "wire_eff_bare_ack": 0.8352,
+        "fwd_bytes": 1122,
+        "rev_bytes": 0
+      },
+      "udp/operational/8": {
+        "frame_eff": 0.9403,
+        "wire_eff": 0.9318,
+        "wire_eff_bare_ack": 0.8975,
+        "fwd_bytes": 2178,
+        "rev_bytes": 0
+      },
+      "udp/operational/16": {
+        "frame_eff": 0.9548,
+        "wire_eff": 0.9503,
+        "wire_eff_bare_ack": 0.9322,
+        "fwd_bytes": 4290,
+        "rev_bytes": 0
+      },
+      "udp/delivery/1": {
+        "frame_eff": 0.6275,
+        "wire_eff": 0.5714,
+        "wire_eff_bare_ack": 0.5,
+        "fwd_bytes": 330,
+        "rev_bytes": 78
+      },
+      "udp/delivery/2": {
+        "frame_eff": 0.7442,
+        "wire_eff": 0.7033,
+        "wire_eff_bare_ack": 0.6465,
+        "fwd_bytes": 594,
+        "rev_bytes": 94
+      },
+      "udp/delivery/4": {
+        "frame_eff": 0.8205,
+        "wire_eff": 0.795,
+        "wire_eff_bare_ack": 0.7574,
+        "fwd_bytes": 1122,
+        "rev_bytes": 126
+      },
+      "udp/delivery/8": {
+        "frame_eff": 0.8649,
+        "wire_eff": 0.8505,
+        "wire_eff_bare_ack": 0.8285,
+        "fwd_bytes": 2178,
+        "rev_bytes": 190
+      },
+      "udp/delivery/16": {
+        "frame_eff": 0.8889,
+        "wire_eff": 0.8812,
+        "wire_eff_bare_ack": 0.8693,
+        "fwd_bytes": 4290,
+        "rev_bytes": 318
+      },
+      "same_payload/1024": {
+        "packed": 4,
+        "wire_eff": 0.9275
+      },
+      "same_payload/4096": {
+        "packed": 16,
+        "wire_eff": 0.9588
+      }
+    },
+    "roce": {
+      "write/256/ack_every_1": {
+        "frame_eff": 0.64,
+        "wire_eff": 0.5818,
+        "fwd_bytes": 334,
+        "rev_bytes": 66.0
+      },
+      "write/256/ack_every_4": {
+        "frame_eff": 0.7304,
+        "wire_eff": 0.6556,
+        "fwd_bytes": 334,
+        "rev_bytes": 16.5
+      },
+      "read/256": {
+        "frame_eff": 0.64,
+        "wire_eff": 0.5818
+      },
+      "write/1024/ack_every_1": {
+        "frame_eff": 0.8767,
+        "wire_eff": 0.8477,
+        "fwd_bytes": 1102,
+        "rev_bytes": 66.0
+      },
+      "write/1024/ack_every_4": {
+        "frame_eff": 0.9155,
+        "wire_eff": 0.8839,
+        "fwd_bytes": 1102,
+        "rev_bytes": 16.5
+      },
+      "read/1024": {
+        "frame_eff": 0.8767,
+        "wire_eff": 0.8477
+      },
+      "write/4096/ack_every_1": {
+        "frame_eff": 0.966,
+        "wire_eff": 0.957,
+        "fwd_bytes": 4174,
+        "rev_bytes": 66.0
+      },
+      "write/4096/ack_every_4": {
+        "frame_eff": 0.9774,
+        "wire_eff": 0.9682,
+        "fwd_bytes": 4174,
+        "rev_bytes": 16.5
+      },
+      "read/4096": {
+        "frame_eff": 0.966,
+        "wire_eff": 0.957
+      }
+    }
+  },
+  "t2_packing": {
+    "100": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 89.646,
+      "efficiency": 0.7785,
+      "overhead_per_payload_byte": 0.2844,
+      "pack_avg": 1.0,
+      "lat_p50_ns": 494.9,
+      "lat_p99_ns": 538.6,
+      "pkts": 4916,
+      "bare_acks": 820,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 93.6,
+      "pack_hist": {
+        "1": 4096
+      }
+    },
+    "200": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 45.027,
+      "efficiency": 0.799,
+      "overhead_per_payload_byte": 0.2516,
+      "pack_avg": 1.0,
+      "lat_p50_ns": 484.0,
+      "lat_p99_ns": 527.6,
+      "pkts": 4506,
+      "bare_acks": 410,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 186.3,
+      "pack_hist": {
+        "1": 4096
+      }
+    },
+    "400": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 22.842,
+      "efficiency": 0.8634,
+      "overhead_per_payload_byte": 0.1583,
+      "pack_avg": 1.64,
+      "lat_p50_ns": 517.5,
+      "lat_p99_ns": 710.6,
+      "pkts": 2657,
+      "bare_acks": 157,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 367.2,
+      "pack_hist": {
+        "1": 2219,
+        "2": 21,
+        "3": 26,
+        "4": 7,
+        "5": 20,
+        "6": 13,
+        "7": 1,
+        "8": 193
+      }
+    },
+    "600": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 15.331,
+      "efficiency": 0.8965,
+      "overhead_per_payload_byte": 0.1154,
+      "pack_avg": 2.52,
+      "lat_p50_ns": 543.3,
+      "lat_p99_ns": 776.7,
+      "pkts": 1747,
+      "bare_acks": 123,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 547.2,
+      "pack_hist": {
+        "1": 1102,
+        "2": 88,
+        "3": 66,
+        "4": 39,
+        "5": 32,
+        "6": 26,
+        "7": 20,
+        "8": 251
+      }
+    },
+    "800": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 11.68,
+      "efficiency": 0.9367,
+      "overhead_per_payload_byte": 0.0676,
+      "pack_avg": 6.6,
+      "lat_p50_ns": 527.0,
+      "lat_p99_ns": 584.5,
+      "pkts": 720,
+      "bare_acks": 99,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 718.2,
+      "pack_hist": {
+        "1": 7,
+        "2": 8,
+        "3": 11,
+        "4": 13,
+        "5": 20,
+        "6": 46,
+        "7": 516
+      }
+    },
+    "1200": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 11.582,
+      "efficiency": 0.9406,
+      "overhead_per_payload_byte": 0.0631,
+      "pack_avg": 7.94,
+      "lat_p50_ns": 1201.2,
+      "lat_p99_ns": 1266.3,
+      "pkts": 619,
+      "bare_acks": 103,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 724.3,
+      "pack_hist": {
+        "1": 2,
+        "2": 1,
+        "3": 1,
+        "5": 2,
+        "7": 1,
+        "8": 509
+      }
+    },
+    "1600": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 11.592,
+      "efficiency": 0.9407,
+      "overhead_per_payload_byte": 0.0631,
+      "pack_avg": 7.95,
+      "lat_p50_ns": 1214.7,
+      "lat_p99_ns": 1266.3,
+      "pkts": 618,
+      "bare_acks": 103,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 723.7,
+      "pack_hist": {
+        "1": 2,
+        "2": 1,
+        "4": 1,
+        "8": 511
+      }
+    },
+    "3200": {
+      "done": 4096,
+      "failed": 0,
+      "finished_us": 11.585,
+      "efficiency": 0.9407,
+      "overhead_per_payload_byte": 0.063,
+      "pack_avg": 7.97,
+      "lat_p50_ns": 1219.4,
+      "lat_p99_ns": 1266.4,
+      "pkts": 617,
+      "bare_acks": 103,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0,
+      "goodput_gbps": 724.1,
+      "pack_hist": {
+        "1": 1,
+        "3": 1,
+        "4": 1,
+        "8": 511
+      }
+    }
+  },
+  "t3_ack_modes": {
+    "store/ufh16/operational": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.001,
+      "efficiency": 0.9306,
+      "overhead_per_payload_byte": 0.0746,
+      "pack_avg": 7.17,
+      "lat_p50_ns": 1190.6,
+      "lat_p99_ns": 1389.6,
+      "pkts": 1376,
+      "bare_acks": 376,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "store/ufh16/delivery": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.17,
+      "efficiency": 0.844,
+      "overhead_per_payload_byte": 0.1849,
+      "pack_avg": 6.97,
+      "lat_p50_ns": 1258.3,
+      "lat_p99_ns": 1448.8,
+      "pkts": 2880,
+      "bare_acks": 824,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "store/esun/operational": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.022,
+      "efficiency": 0.9239,
+      "overhead_per_payload_byte": 0.0823,
+      "pack_avg": 7.23,
+      "lat_p50_ns": 1203.7,
+      "lat_p99_ns": 1399.2,
+      "pkts": 1376,
+      "bare_acks": 384,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "store/esun/delivery": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.204,
+      "efficiency": 0.8332,
+      "overhead_per_payload_byte": 0.2002,
+      "pack_avg": 7.0,
+      "lat_p50_ns": 1299.8,
+      "lat_p99_ns": 1525.2,
+      "pkts": 2896,
+      "bare_acks": 848,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "store/udp/operational": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.062,
+      "efficiency": 0.9096,
+      "overhead_per_payload_byte": 0.0993,
+      "pack_avg": 7.28,
+      "lat_p50_ns": 1216.2,
+      "lat_p99_ns": 1399.3,
+      "pkts": 1464,
+      "bare_acks": 480,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "store/udp/delivery": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.263,
+      "efficiency": 0.8152,
+      "overhead_per_payload_byte": 0.2266,
+      "pack_avg": 7.11,
+      "lat_p50_ns": 1270.5,
+      "lat_p99_ns": 1458.7,
+      "pkts": 2904,
+      "bare_acks": 888,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "load/ufh16/operational": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 2.845,
+      "efficiency": 0.9122,
+      "overhead_per_payload_byte": 0.0962,
+      "pack_avg": 7.66,
+      "lat_p50_ns": 1617.0,
+      "lat_p99_ns": 2760.5,
+      "pkts": 1872,
+      "bare_acks": 936,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "load/ufh16/delivery": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.03,
+      "efficiency": 0.8614,
+      "overhead_per_payload_byte": 0.1608,
+      "pack_avg": 7.72,
+      "lat_p50_ns": 1748.3,
+      "lat_p99_ns": 2945.8,
+      "pkts": 2296,
+      "bare_acks": 440,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "load/esun/operational": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 2.857,
+      "efficiency": 0.9024,
+      "overhead_per_payload_byte": 0.1082,
+      "pack_avg": 7.66,
+      "lat_p50_ns": 1623.1,
+      "lat_p99_ns": 2772.3,
+      "pkts": 1872,
+      "bare_acks": 936,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "load/esun/delivery": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.057,
+      "efficiency": 0.8478,
+      "overhead_per_payload_byte": 0.1795,
+      "pack_avg": 7.72,
+      "lat_p50_ns": 1761.9,
+      "lat_p99_ns": 2973.2,
+      "pkts": 2400,
+      "bare_acks": 544,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "load/udp/operational": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 2.885,
+      "efficiency": 0.8835,
+      "overhead_per_payload_byte": 0.1318,
+      "pack_avg": 7.72,
+      "lat_p50_ns": 1645.7,
+      "lat_p99_ns": 2798.8,
+      "pkts": 1856,
+      "bare_acks": 928,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "load/udp/delivery": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 3.087,
+      "efficiency": 0.8308,
+      "overhead_per_payload_byte": 0.2036,
+      "pack_avg": 7.76,
+      "lat_p50_ns": 1779.4,
+      "lat_p99_ns": 3004.4,
+      "pkts": 2400,
+      "bare_acks": 552,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    }
+  },
+  "t4_retry": {
+    "LLR on + RODL retx": {
+      "1e-07": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 3.33,
+        "lat_p99_ns": 1693.0,
+        "lat_max_ns": 1890.4,
+        "efficiency": 0.9298,
+        "rodl_retx": 0,
+        "rodl_nacks": 0,
+        "rtos": 0,
+        "fatal_pdcs": 0,
+        "llr_replays": 68
+      },
+      "1e-06": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 4.08,
+        "lat_p99_ns": 2245.5,
+        "lat_max_ns": 2745.6,
+        "efficiency": 0.9282,
+        "rodl_retx": 0,
+        "rodl_nacks": 0,
+        "rtos": 0,
+        "fatal_pdcs": 0,
+        "llr_replays": 519
+      },
+      "1e-05": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 19.54,
+        "lat_p99_ns": 17357.9,
+        "lat_max_ns": 19533.5,
+        "efficiency": 0.9243,
+        "rodl_retx": 0,
+        "rodl_nacks": 0,
+        "rtos": 0,
+        "fatal_pdcs": 0,
+        "llr_replays": 8780
+      }
+    },
+    "LLR off + RODL retx": {
+      "1e-07": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 3.13,
+        "lat_p99_ns": 1534.3,
+        "lat_max_ns": 2047.3,
+        "efficiency": 0.9197,
+        "rodl_retx": 21,
+        "rodl_nacks": 5,
+        "rtos": 0,
+        "fatal_pdcs": 0,
+        "llr_replays": 0
+      },
+      "1e-06": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 22.94,
+        "lat_p99_ns": 11326.8,
+        "lat_max_ns": 21895.1,
+        "efficiency": 0.847,
+        "rodl_retx": 188,
+        "rodl_nacks": 46,
+        "rtos": 2,
+        "fatal_pdcs": 0,
+        "llr_replays": 0
+      },
+      "1e-05": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 166.23,
+        "lat_p99_ns": 132922.1,
+        "lat_max_ns": 183723.2,
+        "efficiency": 0.264,
+        "rodl_retx": 4864,
+        "rodl_nacks": 509,
+        "rtos": 264,
+        "fatal_pdcs": 0,
+        "llr_replays": 0
+      }
+    },
+    "LLR off + RODL retx, RTO 4 \u00b5s": {
+      "1e-07": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 3.13,
+        "lat_p99_ns": 1534.3,
+        "lat_max_ns": 2047.3,
+        "efficiency": 0.9197,
+        "rodl_retx": 21,
+        "rodl_nacks": 5,
+        "rtos": 0,
+        "fatal_pdcs": 0,
+        "llr_replays": 0
+      },
+      "1e-06": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 6.94,
+        "lat_p99_ns": 3326.8,
+        "lat_max_ns": 5895.1,
+        "efficiency": 0.847,
+        "rodl_retx": 188,
+        "rodl_nacks": 46,
+        "rtos": 2,
+        "fatal_pdcs": 0,
+        "llr_replays": 0
+      },
+      "1e-05": {
+        "done": 14336,
+        "failed": 0,
+        "finished_us": 34.84,
+        "lat_p99_ns": 26494.5,
+        "lat_max_ns": 36352.0,
+        "efficiency": 0.2697,
+        "rodl_retx": 4746,
+        "rodl_nacks": 509,
+        "rtos": 253,
+        "fatal_pdcs": 0,
+        "llr_replays": 0
+      }
+    },
+    "LLR off, no retx (SUE-lite)": {
+      "1e-07": {
+        "done": 14176,
+        "failed": 160,
+        "finished_us": 3.0,
+        "lat_p99_ns": 1389.8,
+        "lat_max_ns": 1401.3,
+        "efficiency": 0.9306,
+        "rodl_retx": 0,
+        "rodl_nacks": 5,
+        "rtos": 0,
+        "fatal_pdcs": 5,
+        "llr_replays": 0
+      },
+      "1e-06": {
+        "done": 12586,
+        "failed": 1750,
+        "finished_us": 22.86,
+        "lat_p99_ns": 1392.1,
+        "lat_max_ns": 1538.4,
+        "efficiency": 0.9318,
+        "rodl_retx": 0,
+        "rodl_nacks": 49,
+        "rtos": 6,
+        "fatal_pdcs": 55,
+        "llr_replays": 0
+      },
+      "1e-05": {
+        "done": 5023,
+        "failed": 9313,
+        "finished_us": 22.89,
+        "lat_p99_ns": 1573.7,
+        "lat_max_ns": 1753.7,
+        "efficiency": 0.9367,
+        "rodl_retx": 0,
+        "rodl_nacks": 199,
+        "rtos": 50,
+        "fatal_pdcs": 249,
+        "llr_replays": 0
+      }
+    }
+  },
+  "t5_load_balancing": {
+    "equal 3 m/pdc": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 1.953,
+      "efficiency": 0.8795,
+      "overhead_per_payload_byte": 0.137,
+      "pack_avg": 1.9,
+      "lat_p50_ns": 581.8,
+      "lat_p99_ns": 751.2,
+      "pkts": 3928,
+      "bare_acks": 152,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "equal 3 m/group": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 1.774,
+      "efficiency": 0.9134,
+      "overhead_per_payload_byte": 0.0948,
+      "pack_avg": 3.36,
+      "lat_p50_ns": 523.1,
+      "lat_p99_ns": 597.5,
+      "pkts": 2304,
+      "bare_acks": 168,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "plane 1 at 20 m/pdc": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 2.11,
+      "efficiency": 0.8787,
+      "overhead_per_payload_byte": 0.1381,
+      "pack_avg": 1.9,
+      "lat_p50_ns": 802.0,
+      "lat_p99_ns": 1036.0,
+      "pkts": 3952,
+      "bare_acks": 176,
+      "rodl_retx": 0,
+      "rodl_nacks": 0,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    },
+    "plane 1 at 20 m/group": {
+      "done": 7168,
+      "failed": 0,
+      "finished_us": 5.37,
+      "efficiency": 0.2581,
+      "overhead_per_payload_byte": 2.8737,
+      "pack_avg": 4.57,
+      "lat_p50_ns": 1960.7,
+      "lat_p99_ns": 3584.8,
+      "pkts": 7136,
+      "bare_acks": 464,
+      "rodl_retx": 4424,
+      "rodl_nacks": 680,
+      "rtos": 0,
+      "fatal_pdcs": 0,
+      "llr_replays": 0
+    }
+  },
+  "t6_allreduce": {
+    "operational": {
+      "completion_us_p50": 28.48,
+      "completion_us_max": 32.44,
+      "completion_us_min": 28.33,
+      "txn_p99_ns_mean": 2096.7,
+      "ideal_us": 18.35
+    },
+    "delivery": {
+      "completion_us_p50": 30.01,
+      "completion_us_max": 30.62,
+      "completion_us_min": 28.14,
+      "txn_p99_ns_mean": 1938.6,
+      "ideal_us": 18.35
+    }
+  }
+}

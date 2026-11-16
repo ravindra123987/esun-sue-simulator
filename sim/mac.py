@@ -25,10 +25,13 @@ CF_MOD = 1 << 15     # S_VC_CF / R_VC_CF width
 
 
 class Mac:
-    def __init__(self, sim, name, link, llr, cbfc, wire_out, source=None, sink=None):
+    def __init__(self, sim, name, link, llr, cbfc, wire_out, source=None, sink=None, cl_credits=None):
+        """`cbfc` describes this end's receive buffer. `cl_credits` is the peer's buffer (what we may
+        send into); it defaults to the same size, as on the symmetric links of sim/link.py and sim/path.py."""
         self.sim, self.name, self.link, self.llr, self.cbfc = sim, name, link, llr, cbfc
         self.wire = wire_out
         self.source, self.sink = source, sink
+        vcs = range(cbfc.vcs)
         self.rate = link.rate
         # ---- transmit
         self.busy, self.cur, self.tx_end = False, None, 0.0
@@ -50,15 +53,16 @@ class Mac:
         self.ack_state = "SEND_ACKS"    # SEND_ACKS | SEND_NACK | NACK_SENT
         self.echo_pending = None
         # ---- CBFC sender (credits for frames we send)
-        self.s_cc = {0: 0}
-        self.s_cf = {0: 0}
-        self.cl = {0: cbfc.total_credits}
+        self.s_cc = {vc: 0 for vc in vcs}
+        self.s_cf = {vc: 0 for vc in vcs}
+        self.cl = {vc: cl_credits if cl_credits is not None else cbfc.total_credits for vc in vcs}
         self.cc_pending = False
         # ---- CBFC receiver (frames from the peer)
-        self.r_cc = {0: 0}
-        self.r_cf = {0: 0}
+        self.r_cc = {vc: 0 for vc in vcs}
+        self.r_cf = {vc: 0 for vc in vcs}
         self.rxbuf: deque[Frame] = deque()
-        self.occ = 0
+        self.occ = 0                    # credits held, all VCs
+        self.occv = {vc: 0 for vc in vcs}
         self.draining = False
         self.cf_dirty, self.last_cf = False, -1e18
         self._cf_turn = False
@@ -78,14 +82,20 @@ class Mac:
             self.sim.log(ev, mac=self.name, **kw)
 
     def snapshot(self) -> dict:
-        """The state the visualiser draws (docs/viz). Senders and receivers report different halves;
-        the replay buffer is contiguous in seq, so its first seq and length describe it."""
-        if self.source is not None:            # a sender: LLR transmit and its credits
-            return {"llr": self.state, "tx_seq": self.tx_seq, "acked": self.acked_seq,
-                    "buf0": self.buf[0].seq if self.buf else None, "nbuf": len(self.buf),
-                    "replay_ct": self.replay_ct, "timer": self.rt_running,
-                    "cr_used": (self.s_cc[0] - self.s_cf[0]) % CF_MOD, "cl": self.cl[0], "stalled": self.stalled}
-        return {"next_rx": self.next_rx, "ack_state": self.ack_state, "occ": self.occ}   # a receiver
+        """The state the visualiser draws (docs/viz). A sender (it has a source) reports LLR transmit
+        and its credits; a receiver (a sink or a forwarder, or no source at all) reports LLR receive and
+        its buffer; a MAC that is both reports both. The replay buffer is contiguous in seq, so its
+        first seq and length describe it."""
+        s = {}
+        if self.source is not None:
+            s.update(llr=self.state, tx_seq=self.tx_seq, acked=self.acked_seq,
+                     buf0=self.buf[0].seq if self.buf else None, nbuf=len(self.buf),
+                     replay_ct=self.replay_ct, timer=self.rt_running,
+                     cr_used=sum((self.s_cc[v] - self.s_cf[v]) % CF_MOD for v in self.cl), cl=sum(self.cl.values()),
+                     stalled=self.stalled)
+        if self.source is None or self.sink is not None or self.forward is not None:
+            s.update(next_rx=self.next_rx, ack_state=self.ack_state, occ=self.occ)
+        return s
 
     def snap_if_changed(self):
         s = self.snapshot()
@@ -377,12 +387,14 @@ class Mac:
             return
         if self.cbfc.enabled and fr.lossless:
             self.r_cc[fr.vc] = (self.r_cc[fr.vc] + fr.credits) % CC_MOD
-            if self.occ + fr.credits > self.cbfc.total_credits:
+            if self.occv[fr.vc] + fr.credits > self.cbfc.total_credits:
                 self.stats["overflow"] += 1        # a lossless frame dropped: CBFC failed
                 self._log("overflow", fid=fr.fid, occ=self.occ, need=fr.credits)
                 self.lost_fids.append(fr.fid)
                 return
             self.occ += fr.credits
+            self.occv[fr.vc] += fr.credits
+            fr.t_rx = self.sim.now
             self.rxbuf.append(fr)
             self._drain()
         elif self.sink:
@@ -402,20 +414,26 @@ class Mac:
 
     def _drained(self):
         fr = self.rxbuf.popleft()
-        self.occ -= fr.credits
-        self.r_cf[fr.vc] = (self.r_cf[fr.vc] + fr.credits) % CF_MOD
-        self.cf_dirty = True
+        self._free(fr)
         self.draining = False
         if self.sink:
             self.sink(fr, self.sim.now)
         self._drain()
 
-    def release_head(self) -> Frame:
-        """The switch's egress port took the oldest buffered frame: free its credits (sim/path.py)."""
-        fr = self.rxbuf.popleft()
+    def _free(self, fr):
         self.occ -= fr.credits
+        self.occv[fr.vc] -= fr.credits
         self.r_cf[fr.vc] = (self.r_cf[fr.vc] + fr.credits) % CF_MOD
         self.cf_dirty = True
+
+    def release_head(self) -> Frame:
+        """The switch's egress port took the oldest buffered frame: free its credits (sim/path.py)."""
+        return self.release(self.rxbuf[0])
+
+    def release(self, fr: Frame) -> Frame:
+        """An egress port took this buffered frame (any position: virtual output queueing, sim/fabric.py)."""
+        self.rxbuf.remove(fr)
+        self._free(fr)
         self._log("fwd", fid=fr.fid)
         return fr
 

@@ -96,7 +96,7 @@ Rules: public specs only, personal time and identity (no tool attribution). Chec
 - Load balancing across ports (SUE-T §7.6).
 - Workloads: an all-to-all and an all-reduce made of 256 B load/stores. Metrics: goodput efficiency (bytes of header per byte of payload) and completion-time tail.
 
-**Deliverable:** a comparison of wire efficiency with RoCEv2 at the same payload sizes, matching SUE-T §7.2.3.
+**Deliverable:** a comparison of wire efficiency with RoCEv2 at the same payload sizes, matching SUE-T §7.2.3. *Status: first cut done, [docs/experiments/suet-endpoint.md](docs/experiments/suet-endpoint.md) (T1–T6); switch pipeline latency and 4 TCs are next.*
 
 ### M4: netns emulator (2–3 weeks)
 - A user-space switch over AF_PACKET (Python first; move to Rust or C if packets per second limits it) that does ESUN forwarding, LLR, and CBFC.
@@ -137,7 +137,7 @@ pcaps/golden/   reference captures
 - [x] ESUN EtherType (EH-ET) is unassigned (ESUN 1.0 §5.1). As of 2026-11-14 no public deployment, product, test tool or IETF draft uses a value (searched Keysight, Arista, Broadcom TH-Ultra, Meta Tahan, IETF SUNH). **Decision:** `ESUN_ETHERTYPE = 0x88B5` (IEEE 802 local experimental), one config value shared by the Scapy layer, Lua dissector and user-space switch. Recheck when ESUN 1.1 is released. (M1)
 - [x] What follows the ESUN header? Nothing in the frame says. SUE-T §7: "When using ESUN, the presence of the UEC transport is inferred by network wide configuration." **Decision:** a second config value `ESUN_PAYLOAD = rodl` (default), so the dissector decodes EH → RODL → SES without an in-band marker. (M1)
 - [ ] Do SUE-T load balancing and the ESUN flow label work together? The flow label must stay constant per PDC to keep ordering. (M0/M5)
-- [ ] SUE-T §7.6 balances each *packed group* across ports, but RODL needs one path per PDC. Is balancing only across PDCs? Model both readings in M5. See docs/delta-table.md open item 8.
+- [x] SUE-T §7.6 balances each *packed group* across ports, but RODL needs one path per PDC. **M3 T5:** per-group balancing is safe only across equal-delay planes; with one plane 17 m longer, reorders become NACKs and Go-Back-N (efficiency 26 % vs 88 %). Balance across PDCs, or only across identical paths. See docs/delta-table.md open item 8; M5 adds the plane-failure case.
 - [x] LLR is "optional" in ESUN. What does SUE-T assume when LLR is off? **M2 E3:** every corrupted frame becomes an end-to-end loss for RODL Go-Back-N (or a dead PDC in SUE-lite); "lossless" at real error rates needs LLR or transport retransmission. See docs/experiments/llr-cbfc.md.
 - [ ] Should the user-space switch use AF_PACKET or AF_XDP? Benchmark in M4.
 - [ ] Wireshark CRC over UFH_16: the PSN is not on the wire. Track expected PSN per {src, dst, PDCID} conversation, and mark the CRC "unverified" after a gap rather than "bad"? Decide with the maintainers in M1b.

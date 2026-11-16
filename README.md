@@ -12,7 +12,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M1 | Scapy layers, Wireshark dissector, golden pcaps | first cut: [sue/](sue/), [wireshark/](wireshark/), [pcaps/golden/](pcaps/golden/) |
 | M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | dissector polished for porting: [wireshark/UPSTREAM.md](wireshark/UPSTREAM.md); issue drafted, not posted |
 | M2 | LLR + CBFC link simulator | first cut (one link, plus a two-hop path through a switch): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [live](https://ravindra123987.github.io/esun-sue-simulator/viz/), [docs/viz/](docs/viz/) |
-| M3 | SUE-T endpoint in the simulator | not started |
+| M3 | SUE-T endpoint in the simulator | first cut: queues, packing, RODL (Go-Back-N or SUE-lite), both ACK modes, ports, all-to-all and ring all-reduce on an N-XPU fabric: [docs/experiments/suet-endpoint.md](docs/experiments/suet-endpoint.md) |
 | M4 | netns emulator with a user-space switch | not started |
 | M5 | Multi-plane, three-way comparison | not started |
 | M6 | P4/bmv2 switch | not started |
@@ -26,13 +26,15 @@ The full plan is in [plan.md](plan.md).
 plan.md         milestones, design principles, open questions
 specs/          reference PDFs (git-ignored) + README with sources and how they relate
 docs/           delta table, findings (m1-decisions.md: choices the specs leave open), experiments
-docs/viz/       packet viewer app: index.html + app.css + js/{data,render,app}.js, generated traces.js; live via tools/live.py
+docs/viz/       packet viewer app: index.html + app.css + js/{data,render,app}.js, generated traces.js; live via tools/live.py; ROADMAP.md = what each milestone adds
 sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
 wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC)
 pcaps/golden/   reference captures, one packet type each, + golden.json expectations
 sim/            discrete-event model: LLR (UEC §5.1), CBFC (§5.2), their interaction (§5.2.9); link.py = one link,
-                path.py = XPU A → switch → XPU B (two hops); trace.py records events and writes captions
-tools/          make_golden.py, run_m2.py (M2 experiments + plots), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
+                path.py = XPU A → switch → XPU B (two hops); trace.py records events and writes captions;
+                suet.py = SUE-T endpoint (queues, packing, RODL, ACK modes, ports), fabric.py = N XPUs × P planes with
+                VOQ switches, workloads.py = all-to-all and ring all-reduce, wire.py = header byte accounting + RoCEv2 baseline
+tools/          make_golden.py, run_m2.py / run_m3.py (experiments + plots), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests and tshark-based dissector tests
 ```
 
@@ -45,6 +47,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest                 # dissector tests need tshark; skipped otherwise
 .venv/bin/python tools/make_golden.py      # regenerate pcaps/golden/
 .venv/bin/pip install -e '.[sim]' && .venv/bin/python tools/run_m2.py   # M2 experiments (~5 s)
+.venv/bin/python tools/run_m3.py           # M3 experiments (~20 s)
 tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/09-ufh16-conversation.pcap
 .venv/bin/python tools/make_traces.py      # regenerate docs/viz/traces.js, then open docs/viz/index.html
 python3 tools/live.py                     # live packet viewer at http://127.0.0.1:8765/ (standard library only)

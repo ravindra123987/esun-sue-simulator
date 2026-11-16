@@ -35,8 +35,17 @@ def test_frames_take_serialisation_time_and_propagation(traces):
     t = traces["clean"]
     for d, h in (("a2s", 0), ("s2b", 1)):
         f = next(e for e in t["events"] if e["ev"] == "frame" and e["dir"] == d)
-        assert f["t1"] - f["t0"] == pytest.approx((1024 + 20) / 100, abs=0.01)      # 800G = 100 B/ns
+        ser = (1024 + 20) / 100                                                   # 800G = 100 B/ns
+        assert f["t1"] - f["t0"] == pytest.approx(ser, abs=0.01) or f["t1"] - f["t0"] == pytest.approx(ser + 0.08, abs=0.01)  # + one CtlOS
         assert f["arrive"] - f["t1"] == pytest.approx(t["cfg"]["hops"][h]["prop_ns"], abs=0.01)
+
+
+def test_port_7_starts_sending_exactly_when_it_takes_the_frame_from_the_buffer(traces):
+    for t in traces.values():
+        fwd = {e["fid"]: e["t"] for e in t["events"] if e["ev"] == "fwd"}
+        for e in t["events"]:
+            if e["ev"] == "frame" and e["dir"] == "s2b" and e["kind"] == "data" and not e["replay"]:
+                assert e["t0"] == fwd[e["fid"]], (t["id"], e)
 
 
 def test_a_frame_leaves_the_switch_only_after_port_1_accepted_it(traces):

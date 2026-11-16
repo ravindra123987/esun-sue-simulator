@@ -185,6 +185,7 @@ class Mac:
             if self.cbfc.count_replays and fr.kind == "data" and fr.lossless:   # breaks rule 1
                 self.s_cc[fr.vc] = (self.s_cc[fr.vc] + fr.credits) % CC_MOD
         self.busy, self.cur = True, fr
+        fr.t_start = self.sim.now
         self.tx_end = self.sim.now + (fr.size + PREAMBLE_IPG) / self.rate
         self.sim.at(self.tx_end, self._tx_done)
 

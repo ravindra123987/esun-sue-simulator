@@ -250,7 +250,7 @@ function newData(meta, cfg){
   return {id:meta.id, title:meta.title, summary:meta.summary, watch:meta.watch, result:meta.result || null, cfg,
     frames:{a2s:[], s2b:[]}, ctl:[], snaps:{A:[], S1:[], S7:[], B:[]}, rx:{S1:[], B:[]},
     swq:[], swqBy:new Map(), nq:[], nqBy:new Map(), seqFid:{a2s:new Map(), s2b:new Map()},
-    firsts:[], deliv:[], lat:[], replays:{A:[], S7:[]}, drops:{S1:[], B:[]}, fwdT:[], notes:[], dur:cfg.sim_ns || 0};
+    firsts:[], deliv:[], lat:[], lastCtl:new Map(), replays:{A:[], S7:[]}, drops:{S1:[], B:[]}, fwdT:[], notes:[], dur:cfg.sim_ns || 0};
 }
 function ingest(d, events){
   for (const e of events){
@@ -261,7 +261,12 @@ function ingest(d, events){
         if (e.replay) d.replays[SENDER[e.dir]].push(e.t1);
         else { if (e.seq != null) d.seqFid[e.dir].set(e.seq, e.kind === "data" ? e.fid : "CC"); if (e.dir === "a2s" && e.kind === "data") d.firsts.push(e.t0); }
         break; }
-      case "ctlos": d.ctl.push(e); break;
+      case "ctlos": {
+        // "news": an ACK that moves the acknowledged seq, a CF_Update that returns credits, any NACK/INIT/ECHO
+        const k = e.dir + e.kind, prev = d.lastCtl.has(k) ? d.lastCtl.get(k) : (e.kind === "CF_UPDATE" ? 0 : ALL1), val = e.kind === "CF_UPDATE" ? e.cf : e.seq;
+        e.news = !(e.kind === "LLR_ACK" || e.kind === "CF_UPDATE") || (val !== prev && !(e.kind === "LLR_ACK" && val === ALL1));
+        if (e.fate === "ok") d.lastCtl.set(k, val);
+        d.ctl.push(e); break; }
       case "mac": if (d.snaps[e.mac]) d.snaps[e.mac].push(e); break;
       case "rx": {
         const L = d.rx[e.mac]; if (!L) break;
@@ -549,9 +554,10 @@ function drawReceiver(g, d, t, v, k, det, llrOn){
     if (c){
       const [kk] = ctlStyle(c.kind), fresh = t - c.t1 < 18;
       g.globalAlpha = fresh ? 1 : .55;
-      pill(g, x + w/2, y + 62, ctlLabel(c), C[kk], {s:11.5, m:true, solid:fresh && c.kind !== "LLR_ACK"});
+      pill(g, x + w/2, y + 62, ctlLabel(c), C[kk], {s:11.5, m:true, solid:fresh && c.news && c.kind !== "LLR_ACK"});
       g.globalAlpha = 1;
-      const what = {LLR_ACK:["frees the replay", "buffer up to it"], LLR_NACK:["replay after", "this seq"], CF_UPDATE:["returns credits", "to the sender"],
+      const what = c.kind === "LLR_ACK" && c.seq === ALL1 ? ["nothing received", "yet (all ones)"] :
+        !c.news ? ["repeat: nothing", "new to report"] : {LLR_ACK:["frees the replay", "buffer up to it"], LLR_NACK:["replay after", "this seq"], CF_UPDATE:["returns credits", "to the sender"],
         LLR_INIT_ECHO:["confirms the", "INIT"], LLR_INIT:["re-syncs", "sequence numbers"]}[c.kind] || ["", ""];
       T(g, what[0], x + w/2, y + 90, {s:10.5, a:"center", c:C.muted}); T(g, what[1], x + w/2, y + 104, {s:10.5, a:"center", c:C.muted});
       if (c.fate !== "ok") T(g, c.fate === "down" ? "lost: cable down" : "lost: corrupted", x + w/2, y + 124, {s:10.5, w:700, a:"center", c:C.bad});
@@ -618,7 +624,7 @@ function drawCable(g, d, t, v, h, xa, xb, det){
   for (const y of [LT, LR]){ g.beginPath(); g.moveTo(xa + 8, y); g.lineTo(xb - 8, y); g.stroke(); }
   g.setLineDash([]);
   if (!down) T(g, "data →", xa + 14, LT + 46, {s:10.5, c:C.muted});
-  T(g, "← ACK · NACK · CF", xb - 14, LR + 30, {s:10.5, a:"right", c:C.muted});
+  T(g, det ? "← ACK · NACK · CF (faded: repeats)" : "← ACK · NACK · CF (new info only)", xb - 14, LR + 30, {s:10.5, a:"right", c:C.muted});
   if (down) T(g, "CABLE DOWN", cx, LT + 50, {s:13, w:700, a:"center", c:C.bad});
   const L = xb - xa - 16, px = f => xa + 8 + f * L, fh = 24;
   for (const f of d.frames[dir]){
@@ -637,12 +643,12 @@ function drawCable(g, d, t, v, h, xa, xb, det){
     if (c.dir !== rdir && c.dir !== dir) continue;
     if (c.t1 > t || c.arrive < t) continue;
     const f = (t - c.t1) / prop; if (f < 0 || f > 1) continue;
-    const fwd = c.dir === dir, quiet = fwd && c.kind === "LLR_ACK" && c.seq === ALL1;
+    const fwd = c.dir === dir, quiet = !c.news;
     if (quiet && !det) continue;
     const [kk] = ctlStyle(c.kind), lab = ctlLabel(c);
     const x = fwd ? px(f) : px(1 - f), y = fwd ? LT + 22 : LR;
     const w = tw(g, lab, 10.5, 700, true) + 12, hh = 17;
-    g.globalAlpha = quiet ? .3 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
+    g.globalAlpha = quiet ? .28 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
     let col = C[kk]; if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
     rr(g, x - w/2, y - hh/2, w, hh, 4); g.fillStyle = C.surface; g.fill(); g.fillStyle = alpha(col, .18); g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke();
     T(g, lab, x, y + .5, {s:10.5, w:700, a:"center", b:"middle", m:true});
@@ -698,7 +704,8 @@ function drawLadder(d, t){
     for (const c of d.ctl){
       if (c.dir !== rdir && c.dir !== dir) continue;
       if (c.arrive < t0 || c.t1 > t) continue;
-      if (c.dir === dir && c.kind === "LLR_ACK" && c.seq === ALL1) continue;
+      if (!c.news && c.kind === "CF_UPDATE") continue;
+      if (c.kind === "LLR_ACK" && c.seq === ALL1) continue;
       const [k] = ctlStyle(c.kind), col = c.fate === "ok" ? C[k] : (c.fate === "down" ? C.down : C.bad);
       const [x0, x1] = c.dir === rdir ? [xb, xa] : [xa, xb], endF = c.fate === "ok" ? 1 : .5;
       g.globalAlpha = c.kind === "LLR_ACK" ? .5 : 1;

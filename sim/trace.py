@@ -6,7 +6,7 @@ NIC port), S1 and S7 (the switch's ports 1 and 7) or B (XPU B's NIC port), and `
 a2s / s2a (hop 1) or s2b / b2s (hop 2). `PathSession(..., trace=[])` (sim/path.py) records:
 
     frame    a frame put on a wire: dir, fid, seq, kind, size, replay, t0/t1 (first/last bit
-             leaves), arrive (last bit reaches the peer), fate ok | bad | down
+             leaves; t1 - t0 includes any CtlOS slipped into the frame), arrive (last bit reaches the peer), fate ok | bad | down
     ctlos    a control ordered set: dir, kind, seq, cf, t1, arrive, fate
     rx       what the receiving MAC did with a frame: accept | bad | dup | ooo
     replay   LLR entered REPLAY: start seq, n frames, cause nack | timer

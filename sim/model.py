@@ -33,6 +33,7 @@ class Frame:
     credits: int = 0
     cc_snapshot: dict | None = None # CC_Update payload: {vc: S_VC_CC}
     tx_count: int = 0
+    t_start: float | None = None   # when this transmission began (tracing: a CtlOS can stretch it)
 
 
 @dataclass
@@ -121,7 +122,7 @@ class Wire:
         bad = False if down else self._corrupt(fr, fr.size)
         if self.sim.trace is not None:
             self.sim.log("frame", dir=self.name, fid=fr.fid, seq=fr.seq, kind=fr.kind, size=fr.size,
-                         replay=fr.tx_count > 1, t0=round(t_end - (fr.size + PREAMBLE_IPG) / self.cfg.rate, 3),
+                         replay=fr.tx_count > 1, t0=round(fr.t_start if fr.t_start is not None else t_end - (fr.size + PREAMBLE_IPG) / self.cfg.rate, 3),
                          t1=round(t_end, 3), arrive=round(t_end + self.cfg.prop_ns, 3),
                          fate="down" if down else ("bad" if bad else "ok"))
         if down:

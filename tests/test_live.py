@@ -51,3 +51,18 @@ def test_commands_change_the_running_simulation():
 def test_one_request_never_runs_away():
     lv = L.Live(scenario("clean"))
     assert lv.step(1e12)["t"] == L.MAX_STEP_NS
+
+
+def test_custom_runs_apply_and_clamp_overrides():
+    sc = L.custom(scenario("clean"), {"hop2": {"ber": 1.0}, "nic": {"drain_gbps": 400, "total_credits": 1}, "llr": {"enabled": 0}})
+    assert sc["hop2"]["ber"] == 1e-4 and sc["nic"] == {"drain_gbps": 400.0, "total_credits": 32} and sc["llr"]["enabled"] is False
+    assert scenario("clean").get("nic") is None                       # the scenario itself is untouched
+    lv = L.Live(sc)
+    out = lv.step(800)
+    assert lv.cfg["nic_gbps"] == 400 and lv.cfg["llr"]["enabled"] is False
+    assert any(e["ev"] == "rx" and e["mac"] == "B" and e["res"] == "bad" for e in out["events"])   # hop 2 is noisy
+    import pytest
+    with pytest.raises(ValueError):
+        L.custom(scenario("clean"), {"sw": {"secret": 1}})
+    with pytest.raises(ValueError):
+        L.custom(scenario("clean"), {"nic": {"drain_gbps": "fast"}})

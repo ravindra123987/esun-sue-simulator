@@ -9,6 +9,10 @@ screen is one the simulator has just produced. Commands (POST /live/cmd)
 change the running simulation: corrupt the next frame, lose the next NACK,
 take either cable down, change how fast XPU B can write into HBM.
 
+A run can also start from a scenario with settings overridden (POST /live/new with
+"cfg"): the viewer's custom-run form sends per-hop BER and cable length, LLR settings
+and the two buffers. LIMITS below clamps every value.
+
 Standard library only; listens on 127.0.0.1.
 """
 
@@ -33,6 +37,40 @@ from tools.make_traces import SCENARIOS, setup  # noqa: E402
 DOCS = ROOT / "docs"
 MAX_STEP_NS = 5_000.0       # one request never advances the simulation further than this
 IDLE_S = 600                # sessions nobody has asked about for this long are dropped
+
+# settings a custom run may override: section -> field -> (min, max) or bool
+LIMITS = {
+    "hop1": {"ber": (0.0, 1e-4), "cable_m": (0.5, 50.0)},
+    "hop2": {"ber": (0.0, 1e-4), "cable_m": (0.5, 50.0)},
+    "llr": {"enabled": bool, "replay_timer_ns": (100.0, 20_000.0), "replay_ct_max": (1, 255)},
+    "sw": {"total_credits": (32, 4096)},
+    "nic": {"total_credits": (32, 4096), "drain_gbps": (50.0, 800.0)},
+}
+
+
+def custom(sc: dict, over: dict | None) -> dict:
+    """A copy of scenario `sc` with the user's overrides applied, each one clamped to LIMITS."""
+    if not over:
+        return sc
+    if not isinstance(over, dict):
+        raise ValueError("cfg must be an object")
+    out = dict(sc)
+    for section, fields in over.items():
+        if section not in LIMITS or not isinstance(fields, dict):
+            raise ValueError(f"unknown setting {section!r}")
+        part = dict(out.get(section, {}))
+        for k, v in fields.items():
+            lim = LIMITS[section].get(k)
+            if lim is None:
+                raise ValueError(f"unknown setting {section}.{k}")
+            if lim is bool:
+                part[k] = bool(v)
+            else:
+                lo, hi = lim
+                x = type(lo)(v)                      # int fields stay int; a bad string raises ValueError
+                part[k] = max(lo, min(hi, x))
+        out[section] = part
+    return out
 
 
 def _once(pred):
@@ -160,7 +198,8 @@ class Handler(SimpleHTTPRequestHandler):
             return
         if self.path == "/live/hello":
             return self._json({"ok": True, "scenarios": [
-                {k: sc[k] for k in ("id", "title", "summary", "watch")} for sc in SCENARIOS]})
+                {k: sc[k] for k in ("id", "title", "summary", "watch")} for sc in SCENARIOS],
+                "limits": {s: {k: (None if v is bool else list(v)) for k, v in f.items()} for s, f in LIMITS.items()}})
         super().do_GET()
 
     def do_POST(self):
@@ -170,7 +209,7 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/live/new":
                 _gc()
                 sc = next((x for x in SCENARIOS if x["id"] == req.get("scenario")), SCENARIOS[0])
-                live = Live(sc)
+                live = Live(custom(sc, req.get("cfg")))
                 sid = uuid.uuid4().hex
                 with SLOCK:
                     SESSIONS[sid] = live

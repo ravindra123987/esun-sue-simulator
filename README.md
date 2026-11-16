@@ -26,7 +26,7 @@ The full plan is in [plan.md](plan.md).
 plan.md         milestones, design principles, open questions
 specs/          reference PDFs (git-ignored) + README with sources and how they relate
 docs/           delta table, findings (m1-decisions.md: choices the specs leave open), experiments
-docs/viz/       packet viewer: replays simulator traces (index.html + generated traces.js), or live via tools/live.py
+docs/viz/       packet viewer app: index.html + app.css + js/{data,render,app}.js, generated traces.js; live via tools/live.py
 sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
 wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC)
 pcaps/golden/   reference captures, one packet type each, + golden.json expectations
@@ -58,15 +58,15 @@ python3 tools/live.py                     # live packet viewer at http://127.0.0
 - **Switch**: port 1 checks the FCS and runs LLR receive, then the frame waits in the lossless ingress buffer whose size is XPU A's credit pool. Port 7 takes it out when its own LLR window and XPU B's credits allow, keeps it in a second replay buffer, and sends it on.
 - **XPU B**: the NIC checks the frame, buffers it, and DMA writes it into HBM at a set rate.
 
-Nine scenarios: a clean path, a bit error on hop 1 and on hop 2 (the switch repairs hop 2 by itself), a lost NACK, a slow XPU B whose backpressure moves back one hop at a time, a credit pool too small for hop 1's loop, a short outage that LLR absorbs, a long outage that ends in FLUSH, and a bit error with LLR off. Frames on the cables are drawn to scale and labelled with their frame number, so one frame can be followed across both hops. A banner and an event log show captions from `sim/trace.py`; the log can be filtered by device or to problems only. A counters panel shows totals for the path and for each hop. Switch pipeline latency is not modelled (0 ns). It is published at **https://ravindra123987.github.io/esun-sue-simulator/viz/** (GitHub Pages, serving `docs/`), or open the file locally; it needs only `traces.js` next to it.
+It is laid out as a tool, not a page: the picture stays on screen, with a player-style transport and an event timeline under it; a sidebar lists the nine scenarios and describes the selected one; a resizable dock below holds **Events** (filterable by device or problems), **Counters** (per path and per hop), the **Flow graph** (time runs down, one column per cable end) and the **Inspector**. Click any block for its full state, or click a frame anywhere (on a cable, in a buffer, or a `#12` in a caption) to follow it: it is highlighted wherever it appears and the Inspector lists its whole journey with times. **Share moment** copies a link to the current scenario, view and time. Every caption comes from `sim/trace.py`. Nine scenarios: a clean path, a bit error on hop 1 and on hop 2 (the switch repairs hop 2 by itself), a lost NACK, a slow XPU B whose backpressure moves back one hop at a time, a credit pool too small for hop 1's loop, a short outage that LLR absorbs, a long outage that ends in FLUSH, and a bit error with LLR off. Switch pipeline latency is not modelled (0 ns). It is published at **https://ravindra123987.github.io/esun-sue-simulator/viz/** (GitHub Pages, serving `docs/`), or open the file locally; it needs only `traces.js` next to it.
 
-It has two views: **Simple** shows each block's essential state; **Detailed** adds LLR sequence numbers, timers and ACK state, and a flow graph across all four cable ends. It also has two sources: **Recorded** replays `traces.js`, and **Live** drives the page from a simulator running on your machine. Live needs only Python 3.11+ and a clone (no venv):
+**Simple** view shows each block's essential state; **Detailed** adds LLR sequence numbers, timers and ACK state. **Recorded** replays `traces.js`; **Live** drives the page from a simulator running on your machine. Live needs only Python 3.11+ and a clone (no venv):
 
 ```
 python3 tools/live.py      # then open http://127.0.0.1:8765/  (--port N to change it)
 ```
 
-In live mode the page asks the simulator to advance a few nanoseconds ahead of what it shows and draws the events it gets back. Buttons act on the running simulation, per hop: corrupt the next frame, lose the next NACK, cut the cable. A further button sets XPU B's HBM write rate. Live mode is local only (it listens on 127.0.0.1); the published page offers Recorded.
+In live mode the page asks the simulator to advance a few nanoseconds ahead of what it shows and draws the events it gets back. The sidebar gains fault injection per hop (corrupt the next frame, lose the next NACK, cut the cable), XPU B's HBM write rate, and a custom-run form (BER and cable length per hop, both buffers, HBM rate, LLR timer and retries, LLR on/off), which the server validates and clamps. Live mode is local only (it listens on 127.0.0.1); the published page offers Recorded.
 
 To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (per-hop cable settings, LLR, switch and XPU B buffers, plus optional corruption hooks per wire) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
 

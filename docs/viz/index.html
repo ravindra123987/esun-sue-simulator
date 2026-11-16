@@ -6,929 +6,177 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<style>
-/* XPU A -> switch -> XPU B, drawn from the two-hop simulator (sim/path.py). Everything that moves
-   comes from a trace: recorded in traces.js, or streamed by tools/live.py. */
-:root{
-  --bg:#eef1f6; --surface:#ffffff; --surface-2:#f2f5f9; --fg:#111827; --muted:#5b6578; --line:#d5dbe5; --accent:#2563eb;
-  --canvas:#f6f8fb; --grid:#e3e8ef; --chassis:#e9edf3; --chassis-line:#94a3b8; --block:#ffffff; --block-line:#c3ccd9; --block-hd:#f1f4f8;
-  --data:#2563eb; --cc:#4d8f12; --ack:#c0307a; --cf:#15905a; --init:#b7791f; --bad:#dc2626; --down:#8a94a6; --ok:#15803d; --mem:#7c5cd6;
-  --dev-a:#ea580c; --dev-s:#0d9488; --dev-b:#7c3aed;
-  --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#080c13; --surface:#0f1621; --surface-2:#162030; --fg:#e6ebf3; --muted:#97a3b6; --line:#243147; --accent:#60a5fa;
-  --canvas:#0b111a; --grid:#152030; --chassis:#111a28; --chassis-line:#3b4a64; --block:#152032; --block-line:#2c3b56; --block-hd:#1a283e;
-  --data:#60a5fa; --cc:#9ad85a; --ack:#f472b6; --cf:#34d399; --init:#fbbf24; --bad:#f87171; --down:#667189; --ok:#4ade80; --mem:#a78bfa;
-  --dev-a:#fb923c; --dev-s:#2dd4bf; --dev-b:#a78bfa; color-scheme:dark }}
-:root[data-theme="dark"]{
-  --bg:#080c13; --surface:#0f1621; --surface-2:#162030; --fg:#e6ebf3; --muted:#97a3b6; --line:#243147; --accent:#60a5fa;
-  --canvas:#0b111a; --grid:#152030; --chassis:#111a28; --chassis-line:#3b4a64; --block:#152032; --block-line:#2c3b56; --block-hd:#1a283e;
-  --data:#60a5fa; --cc:#9ad85a; --ack:#f472b6; --cf:#34d399; --init:#fbbf24; --bad:#f87171; --down:#667189; --ok:#4ade80; --mem:#a78bfa;
-  --dev-a:#fb923c; --dev-s:#2dd4bf; --dev-b:#a78bfa; color-scheme:dark }
+<link rel="stylesheet" href="app.css">
 
-*{box-sizing:border-box}
-body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:15px; line-height:1.5;
-  -webkit-font-smoothing:antialiased; font-feature-settings:"cv11","ss01";
-  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:0 48px}
-.wrap{max-width:1500px; margin:0 auto; display:grid; gap:14px}
-h1,h2,h3{line-height:1.15; margin:0; text-wrap:balance}
-h1{font-size:clamp(1.5rem, 2.6vw, 2rem); letter-spacing:-0.02em; font-weight:700}
-h2{font-size:1.1rem; font-weight:650}
-h3{font-size:.8rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
-p{margin:0; max-width:92ch}
-code,.mono{font-family:var(--f-mono); font-size:.86em}
-.muted{color:var(--muted)}
-header.top{display:grid; gap:8px; padding-block:26px 2px}
-.eyebrow{font-family:var(--f-mono); font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
-.path{display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:.86rem; color:var(--muted)}
-.path b{color:var(--fg); font-weight:600}
-.dev{display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--fg); white-space:nowrap}
-.dev::before{content:""; width:9px; height:9px; border-radius:50%; background:var(--k)}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:12px}
-button{font:inherit; color:inherit}
-button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
-
-.tabs{display:flex; flex-wrap:wrap; gap:6px}
-.tabs button{font-size:.86rem; cursor:pointer; padding:7px 12px; border-radius:8px; background:var(--surface); border:1px solid var(--line)}
-.tabs button:hover{border-color:var(--chassis-line)}
-.tabs button[aria-selected="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:color-mix(in srgb, var(--accent) 9%, var(--surface)); font-weight:600}
-
-.scn{display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:10px 26px; padding:16px 18px}
-.scn .chips{display:flex; flex-wrap:wrap; gap:6px}
-.scn .chips span{font-family:var(--f-mono); font-size:.74rem; padding:2px 8px; border-radius:999px; background:var(--surface-2); border:1px solid var(--line); color:var(--muted)}
-.scn .watch{font-size:.92rem; color:var(--muted); align-self:start; border-left:3px solid var(--accent); padding-left:12px}
-.scn .watch b{color:var(--fg)}
-@media (max-width:860px){ .scn{grid-template-columns:1fr} }
-
-.ctl{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 14px}
-.ctl > button, .grp button{cursor:pointer; padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); font-size:.85rem; min-width:40px}
-.ctl > button:hover, .grp button:hover{border-color:var(--chassis-line)}
-.ctl button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; min-width:84px}
-.ctl label{font-size:.84rem; color:var(--muted); display:inline-flex; gap:6px; align-items:center}
-.ctl select{font:inherit; font-size:.84rem; padding:4px 6px; border-radius:6px; border:1px solid var(--line); background:var(--surface); color:var(--fg)}
-.clock{font-family:var(--f-mono); font-size:1rem; font-variant-numeric:tabular-nums; min-width:150px; font-weight:500}
-.seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
-.seg button{border:0; background:var(--surface); padding:6px 11px; cursor:pointer; font-size:.85rem}
-.seg button + button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:color-mix(in srgb, var(--accent) 15%, var(--surface)); font-weight:600}
-.spacer{flex:1}
-.livebar{border-top:1px solid var(--line); background:color-mix(in srgb, var(--bad) 4%, var(--surface)); align-items:stretch}
-.grp{display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding-right:12px; border-right:1px solid var(--line)}
-.grp:last-child{border-right:0}
-.grp > span{font-size:.78rem; font-weight:600; color:var(--muted); margin-right:2px}
-.badge{display:inline-flex; align-items:center; gap:7px; font-family:var(--f-mono); font-weight:700; font-size:.78rem; color:var(--bad)}
-.badge i{width:8px; height:8px; border-radius:50%; background:var(--bad); animation:blink 1.2s infinite}
-@keyframes blink{50%{opacity:.25}}
-@media (prefers-reduced-motion: reduce){ .badge i{animation:none} }
-[hidden]{display:none !important}
-.tl{padding:2px 14px 10px; display:grid; gap:2px}
-.tl canvas{width:100%; height:18px; display:block; cursor:pointer}
-.tl input{width:100%; margin:0}
-
-.now{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 16px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--surface-2); min-height:62px}
-.now .txt{font-size:1rem; font-weight:500}
-.now .when{font-family:var(--f-mono); font-size:.8rem; color:var(--muted)}
-.chip{display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px; font-size:.76rem; font-weight:600; white-space:nowrap;
-  background:color-mix(in srgb, var(--k) 13%, var(--surface)); color:var(--fg); border:1px solid color-mix(in srgb, var(--k) 45%, transparent)}
-.chip::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--k)}
-.scroll{overflow-x:auto}
-#cNet{display:block; width:100%; min-width:1080px; aspect-ratio:1440 / 540}
-
-.below{display:grid; grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr); gap:14px; align-items:start}
-@media (max-width:980px){ .below{grid-template-columns:1fr} }
-.logc{display:grid; grid-template-rows:auto minmax(0,1fr)}
-.loghd{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 14px 8px}
-.filters{display:flex; flex-wrap:wrap; gap:4px; margin-left:auto}
-.filters button{cursor:pointer; font-size:.78rem; padding:3px 9px; border-radius:999px; border:1px solid var(--line); background:var(--surface)}
-.filters button[aria-pressed="true"]{background:var(--fg); color:var(--surface); border-color:var(--fg)}
-.log{max-height:340px; overflow:auto; padding:0 8px 8px; display:grid; align-content:start}
-.log button{text-align:left; cursor:pointer; display:grid; grid-template-columns:74px 128px minmax(0,1fr); gap:10px; align-items:start;
-  padding:7px 8px; border:0; border-left:3px solid transparent; background:none; font-size:.87rem; border-radius:0 6px 6px 0}
-.log button:hover{background:var(--surface-2)}
-.log button .t{font-family:var(--f-mono); font-size:.78rem; color:var(--muted); font-variant-numeric:tabular-nums; padding-top:2px}
-.log button.future{opacity:.42}
-.log button.cur{border-left-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--surface))}
-.log button.prob .x{color:var(--fg)}
-.log button.prob .t{color:var(--bad)}
-.log .empty{padding:14px; color:var(--muted); font-size:.88rem}
-.stats{padding:12px 16px 14px; display:grid; gap:10px}
-.stats dl{margin:0; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px 12px; font-size:.88rem}
-.stats dt{color:var(--muted)}
-.stats dd{margin:0; font-family:var(--f-mono); font-weight:600; text-align:right; font-variant-numeric:tabular-nums}
-.stats dd.bad{color:var(--bad)}
-.stats .sec{font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); grid-column:1 / -1; padding-top:6px; border-top:1px solid var(--line)}
-.stats .sec:first-child{border-top:0; padding-top:0}
-
-#ladderCard .ctl{padding-bottom:0}
-#cLadder{display:block; width:100%; min-width:720px; height:320px}
-.legend{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82rem; color:var(--muted); padding:0 2px}
-.legend span{display:inline-flex; gap:7px; align-items:center}
-.legend i{width:24px; height:12px; border-radius:3px; border:1.5px solid var(--k); background:color-mix(in srgb, var(--k) 25%, var(--surface)); position:relative}
-.legend i.h::before{content:""; position:absolute; right:0; top:0; bottom:0; width:6px; background:var(--k)}
-.legend i.d{border-style:dashed}
-footer{font-size:.84rem; color:var(--muted); border-top:1px solid var(--line); padding-top:14px; display:grid; gap:8px}
-.err{padding:16px; color:var(--bad)}
-</style>
-
-<div class="wrap">
+<div class="app" id="app">
   <header class="top">
-    <div class="eyebrow">esun-sue-simulator · UEC 1.1 §5.1 LLR · §5.2 CBFC</div>
-    <h1>Scale-up Packet Viewer</h1>
-    <div class="path"><span class="dev" style="--k:var(--dev-a)">XPU A</span> NIC ── hop 1 ── <span class="dev" style="--k:var(--dev-s)">Switch</span> port 1 → port 7 ── hop 2 ── <span class="dev" style="--k:var(--dev-b)">XPU B</span> NIC</div>
-    <p class="muted">Three devices, two 800G cables. Every cable end runs its own link-level retry (LLR) and credit-based flow control (CBFC), so the switch is a receiver on hop 1 and a sender on hop 2. Every frame, control block and state you see is what the simulator did.</p>
+    <button class="btn icon ghost" id="tSide" title="Toggle sidebar (S)" aria-label="Toggle sidebar">☰</button>
+    <div class="brand"><h1>Scale-up Packet Viewer</h1><small>UEC 1.1 · LLR · CBFC</small></div>
+    <span class="scname" id="scname"></span>
+    <span class="grow"></span>
+    <span class="seg" role="group" aria-label="View">
+      <button id="vSimple" aria-pressed="true" title="Simple view (1)">Simple</button><button id="vDetail" aria-pressed="false" title="Detailed view (2)">Detailed</button></span>
+    <span class="seg" role="group" aria-label="Source">
+      <button id="sRec" aria-pressed="true" title="Replay recorded runs">Recorded</button><button id="sLive" aria-pressed="false" title="Drive the page from a running simulator"><span class="dot" id="liveDot"></span> Live</button></span>
+    <button class="btn ghost" id="bLegend" aria-expanded="false" aria-controls="legend">Legend</button>
+    <button class="btn icon ghost" id="bHelp" title="Help and shortcuts (?)" aria-label="Help">?</button>
+    <button class="btn icon ghost" id="bTheme" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
   </header>
 
-  <nav class="tabs" id="tabs" role="tablist" aria-label="Scenario"></nav>
+  <div class="main">
+    <aside class="side" id="side">
+      <section>
+        <div class="sec-title">Scenarios</div>
+        <div class="sclist" id="sclist" role="listbox" aria-label="Scenarios"></div>
+      </section>
+      <section id="liveSec" hidden>
+        <div class="sec-title">Fault injection <span class="livebadge"><span class="dot on"></span>LIVE</span></div>
+        <div class="grp"><div class="lbl">Hop 1 · XPU A → switch</div><div class="row">
+          <button class="btn" data-cmd="corrupt_frame" data-hop="1">⚡ Corrupt frame</button><button class="btn" data-cmd="lose_nack" data-hop="1">Lose NACK</button>
+          <button class="btn" data-cmd="link_down" data-hop="1" data-ns="400">Cut 400 ns</button><button class="btn" data-cmd="link_down" data-hop="1" data-ns="1500">Cut 1.5 µs</button></div></div>
+        <div class="grp"><div class="lbl">Hop 2 · switch → XPU B</div><div class="row">
+          <button class="btn" data-cmd="corrupt_frame" data-hop="2">⚡ Corrupt frame</button><button class="btn" data-cmd="lose_nack" data-hop="2">Lose NACK</button>
+          <button class="btn" data-cmd="link_down" data-hop="2" data-ns="400">Cut 400 ns</button></div></div>
+        <div class="grp"><div class="lbl">XPU B HBM write rate</div><div class="row">
+          <button class="btn" data-cmd="hbm" data-gbps="200">200G</button><button class="btn" data-cmd="hbm" data-gbps="400">400G</button><button class="btn" data-cmd="hbm" data-gbps="800">800G</button></div></div>
+        <div class="status" id="liveStatus"></div>
+      </section>
+      <section id="customSec" hidden>
+        <div class="sec-title">Custom run</div>
+        <form class="form" id="custom">
+          <label><span>Hop 1 BER</span><select name="hop1.ber"><option value="0">0 (clean)</option><option value="1e-7">1e-7</option><option value="1e-6">1e-6</option><option value="1e-5">1e-5</option></select></label>
+          <label><span>Hop 2 BER</span><select name="hop2.ber"><option value="0">0 (clean)</option><option value="1e-7">1e-7</option><option value="1e-6">1e-6</option><option value="1e-5">1e-5</option></select></label>
+          <label><span>Hop 1 cable (m)</span><input name="hop1.cable_m" type="number" min="0.5" max="50" step="0.5" value="3"></label>
+          <label><span>Hop 2 cable (m)</span><input name="hop2.cable_m" type="number" min="0.5" max="50" step="0.5" value="3"></label>
+          <label><span>Switch buffer (credits)</span><input name="sw.total_credits" type="number" min="32" max="4096" step="16" value="1024"></label>
+          <label><span>XPU B buffer (credits)</span><input name="nic.total_credits" type="number" min="32" max="4096" step="16" value="1024"></label>
+          <label><span>XPU B HBM (Gb/s)</span><input name="nic.drain_gbps" type="number" min="50" max="800" step="50" value="800"></label>
+          <label><span>Replay timer (ns)</span><input name="llr.replay_timer_ns" type="number" min="100" max="20000" step="100" value="2000"></label>
+          <label><span>Max retries</span><input name="llr.replay_ct_max" type="number" min="1" max="255" value="8"></label>
+          <label class="check full"><input name="llr.enabled" type="checkbox" checked> LLR enabled</label>
+          <button class="btn primary full" type="submit">Run with these settings</button>
+        </form>
+      </section>
+      <section>
+        <div class="sec-title">About this run</div>
+        <div class="about">
+          <h2 id="sTitle"></h2>
+          <p id="sSum"></p>
+          <p class="watch" id="sWatch"></p>
+          <div class="chips" id="sCfg"></div>
+        </div>
+      </section>
+    </aside>
 
-  <section class="card scn">
-    <div style="display:grid; gap:8px; min-width:0">
-      <h2 id="sTitle"></h2>
-      <p id="sSum"></p>
-      <div class="chips" id="sCfg"></div>
-    </div>
-    <p class="watch" id="sWatch"></p>
-  </section>
+    <div class="col">
+      <section class="stage" aria-label="Path">
+        <div class="banner" aria-live="polite"><span id="nowAt"></span><span class="txt" id="nowTxt"></span><span class="when" id="nowT"></span></div>
+        <div class="pic" id="pic"><canvas id="cNet" aria-label="XPU A, the switch and XPU B with the two cables between them" tabindex="0"></canvas></div>
+        <div class="transport">
+          <button class="btn primary" id="bPlay" title="Play / pause (space)">Play</button>
+          <button class="btn icon" id="bPrevN" title="Previous event ([)" aria-label="Previous event">⏮</button>
+          <button class="btn icon" id="bNextN" title="Next event (])" aria-label="Next event">⏭</button>
+          <span class="clock" id="clock">t = 0.0 ns</span>
+          <select class="sel" id="speed" title="Playback speed">
+            <option value="2">2 ns/s</option><option value="5">5 ns/s</option><option value="10" selected>10 ns/s</option>
+            <option value="25">25 ns/s</option><option value="60">60 ns/s</option><option value="150">150 ns/s</option>
+          </select>
+          <label class="check" for="pauseAt"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
+          <span class="grow"></span>
+          <span class="livebadge" id="liveTag" hidden><span class="dot on"></span>LIVE <span class="muted" id="liveT" style="font-weight:400"></span></span>
+          <button class="btn" id="bRestart" hidden>Restart</button>
+          <button class="btn" id="bShare" title="Copy a link to this moment">🔗 Share moment</button>
+        </div>
+        <div class="timeline" id="tl">
+          <canvas id="cMarks" aria-hidden="true"></canvas>
+          <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
+        </div>
+      </section>
 
-  <section class="card">
-    <div class="ctl">
-      <button id="bPlay" class="primary">Play</button>
-      <button id="bPrevN" title="Previous event (←)" aria-label="Previous event">⏮</button>
-      <button id="bNextN" title="Next event" aria-label="Next event">⏭</button>
-      <span class="clock" id="clock">t = 0.0 ns</span>
-      <label for="speed">Speed
-        <select id="speed">
-          <option value="2">2 ns/s</option><option value="5">5 ns/s</option><option value="10" selected>10 ns/s</option>
-          <option value="25">25 ns/s</option><option value="60">60 ns/s</option><option value="150">150 ns/s</option>
-        </select></label>
-      <label for="pauseAt"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
-      <span class="spacer"></span>
-      <span class="seg" role="group" aria-label="View">
-        <button id="vSimple" aria-pressed="true">Simple</button><button id="vDetail" aria-pressed="false">Detailed</button></span>
-      <span class="seg" role="group" aria-label="Source">
-        <button id="sRec" aria-pressed="true" title="Replay the recorded runs in traces.js">Recorded</button><button id="sLive" aria-pressed="false">Live</button></span>
+      <section class="dock" id="dock" aria-label="Panels">
+        <div class="handle" id="dockHandle" title="Drag to resize"></div>
+        <div class="dtabs" role="tablist">
+          <button role="tab" data-tab="events" aria-selected="true">Events<span class="count" id="nEvents"></span></button>
+          <button role="tab" data-tab="counters" aria-selected="false">Counters</button>
+          <button role="tab" data-tab="flow" aria-selected="false">Flow graph</button>
+          <button role="tab" data-tab="inspect" aria-selected="false">Inspector<span class="count" id="nInspect"></span></button>
+          <span class="grow"></span>
+          <button class="btn icon ghost" id="dockToggle" title="Collapse / expand panels" aria-label="Collapse panels">▾</button>
+        </div>
+        <div class="panel" id="pEvents" role="tabpanel">
+          <div class="ptools"><span class="filters" role="group" aria-label="Filter events">
+            <button data-f="all" aria-pressed="true">All</button><button data-f="A">XPU A</button><button data-f="S">Switch</button><button data-f="B">XPU B</button><button data-f="prob">Problems</button></span></div>
+          <div class="log" id="log"></div>
+        </div>
+        <div class="panel stats" id="pCounters" role="tabpanel" hidden></div>
+        <div class="panel pflow" id="pFlow" role="tabpanel" hidden>
+          <div class="ptools"><span class="muted">Time runs down; the bottom edge is now.</span><span class="grow"></span>
+            <label class="check" for="span">Window <select class="sel" id="span"><option value="150">150 ns</option><option value="300" selected>300 ns</option><option value="600">600 ns</option><option value="1200">1.2 µs</option></select></label></div>
+          <div class="wrap"><canvas id="cLadder" aria-label="Flow graph across both hops"></canvas></div>
+        </div>
+        <div class="panel insp" id="pInspect" role="tabpanel" hidden></div>
+      </section>
     </div>
-    <div class="ctl livebar" id="livebar" hidden>
-      <span class="badge"><i></i>LIVE</span>
-      <div class="grp"><span>Hop 1</span>
-        <button data-cmd="corrupt_frame" data-hop="1">⚡ Corrupt frame</button><button data-cmd="lose_nack" data-hop="1">Lose NACK</button>
-        <button data-cmd="link_down" data-hop="1" data-ns="400">Cut 400 ns</button><button data-cmd="link_down" data-hop="1" data-ns="1500">Cut 1.5 µs</button></div>
-      <div class="grp"><span>Hop 2</span>
-        <button data-cmd="corrupt_frame" data-hop="2">⚡ Corrupt frame</button><button data-cmd="lose_nack" data-hop="2">Lose NACK</button>
-        <button data-cmd="link_down" data-hop="2" data-ns="400">Cut 400 ns</button></div>
-      <div class="grp"><span>XPU B HBM</span>
-        <button data-cmd="hbm" data-gbps="200">200G</button><button data-cmd="hbm" data-gbps="400">400G</button><button data-cmd="hbm" data-gbps="800">800G</button></div>
-      <div class="grp"><button id="bRestart">Restart</button><span class="muted" id="liveInfo" style="font-weight:400"></span></div>
-    </div>
-    <div class="ctl" id="livehint" hidden><span class="muted">Live mode needs the simulator running on your machine: <code>python3 tools/live.py</code>, then open <code>http://127.0.0.1:8765/</code>.</span></div>
-    <div class="tl" id="tl">
-      <canvas id="cMarks" aria-hidden="true"></canvas>
-      <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
-    </div>
-    <div class="now" aria-live="polite"><span id="nowAt"></span><span class="txt" id="nowTxt"></span><span class="when" id="nowT"></span></div>
-    <div class="scroll"><canvas id="cNet" aria-label="XPU A, the switch and XPU B with the two cables between them"></canvas></div>
-  </section>
-
-  <div class="below">
-    <section class="card logc">
-      <div class="loghd"><h3>Event log</h3>
-        <div class="filters" role="group" aria-label="Filter events">
-          <button data-f="all" aria-pressed="true">All</button><button data-f="A">XPU A</button><button data-f="S">Switch</button><button data-f="B">XPU B</button><button data-f="prob">Problems</button></div>
-      </div>
-      <div class="log" id="log" aria-label="Events"></div>
-    </section>
-    <section class="card stats" aria-label="Counters"><dl id="stats"></dl></section>
   </div>
+</div>
 
-  <section class="card" id="ladderCard">
-    <div class="ctl"><h3>Flow graph · time runs down, now is the bottom edge</h3>
-      <label for="span" style="margin-left:auto">Window
-        <select id="span"><option value="150">150 ns</option><option value="300" selected>300 ns</option><option value="600">600 ns</option><option value="1200">1.2 µs</option></select></label>
-    </div>
-    <div class="scroll"><canvas id="cLadder" aria-label="Flow graph across both hops"></canvas></div>
-  </section>
-
+<div class="pop" id="legend" hidden>
   <div class="legend">
     <span><i class="h" style="--k:var(--data)"></i>data frame #id (header at the front)</span>
     <span><i class="h d" style="--k:var(--data)"></i>replayed frame</span>
-    <span><i class="h" style="--k:var(--cc)"></i>CC_Update</span>
+    <span><i class="h" style="--k:var(--cc)"></i>CC_Update (credit check)</span>
     <span><i style="--k:var(--ack)"></i>LLR ACK / NACK</span>
-    <span><i style="--k:var(--cf)"></i>CF_Update: credits back</span>
+    <span><i style="--k:var(--cf)"></i>CF_Update: credits returned</span>
     <span><i style="--k:var(--init)"></i>INIT / ECHO</span>
     <span><i style="--k:var(--bad)"></i>FCS error</span>
     <span><i class="d" style="--k:var(--down)"></i>lost: cable down</span>
+    <span><i style="--k:var(--mem)"></i>buffer / memory</span>
+    <span><i style="--k:var(--accent)"></i>selected frame</span>
   </div>
-
-  <footer>
-    <div><b>How the model maps to the hardware.</b> Each cable end is a MAC with LLR and CBFC (sim/mac.py). XPU A's NIC is the sender on hop 1, with an always-full send queue in HBM. Switch port 1 is hop 1's receiver; the frames it accepts wait in its ingress buffer, whose size is the credit pool it gives XPU A. Switch port 7 is hop 2's sender: it takes a frame out of that buffer when its own LLR window and XPU B's credits allow, which frees XPU A's credits. XPU B's NIC is hop 2's receiver and writes into HBM at a set rate. Control blocks (8 B) ride in fixed slots every 2048 B of link time and are drawn wider than their true 0.08 ns.</div>
-    <div><b>Not modelled</b>: switch pipeline latency (0 ns here) and other switch ports, DMA timing out of XPU A's HBM, more than one VC or flow, the PCS-status timer. Recorded runs: <code>tools/make_traces.py</code>; live runs: <code>tools/live.py</code> (local, standard library only); captions: <code>sim/trace.py</code>.</div>
-  </footer>
 </div>
 
+<dialog id="help"><div class="dlg">
+  <header><h2>Scale-up Packet Viewer</h2><button class="btn icon ghost" data-close aria-label="Close">✕</button></header>
+  <div class="body">
+    <div><h3>What you are looking at</h3>
+      <p>Three devices and two 800G cables: XPU A's NIC sends to a switch, which forwards to XPU B's NIC. Each cable end runs its own link-level retry (LLR, UEC 1.1 §5.1) and credit-based flow control (CBFC, §5.2), so the switch is the receiver on hop 1 and the sender on hop 2. Every frame, control block and state on screen is what the simulator (<code>sim/path.py</code>) did.</p></div>
+    <div><h3>Using it</h3>
+      <p>Pick a scenario in the sidebar and press Play; the picture stops at each event and the banner says what happened. Click any block to inspect its state, or click a frame anywhere to follow it: it is highlighted wherever it appears, and the Inspector lists its whole journey. <b>Share moment</b> copies a link to the current scenario, view and time.</p></div>
+    <div><h3>Live mode</h3>
+      <p>Run <code>python3 tools/live.py</code> in a clone of the repo and open <code>http://127.0.0.1:8765/</code>. The page then runs the simulator a few nanoseconds ahead of what it shows. The sidebar gains fault-injection buttons per hop and a custom-run form. Live mode is local only; the published page offers Recorded.</p></div>
+    <div><h3>Keyboard</h3>
+      <div class="keys">
+        <span><kbd>space</kbd></span><span>play / pause</span>
+        <span><kbd>←</kbd> <kbd>→</kbd></span><span>step 1 ns (with <kbd>shift</kbd>: 10 ns)</span>
+        <span><kbd>[</kbd> <kbd>]</kbd></span><span>previous / next event</span>
+        <span><kbd>1</kbd> <kbd>2</kbd></span><span>Simple / Detailed view</span>
+        <span><kbd>e</kbd> <kbd>c</kbd> <kbd>f</kbd> <kbd>i</kbd></span><span>Events / Counters / Flow graph / Inspector</span>
+        <span><kbd>s</kbd></span><span>toggle the sidebar</span>
+        <span><kbd>esc</kbd></span><span>clear the selection, close dialogs</span>
+        <span><kbd>?</kbd></span><span>this help</span>
+      </div></div>
+    <div><h3>How the model maps to hardware</h3>
+      <p>XPU A's NIC: an always-full send queue in HBM, the CBFC credit gate, LLR transmit and its replay buffer. Switch port 1: FCS check and LLR receive; accepted frames wait in the ingress buffer, whose size is the credit pool port 1 gives XPU A. Switch port 7: takes the oldest buffered frame when its own LLR window and XPU B's credits allow (which frees XPU A's credits), keeps a copy in a second replay buffer, and sends it on. XPU B's NIC: FCS and LLR receive, a receive buffer, and a DMA engine writing to HBM at a set rate. Control blocks (8 B) ride in fixed slots every 2048 B of link time and are drawn far wider than their true 0.08 ns.</p></div>
+    <div><h3>Not modelled</h3>
+      <p>Switch pipeline latency (0 ns), other switch ports, DMA timing out of XPU A's HBM, more than one VC or flow, the PCS-status timer. Recorded runs come from <code>tools/make_traces.py</code>, captions from <code>sim/trace.py</code>.</p></div>
+  </div>
+</div></dialog>
+
+<dialog id="liveHelp"><div class="dlg">
+  <header><h2>Live mode needs the simulator</h2><button class="btn icon ghost" data-close aria-label="Close">✕</button></header>
+  <div class="body">
+    <p>This page is served statically, so there is no simulator behind it. To drive it live, clone the repository and run the server on your machine (Python 3.11 or newer, no packages needed):</p>
+    <pre class="mono" style="margin:0; padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:var(--surface-2)">git clone https://github.com/ravindra123987/esun-sue-simulator
+cd esun-sue-simulator
+python3 tools/live.py          # then open http://127.0.0.1:8765/</pre>
+    <p>The page at that address has the Live source enabled, with fault injection and custom runs in the sidebar.</p>
+  </div>
+</div></dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
 <script src="traces.js"></script>
-<script>
-(function(){
-"use strict";
-const TR = window.SUE_TRACES;
-const $ = id => document.getElementById(id);
-if (!TR || !TR.length){
-  document.querySelector(".wrap").insertAdjacentHTML("beforeend", '<div class="card err">traces.js did not load. Run <code>tools/make_traces.py</code> and open this page next to it.</div>');
-  return;
-}
-const ALL1 = (1 << 20) - 1;
-const SENDER = {a2s:"A", s2b:"S7"}, REVTO = {s2a:"A", b2s:"S7"}, REVFROM = {s2a:"S1", b2s:"B"};
-const WHERE = {A:["XPU A", "dev-a"], S1:["Switch · port 1", "dev-s"], S7:["Switch · port 7", "dev-s"], B:["XPU B", "dev-b"],
-  h1:["Hop 1 cable", "muted"], h2:["Hop 2 cable", "muted"], cmd:["You", "accent"]};
-const PROB = new Set(["bad", "nack", "ooo", "timer", "flush", "overflow", "stall", "down", "cc", "fill"]);
-
-// ---------------------------------------------------------------- data
-const lastAt = (arr, t) => { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi){ const m = (lo + hi) >> 1; if (arr[m].t <= t){ r = m; lo = m + 1; } else hi = m - 1; } return r; };
-const countLE = (arr, t) => { let lo = 0, hi = arr.length; while (lo < hi){ const m = (lo + hi) >> 1; if (arr[m] <= t) lo = m + 1; else hi = m; } return lo; };
-const isDown = (d, h, t) => d.cfg.hops[h].down.some(([a, b]) => a <= t && t < b);
-function newData(meta, cfg){
-  return {id:meta.id, title:meta.title, summary:meta.summary, watch:meta.watch, result:meta.result || null, cfg,
-    frames:{a2s:[], s2b:[]}, ctl:[], snaps:{A:[], S1:[], S7:[], B:[]}, rx:{S1:[], B:[]},
-    swq:[], swqBy:new Map(), nq:[], nqBy:new Map(), seqFid:{a2s:new Map(), s2b:new Map()},
-    firsts:[], deliv:[], lat:[], lastCtl:new Map(), replays:{A:[], S7:[]}, drops:{S1:[], B:[]}, fwdT:[], notes:[], dur:cfg.sim_ns || 0};
-}
-function ingest(d, events){
-  for (const e of events){
-    switch (e.ev){
-      case "frame": {
-        const L = d.frames[e.dir]; if (!L) break;
-        L.push(e);
-        if (e.replay) d.replays[SENDER[e.dir]].push(e.t1);
-        else { if (e.seq != null) d.seqFid[e.dir].set(e.seq, e.kind === "data" ? e.fid : "CC"); if (e.dir === "a2s" && e.kind === "data") d.firsts.push(e.t0); }
-        break; }
-      case "ctlos": {
-        // "news": an ACK that moves the acknowledged seq, a CF_Update that returns credits, any NACK/INIT/ECHO
-        const k = e.dir + e.kind, prev = d.lastCtl.has(k) ? d.lastCtl.get(k) : (e.kind === "CF_UPDATE" ? 0 : ALL1), val = e.kind === "CF_UPDATE" ? e.cf : e.seq;
-        e.news = !(e.kind === "LLR_ACK" || e.kind === "CF_UPDATE") || (val !== prev && !(e.kind === "LLR_ACK" && val === ALL1));
-        if (e.fate === "ok") d.lastCtl.set(k, val);
-        d.ctl.push(e); break; }
-      case "mac": if (d.snaps[e.mac]) d.snaps[e.mac].push(e); break;
-      case "rx": {
-        const L = d.rx[e.mac]; if (!L) break;
-        L.push(e);
-        if (e.res === "bad") d.drops[e.mac].push(e.t);
-        if (e.res === "accept" && e.kind === "data"){
-          if (e.mac === "S1" && !d.swqBy.has(e.fid)){ const it = {fid:e.fid, tin:e.t, tout:null}; d.swq.push(it); d.swqBy.set(e.fid, it); }
-          if (e.mac === "B" && !d.nqBy.has(e.fid)){ const it = {fid:e.fid, tin:e.t, ts:null, te:null}; d.nq.push(it); d.nqBy.set(e.fid, it); }
-        }
-        break; }
-      case "fwd": { const it = d.swqBy.get(e.fid); if (it) it.tout = e.t; d.fwdT.push(e.t); break; }
-      case "egress": { const it = d.nqBy.get(e.fid); if (it){ it.ts = e.t; it.te = e.t_end; } break; }
-      case "deliver": d.deliv.push(e.t); d.lat.push(e); break;
-    }
-  }
-}
-function addNotes(d, notes){ if (!notes.length) return false; d.notes.push(...notes); d.notes.sort((x, y) => x.t - y.t); return true; }
-// live mode: forget what is far behind the playhead (counters only ever look back with countLE)
-function prune(d, t){
-  const cut = t - 2000, big = 1500;
-  for (const k of ["a2s", "s2b"]) if (d.frames[k].length > big) d.frames[k] = d.frames[k].filter(f => f.arrive >= cut);
-  if (d.ctl.length > big * 2) d.ctl = d.ctl.filter(c => c.arrive >= cut);
-  for (const k of ["S1", "B"]) if (d.rx[k].length > big) d.rx[k] = d.rx[k].filter(r => r.t >= cut);
-  if (d.lat.length > big) d.lat = d.lat.slice(-300);
-  if (d.swq.length > big){ d.swq = d.swq.filter(i => i.tout == null || i.tout >= cut); d.swqBy = new Map(d.swq.map(i => [i.fid, i])); }
-  if (d.nq.length > big){ d.nq = d.nq.filter(i => i.te == null || i.te >= cut); d.nqBy = new Map(d.nq.map(i => [i.fid, i])); }
-  for (const k in d.snaps){ const arr = d.snaps[k]; if (arr.length > big){ d.snaps[k] = arr.slice(Math.max(0, lastAt(arr, cut))); } }
-}
-// everything the pictures need at time t
-function view(d, t){
-  const snap = k => { const a = d.snaps[k]; return a[Math.max(0, lastAt(a, t))]; };
-  const v = {A:snap("A"), S1:snap("S1"), S7:snap("S7"), B:snap("B"), ser:{}, rx:{}, cin:{A:null, S7:null}, cout:{S1:null, B:null}, last:{S1:null, B:null}};
-  for (const dir of ["a2s", "s2b"]){
-    const L = d.frames[dir]; let s = null;
-    for (let i = L.length - 1; i >= 0; i--){ const f = L[i]; if (f.t1 < t - 40) break; if (f.t0 <= t && t < f.t1){ s = f; break; } }
-    v.ser[dir] = s;
-  }
-  for (const k of ["S1", "B"]){ const L = d.rx[k], i = lastAt(L, t); v.rx[k] = i >= 0 && t - L[i].t <= 14 ? L[i] : null; }
-  for (let i = d.ctl.length - 1; i >= 0; i--){
-    const c = d.ctl[i]; if (c.t1 < t - 400) break;
-    const to = REVTO[c.dir], from = REVFROM[c.dir]; if (!to) continue;
-    if (!v.cin[to] && c.fate === "ok" && c.arrive <= t && t - c.arrive < 16) v.cin[to] = c;
-    if (!v.last[from] && c.t1 <= t) v.last[from] = c;
-  }
-  v.swq = d.swq.filter(i => i.tin <= t && (i.tout == null || t < i.tout));
-  v.nq = []; v.wr = null;
-  for (const i of d.nq){ if (i.tin > t) continue; if (i.ts == null || t < i.ts) v.nq.push(i); else if (t < i.te) v.wr = i; }
-  const li = lastAt(d.lat, t); v.li = li;
-  v.next = countLE(d.firsts, t) + 1; v.deliv = countLE(d.deliv, t); v.fwd = countLE(d.fwdT, t);
-  v.down = [isDown(d, 0, t), isDown(d, 1, t)];
-  v.rep = {A:countLE(d.replays.A, t), S7:countLE(d.replays.S7, t)}; v.drop = {S1:countLE(d.drops.S1, t), B:countLE(d.drops.B, t)};
-  return v;
-}
-const D = TR.map(tr => { const d = newData(tr, tr.cfg); ingest(d, tr.events); d.notes = tr.notes.slice(); return d; });
-
-// ---------------------------------------------------------------- theme + drawing helpers
-let C = {};
-const TOK = ["bg","surface","surface-2","fg","muted","line","accent","canvas","grid","chassis","chassis-line","block","block-line","block-hd","data","cc","ack","cf","init","bad","down","ok","mem","dev-a","dev-s","dev-b"];
-function readTheme(){ const cs = getComputedStyle(document.documentElement); for (const k of TOK) C[k] = cs.getPropertyValue("--" + k).trim(); }
-readTheme();
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); drawAll(true); });
-new MutationObserver(() => { readTheme(); drawAll(true); }).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
-const alpha = (hex, a) => { const m = hex.replace("#", ""); const n = parseInt(m.length === 3 ? m.split("").map(x => x + x).join("") : m, 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; };
-const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace", BODY = "Inter, system-ui, sans-serif";
-
-function fit(cv, lw, lh){
-  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
-  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
-  const g = cv.getContext("2d");
-  if (lw) g.setTransform(dpr * r.width / lw, 0, 0, dpr * r.height / lh, 0, 0); else g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return [g, lw || r.width, lh || r.height];
-}
-function rr(g, x, y, w, h, r){ g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
-// text: o.s size, o.w weight, o.m monospace, o.c colour, o.a align, o.b baseline
-function T(g, s, x, y, o = {}){
-  g.font = `${o.w || 400} ${o.s || 12}px ${o.m ? MONO : BODY}`;
-  g.fillStyle = o.c || C.fg; g.textAlign = o.a || "left"; g.textBaseline = o.b || "alphabetic";
-  g.fillText(s, x, y);
-}
-function tw(g, s, size, weight, mono){ g.font = `${weight || 400} ${size}px ${mono ? MONO : BODY}`; return g.measureText(s).width; }
-function chassis(g, [x, y, w, h], name, sub, col){
-  rr(g, x, y, w, h, 14); g.fillStyle = C.chassis; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1.2; g.stroke();
-  rr(g, x, y, w, 4, [14, 14, 0, 0]); g.fillStyle = col; g.fill();
-  g.beginPath(); g.arc(x + 20, y + 22, 5, 0, 7); g.fillStyle = col; g.fill();
-  T(g, name, x + 32, y + 27, {s:16, w:700});
-  T(g, sub, x + 32 + tw(g, name, 16, 700) + 10, y + 27, {s:11.5, c:C.muted});
-}
-function region(g, [x, y, w, h], label){
-  rr(g, x, y, w, h, 10); g.strokeStyle = alpha(C["chassis-line"], .8); g.lineWidth = 1; g.setLineDash([5, 4]); g.stroke(); g.setLineDash([]);
-  T(g, label, x + 10, y + 15, {s:11, w:600, c:C.muted});
-}
-function stage(g, [x, y, w, h], title, sub, o = {}){
-  rr(g, x + .5, y + .5, w - 1, h - 1, 8);
-  g.fillStyle = C.block; g.fill(); if (o.fill){ g.fillStyle = o.fill; g.fill(); }
-  g.strokeStyle = o.hot || C["block-line"]; g.lineWidth = o.hot ? 2 : 1; g.setLineDash(o.dim ? [4, 3] : []); g.stroke(); g.setLineDash([]);
-  if (o.hot){ g.save(); rr(g, x + .5, y + .5, w - 1, h - 1, 8); g.clip(); g.fillStyle = alpha(o.hot, .07); g.fillRect(x, y, w, h); g.restore(); }
-  T(g, title, x + 10, y + 21, {s:13, w:700, c:o.dim ? C.muted : C.fg});
-  if (sub) T(g, sub, x + 10, y + 37, {s:11, c:C.muted});
-}
-function pill(g, cx, cy, s, col, o = {}){
-  const fs = o.s || 11, w = tw(g, s, fs, 700, o.m) + 16, h = fs + 9;
-  rr(g, cx - w/2, cy - h/2, w, h, h/2); g.fillStyle = alpha(col, o.solid ? .9 : .14); g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke();
-  T(g, s, cx, cy + .5, {s:fs, w:700, a:"center", b:"middle", c:o.solid ? C.surface : col, m:o.m});
-  return w;
-}
-function gauge(g, x, y, w, h, frac, col){
-  rr(g, x, y, w, h, h/2); g.fillStyle = C["surface-2"]; g.fill(); g.strokeStyle = C["block-line"]; g.lineWidth = 1; g.stroke();
-  if (frac > 0){ rr(g, x, y, Math.max(h, w * Math.min(1, frac)), h, h/2); g.fillStyle = col; g.fill(); }
-}
-function bar(g, x, y, w, p, col){ rr(g, x, y, w, 4, 2); g.fillStyle = C["surface-2"]; g.fill(); rr(g, x, y, w * Math.max(0, Math.min(1, p)), 4, 2); g.fillStyle = col; g.fill(); }
-// a packet: body plus a solid header band at the leading edge
-function pkt(g, x, y, w, h, col, label, o = {}){
-  const dir = o.dir || 1;
-  rr(g, x, y, Math.max(2, w), h, 3); g.fillStyle = alpha(col, o.op != null ? o.op : .22); g.fill();
-  g.setLineDash(o.dash ? [4, 2.5] : []); g.strokeStyle = col; g.lineWidth = 1.3; g.stroke(); g.setLineDash([]);
-  const hw = Math.min(6, w * .2);
-  if (w > 7){ g.fillStyle = col; dir > 0 ? g.fillRect(x + w - hw, y + 1, hw - 1, h - 2) : g.fillRect(x + 1, y + 1, hw - 1, h - 2); }
-  if (label && w > 24) T(g, label, x + w/2 - dir * hw/2, y + h/2 + .5, {s:o.fs || 11, w:600, a:"center", b:"middle", m:true, c:o.tc || C.fg});
-}
-function line(g, x0, y0, x1, y1, col, wdt, dash){ g.strokeStyle = col; g.lineWidth = wdt || 1; g.setLineDash(dash || []); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.setLineDash([]); }
-function head(g, x, y, col, dir = 1){ g.fillStyle = col; g.beginPath(); g.moveTo(x + 4 * dir, y); g.lineTo(x - 3 * dir, y - 4.5); g.lineTo(x - 3 * dir, y + 4.5); g.closePath(); g.fill(); }
-const ctlStyle = k => ({LLR_ACK:["ack", "ACK"], LLR_NACK:["ack", "NACK"], CF_UPDATE:["cf", "CF"], LLR_INIT:["init", "INIT"], LLR_INIT_ECHO:["init", "ECHO"]}[k] || ["muted", k]);
-const ctlLabel = c => { const [, lab] = ctlStyle(c.kind); return c.kind === "CF_UPDATE" ? (c.cf != null ? `CF ${c.cf}` : "CF") : `${lab} ${c.seq === ALL1 ? "–" : c.seq}`; };
-const fidLabel = (d, dir, seq) => { const f = d.seqFid[dir].get(seq); return f == null ? "" : (f === "CC" ? "CC" : String(f)); };
-
-// ---------------------------------------------------------------- the path picture (logical 1440 x 540)
-const W = 1440, H = 540, LT = 184, LR = 262;
-const CH = {A:[16, 44, 300, 484], S:[516, 44, 408, 484], B:[1124, 44, 300, 484]};
-const R = {
-  nicA:[108, 74, 202, 446], hbmA:[30, 96, 70, 416], cred:[118, 96, 88, 204], llrA:[212, 96, 90, 204], rbA:[118, 312, 184, 200],
-  p1:[528, 96, 100, 204], c1:[528, 312, 100, 200], sbuf:[638, 96, 126, 416], p7:[774, 96, 138, 204], rb7:[774, 312, 138, 200],
-  nicB:[1132, 74, 202, 446], rxB:[1140, 96, 90, 204], cB:[1140, 312, 90, 200], bufB:[1236, 96, 90, 416], hbmB:[1338, 96, 74, 416],
-  h1:[316, LT - 56, 200, LR - LT + 92], h2:[924, LT - 56, 200, LR - LT + 92],
-};
-const STATE_COL = s => ({ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[s] || C.muted);
-const STATE_TXT = {ADVANCE:"normal", REPLAY:"replaying", INIT:"re-syncing", FLUSH:"gave up"};
-const stateTxt = (s, det) => det ? s : (STATE_TXT[s] || s);
-
-function drawPath(d, t){
-  const [g] = fit($("cNet"), W, H);
-  g.fillStyle = C.canvas; g.fillRect(0, 0, W, H);
-  g.fillStyle = C.grid; for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) g.fillRect(x, y, 1.3, 1.3);
-  const v = view(d, t), det = mode === "detail", llrOn = d.cfg.llr.enabled;
-
-  chassis(g, CH.A, "XPU A", "sender", C["dev-a"]);
-  chassis(g, CH.S, "Switch", "store-and-forward · lookup XPU B → port 7", C["dev-s"]);
-  chassis(g, CH.B, "XPU B", "receiver", C["dev-b"]);
-  region(g, R.nicA, "NIC · port 0 · 800G");
-  region(g, R.nicB, "NIC · port 0 · 800G");
-
-  // data path behind the blocks, with arrowheads in the gaps
-  for (const [x0, x1, on] of [[100, 316, !!v.ser.a2s], [516, 924, v.swq.length > 0 || !!v.ser.s2b], [1124, 1338, v.nq.length > 0 || !!v.wr]])
-    line(g, x0, LT, x1, LT, on ? alpha(C.data, .55) : alpha(C.muted, .35), 1.5);
-  for (const [x, on] of [[109, v.ser.a2s && !v.ser.a2s.replay], [209, !!v.ser.a2s], [633, v.swq.length > 0], [769, !!v.ser.s2b], [1233, v.nq.length > 0], [1332, !!v.wr]])
-    head(g, x, LT, on ? C.data : alpha(C.muted, .6));
-
-  drawSender(g, d, t, v, "A", det, llrOn);
-  drawReceiver(g, d, t, v, "S1", det, llrOn);
-  drawSender(g, d, t, v, "S7", det, llrOn);
-  drawReceiver(g, d, t, v, "B", det, llrOn);
-  drawSwitchBuffer(g, d, t, v, det);
-  drawNicB(g, d, t, v, det);
-  drawHbmA(g, d, v);
-  drawCable(g, d, t, v, 0, 316, 516, det);
-  drawCable(g, d, t, v, 1, 924, 1124, det);
-  drawPulse(g, d, t);
-}
-
-function drawHbmA(g, d, v){
-  const [x, y, w, h] = R.hbmA;
-  stage(g, R.hbmA, "HBM", "", {fill:alpha(C.mem, .05)});
-  T(g, "send", x + 10, y + 37, {s:11, c:C.muted}); T(g, "queue", x + 10, y + 51, {s:11, c:C.muted});
-  for (let i = 0; ; i++){
-    const yy = LT - 11 + i * 26; if (yy + 22 > y + h - 40) break;
-    pkt(g, x + 8, yy, w - 16, 22, C.data, "#" + (v.next + i), {op:i === 0 ? .32 : .1, fs:10.5});
-  }
-  T(g, "always", x + w/2, y + h - 22, {s:10.5, a:"center", c:C.muted}); T(g, "full", x + w/2, y + h - 9, {s:10.5, a:"center", c:C.muted});
-}
-
-// XPU A's NIC (credits + LLR TX, two blocks) or switch port 7 (one block): the sender of a hop
-function drawSender(g, d, t, v, k, det, llrOn){
-  const a = v[k], dir = k === "A" ? "a2s" : "s2b", ser = v.ser[dir], cin = v.cin[k], st = a.stalled;
-  const sc = STATE_COL(a.llr), rx = k === "A" ? "S1" : "B";
-  const credLine = (x, y, w) => {
-    T(g, "credits", x, y, {s:11, c:C.muted}); T(g, `${a.cr_used} / ${a.cl}`, x + w, y, {s:12, w:700, a:"right", m:true, c:st ? C.bad : C.fg});
-    gauge(g, x, y + 6, w, 8, a.cr_used / a.cl, st ? C.bad : (a.cr_used / a.cl > .75 ? C.init : C.cf));
-  };
-  const serDraw = (x, w) => {
-    if (ser){
-      const col = ser.kind === "cc_update" ? C.cc : C.data;
-      pkt(g, x, LT - 11, w, 22, col, ser.kind === "cc_update" ? "CC" : "#" + ser.fid, {dash:ser.replay, fs:11});
-      bar(g, x, LT + 16, w, (t - ser.t0) / (ser.t1 - ser.t0), ser.replay ? C.ack : col);
-    } else T(g, "idle", x + w/2, LT + 4, {s:11, a:"center", c:C.muted});
-  };
-  const statusTxt = () => ser ? (ser.replay ? [`resending #${ser.fid}`, C.ack] : [ser.kind === "cc_update" ? "sending CC_Update" : `sending #${ser.fid}`, C.data])
-    : (st ? ["waiting for credits", C.bad] : (llrOn && a.llr === "INIT" ? ["INIT sent", C.init] : ["", C.muted]));
-  const cinTxt = () => { if (!cin) return null; const [kk] = ctlStyle(cin.kind);
-    return [cin.kind === "CF_UPDATE" ? "← CF_Update: credits back" : cin.kind === "LLR_ACK" ? `← ACK ${cin.seq}: buffer freed` :
-      cin.kind === "LLR_NACK" ? `← NACK ${cin.seq}: replay!` : `← ${ctlLabel(cin)}`, C[kk]]; };
-  const llrRows = (x, y, w) => {
-    const rows = [["next seq", a.tx_seq], ["acked", a.acked === ALL1 ? "–" : a.acked], ["retries", `${a.replay_ct}/${d.cfg.llr.replay_ct_max}`]];
-    rows.forEach(([kk, vv], i) => { T(g, kk, x, y + i * 15, {s:10.5, c:C.muted}); T(g, String(vv), x + w, y + i * 15, {s:10.5, w:700, a:"right", m:true}); });
-    g.beginPath(); g.arc(x + 4, y + 3 * 15 - 4, 3.5, 0, 7); g.fillStyle = a.timer ? C.init : alpha(C.muted, .3); g.fill();
-    T(g, a.timer ? "timer running" : "timer idle", x + 12, y + 3 * 15, {s:10.5, c:a.timer ? C.init : C.muted});
-  };
-
-  if (k === "A"){
-    // credit gate
-    { const [x, y, w, h] = R.cred;
-      stage(g, R.cred, "Credits", "CBFC gate", {hot:st ? C.bad : null});
-      T(g, `${a.cr_used}`, x + w/2, y + 64, {s:18, w:700, a:"center", m:true, c:st ? C.bad : C.fg});
-      gauge(g, x + 10, y + 72, w - 20, 7, a.cr_used / a.cl, st ? C.bad : (a.cr_used / a.cl > .75 ? C.init : C.cf));
-      pill(g, x + w/2, LT + 2, st ? "STOP" : "GO", st ? C.bad : C.ok, {s:11.5});
-      T(g, `of ${a.cl} in use`, x + w/2, y + 122, {s:11, a:"center", c:C.muted});
-      const ci = cin && cin.kind === "CF_UPDATE";
-      if (ci) T(g, "← CF_Update", x + w/2, y + 142, {s:11, w:700, a:"center", c:C.cf});
-      else if (st) T(g, "wait for CF", x + w/2, y + 142, {s:11, w:600, a:"center", c:C.bad});
-      if (det){ T(g, "1 KB frame", x + w/2, y + 172, {s:10.5, a:"center", c:C.muted}); T(g, "= 16 credits", x + w/2, y + 184, {s:10.5, a:"center", c:C.muted}); }
-    }
-    // LLR transmit + serialiser
-    { const [x, y, w, h] = R.llrA;
-      stage(g, R.llrA, "LLR TX", "retry · MAC", {hot:llrOn && a.llr !== "ADVANCE" ? sc : (ser ? alpha(C.data, .8) : null), dim:!llrOn});
-      if (llrOn) pill(g, x + w/2, y + 62, stateTxt(a.llr, det), sc, {s:det ? 10 : 11, m:det});
-      else T(g, "LLR off", x + w/2, y + 64, {s:12, w:700, a:"center", c:C.muted});
-      serDraw(x + 9, w - 18);
-      const [s1, c1] = statusTxt(); if (s1) T(g, s1, x + w/2, y + 128, {s:11, w:600, a:"center", c:c1});
-      const ci = cinTxt();
-      if (det && llrOn) llrRows(x + 9, y + 146, w - 18);
-      else if (ci && cin.kind !== "CF_UPDATE") T(g, ci[0].split(":")[0], x + w/2, y + 148, {s:11, w:700, a:"center", c:ci[1]});
-    }
-  } else {
-    const [x, y, w, h] = R.p7;
-    stage(g, R.p7, "Port 7 TX", "to XPU B", {hot:st ? C.bad : (llrOn && a.llr !== "ADVANCE" ? sc : (ser ? alpha(C.data, .8) : null))});
-    if (llrOn){ const s = stateTxt(a.llr, det), pw = tw(g, s, 10, 700, det) + 16; pill(g, x + w - 10 - pw/2, y + 33, s, sc, {s:10, m:det}); }
-    else T(g, "LLR off", x + w - 10, y + 37, {s:11, w:700, a:"right", c:C.muted});
-    credLine(x + 10, y + 58, w - 20);
-    serDraw(x + 10, w - 20);
-    const [s1, c1] = statusTxt(); if (s1) T(g, s1, x + w/2, y + 128, {s:11, w:600, a:"center", c:c1});
-    const ci = cinTxt();
-    if (det && llrOn) llrRows(x + 10, y + 146, w - 20);
-    else if (ci) T(g, ci[0], x + w/2, y + 148, {s:11, w:700, a:"center", c:ci[1]});
-  }
-  // replay buffer
-  const RB = k === "A" ? R.rbA : R.rb7, [x, y, w, h] = RB;
-  stage(g, RB, "Replay buffer", llrOn ? `${a.nbuf} frame${a.nbuf === 1 ? "" : "s"} kept until ${k === "A" ? "port 1" : "XPU B"} ACKs` : "not used: LLR off",
-    {dim:!llrOn, fill:llrOn ? alpha(C.mem, .04) : null, hot:llrOn && (a.llr === "REPLAY" || a.llr === "FLUSH") ? sc : null});
-  if (!llrOn) return;
-  const rep = a.llr === "REPLAY", cw = 27, ch = 20, gap = 3, cols = Math.floor((w - 20 + gap) / (cw + gap)), rows = Math.floor((h - 60 + gap) / (ch + gap));
-  const n = a.nbuf, show = Math.min(n, cols * rows - (n > cols * rows ? 1 : 0));
-  for (let i = 0; i < show; i++){
-    const sq = (a.buf0 + i) & ALL1, cx = x + 10 + (i % cols) * (cw + gap), cy = y + 48 + Math.floor(i / cols) * (ch + gap);
-    const live = ser && ser.replay && ser.seq === sq, lab = det ? String(sq) : fidLabel(d, dir, sq);
-    rr(g, cx, cy, cw, ch, 3); g.fillStyle = live ? C.ack : alpha(rep ? C.ack : (lab === "CC" ? C.cc : C.data), .16); g.fill();
-    g.strokeStyle = rep ? C.ack : alpha(lab === "CC" ? C.cc : C.data, .65); g.lineWidth = 1; g.stroke();
-    T(g, lab, cx + cw/2, cy + ch/2 + .5, {s:10, w:600, a:"center", b:"middle", m:true, c:live ? C.surface : C.fg});
-  }
-  if (n > show) T(g, `+${n - show}`, x + 10 + (show % cols) * (cw + gap) + cw/2, y + 48 + Math.floor(show / cols) * (ch + gap) + ch/2 + .5, {s:10, w:700, a:"center", b:"middle", c:C.muted});
-  if (!n) T(g, "empty", x + w/2, y + 80, {s:11.5, a:"center", c:C.muted});
-  T(g, det ? "cells show LLR seq" : "cells show frame #", x + 10, y + h - 9, {s:10, c:C.muted});
-}
-
-// switch port 1 or XPU B's NIC port: the receiver of a hop, and the control blocks it sends back
-function drawReceiver(g, d, t, v, k, det, llrOn){
-  const b = v[k], rx = v.rx[k], RXR = k === "S1" ? R.p1 : R.rxB, CTR = k === "S1" ? R.c1 : R.cB, back = k === "S1" ? "XPU A" : "port 7";
-  { const [x, y, w, h] = RXR;
-    const vc = rx ? ({accept:C.ok, bad:C.bad, ooo:C.ack, dup:C.muted}[rx.res]) : null;
-    stage(g, RXR, k === "S1" ? "Port 1 RX" : "Port RX", llrOn ? "FCS · LLR RX" : "FCS check", {hot:rx && rx.res !== "accept" ? vc : null});
-    if (llrOn){ T(g, "next seq", x + 10, y + 60, {s:11, c:C.muted}); T(g, String(b.next_rx), x + w - 10, y + 60, {s:12, w:700, a:"right", m:true}); }
-    if (rx){
-      const op = Math.max(.35, 1 - (t - rx.t) / 14);
-      g.globalAlpha = op;
-      g.beginPath(); g.arc(x + w/2, LT, 14, 0, 7); g.fillStyle = alpha(vc, .16); g.fill(); g.strokeStyle = vc; g.lineWidth = 1.6; g.stroke();
-      T(g, rx.res === "accept" ? "✓" : "✕", x + w/2, LT + 1, {s:16, w:700, a:"center", b:"middle", c:vc});
-      const why = {accept:"accepted", bad:"FCS bad", ooo:"out of order", dup:"duplicate"}[rx.res];
-      T(g, why, x + w/2, y + 124, {s:11, w:700, a:"center", c:vc}); T(g, rx.kind === "data" ? "#" + rx.fid : "CC", x + w/2, y + 138, {s:11, w:700, a:"center", m:true, c:vc});
-      g.globalAlpha = 1;
-    } else T(g, "listening", x + w/2, LT + 4, {s:11, a:"center", c:C.muted});
-    if (llrOn && b.ack_state !== "SEND_ACKS") pill(g, x + w/2, y + 158, b.ack_state === "SEND_NACK" ? "NACK due" : "NACK sent", C.ack, {s:10.5});
-    if (det && llrOn){ T(g, "acks", x + 10, y + 180, {s:10.5, c:C.muted}); T(g, b.ack_state.replace("SEND_", "").replace("_", " "), x + w - 10, y + 180, {s:10.5, w:700, a:"right", m:true});
-      T(g, "drops", x + 10, y + 195, {s:10.5, c:C.muted}); T(g, String(v.drop[k]), x + w - 10, y + 195, {s:10.5, w:700, a:"right", m:true, c:v.drop[k] ? C.bad : C.fg}); }
-  }
-  { const [x, y, w, h] = CTR, c = v.last[k];
-    stage(g, CTR, "Control TX", `back to ${back}`);
-    if (c){
-      const [kk] = ctlStyle(c.kind), fresh = t - c.t1 < 18;
-      g.globalAlpha = fresh ? 1 : .55;
-      pill(g, x + w/2, y + 62, ctlLabel(c), C[kk], {s:11.5, m:true, solid:fresh && c.news && c.kind !== "LLR_ACK"});
-      g.globalAlpha = 1;
-      const what = c.kind === "LLR_ACK" && c.seq === ALL1 ? ["nothing received", "yet (all ones)"] :
-        !c.news ? ["repeat: nothing", "new to report"] : {LLR_ACK:["frees the replay", "buffer up to it"], LLR_NACK:["replay after", "this seq"], CF_UPDATE:["returns credits", "to the sender"],
-        LLR_INIT_ECHO:["confirms the", "INIT"], LLR_INIT:["re-syncs", "sequence numbers"]}[c.kind] || ["", ""];
-      T(g, what[0], x + w/2, y + 90, {s:10.5, a:"center", c:C.muted}); T(g, what[1], x + w/2, y + 104, {s:10.5, a:"center", c:C.muted});
-      if (c.fate !== "ok") T(g, c.fate === "down" ? "lost: cable down" : "lost: corrupted", x + w/2, y + 124, {s:10.5, w:700, a:"center", c:C.bad});
-    }
-    T(g, "one 8 B block", x + w/2, y + h - 26, {s:10, a:"center", c:C.muted}); T(g, "every 20 ns", x + w/2, y + h - 12, {s:10, a:"center", c:C.muted});
-  }
-}
-
-function stack(g, items, x, w, ymax, label, col = C.data){
-  const rows = Math.floor((ymax - (LT - 11)) / 26);
-  const n = Math.min(items.length, items.length > rows ? rows - 1 : rows);
-  for (let i = 0; i < n; i++) pkt(g, x, LT - 11 + i * 26, w, 22, col, label(items[i]), {fs:11});
-  if (items.length > n) T(g, `+${items.length - n} more`, x + w/2, LT - 11 + n * 26 + 15, {s:11, w:600, a:"center", c:C.muted});
-}
-
-function drawSwitchBuffer(g, d, t, v, det){
-  const [x, y, w, h] = R.sbuf, tot = d.cfg.credits.S1, occ = v.S1.occ, frac = occ / tot;
-  stage(g, R.sbuf, "Ingress buffer", `port 1 · VC0 · ${(tot * d.cfg.credit_size / 1024).toFixed(0)} KB`, {fill:alpha(C.mem, .05), hot:frac > .75 ? C.init : null});
-  T(g, `${occ} / ${tot}`, x + 10, y + 60, {s:11.5, w:700, m:true}); T(g, "credits", x + w - 10, y + 60, {s:11, a:"right", c:C.muted});
-  gauge(g, x + 10, y + 68, w - 20, 8, frac, frac > .75 ? C.init : C.mem);
-  stack(g, v.swq, x + 10, w - 20, y + h - 26, q => "#" + q.fid);
-  if (!v.swq.length) T(g, "empty", x + w/2, LT + 4, {s:11.5, a:"center", c:C.muted});
-  T(g, `forwarded ${v.fwd}`, x + w/2, y + h - 10, {s:10.5, a:"center", c:C.muted});
-}
-
-function drawNicB(g, d, t, v, det){
-  const g8 = d.cfg.nic_gbps, slow = g8 < d.cfg.rate_gbps;
-  { const [x, y, w, h] = R.bufB, tot = d.cfg.credits.B, occ = v.B.occ, frac = occ / tot;
-    stage(g, R.bufB, "RX buffer", `VC0 · ${(tot * d.cfg.credit_size / 1024).toFixed(0)} KB`, {fill:alpha(C.mem, .05), hot:frac > .75 ? C.init : null});
-    T(g, `${occ}/${tot}`, x + 10, y + 60, {s:11, w:700, m:true});
-    gauge(g, x + 10, y + 68, w - 20, 8, frac, frac > .75 ? C.init : C.mem);
-    stack(g, v.nq, x + 8, w - 16, y + h - 64, q => "#" + q.fid);
-    if (!v.nq.length) T(g, "empty", x + w/2, LT + 4, {s:11.5, a:"center", c:C.muted});
-    // DMA engine writing the head frame into HBM
-    const dy = y + h - 54;
-    line(g, x + 8, dy - 6, x + w - 8, dy - 6, C["block-line"]);
-    T(g, "DMA → HBM", x + 10, dy + 9, {s:10.5, w:700});
-    T(g, `${g8} Gb/s`, x + 10, dy + 24, {s:10.5, w:700, m:true, c:slow ? C.bad : C.muted});
-    if (v.wr){ bar(g, x + 10, dy + 30, w - 20, (t - v.wr.ts) / (v.wr.te - v.wr.ts), C.mem); T(g, "writing #" + v.wr.fid, x + 10, dy + 46, {s:10, w:600, c:C.mem}); }
-  }
-  { const [x, y, w, h] = R.hbmB;
-    stage(g, R.hbmB, "HBM", "frames in", {fill:alpha(C.mem, .05)});
-    T(g, String(v.deliv), x + w/2, y + 64, {s:18, w:700, a:"center", m:true});
-    for (let i = 0; i < 12 && v.li - i >= 0; i++){
-      const e = d.lat[v.li - i], yy = LT - 11 + i * 26; if (yy + 22 > y + h - 42) break;
-      const fresh = i === 0 && t - e.t < 12;
-      pkt(g, x + 8, yy, w - 16, 22, C.mem, "#" + e.fid, {op:fresh ? .45 : .14, fs:10.5});
-    }
-    if (v.li >= 0){ T(g, "last", x + w/2, y + h - 24, {s:10, a:"center", c:C.muted}); T(g, `${d.lat[v.li].lat.toFixed(0)} ns`, x + w/2, y + h - 10, {s:10.5, w:700, a:"center", m:true}); }
-  }
-}
-
-// one hop's cable: ports at both ends, frames left to right on the top lane, control blocks back on the bottom lane
-function drawCable(g, d, t, v, h, xa, xb, det){
-  const hc = d.cfg.hops[h], down = v.down[h], prop = hc.prop_ns, dir = h ? "s2b" : "a2s", rdir = h ? "b2s" : "s2a";
-  for (const x of [xa, xb]){
-    for (const y of [LT, LR]){ rr(g, x - 8, y - 12, 16, 24, 3); g.fillStyle = C["block-hd"]; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1; g.stroke(); }
-    g.beginPath(); g.arc(x, LT - 22, 3.6, 0, 7); g.fillStyle = down ? C.bad : C.ok; g.fill();
-  }
-  const cx = (xa + xb) / 2;
-  T(g, `Hop ${h + 1}`, cx, LT - 40, {s:12.5, w:700, a:"center", c:down ? C.bad : C.fg});
-  T(g, `${hc.cable_m} m · ${d.cfg.rate_gbps}G · ${prop.toFixed(0)} ns`, cx, LT - 25, {s:10.5, a:"center", c:C.muted});
-  g.lineWidth = 2; g.strokeStyle = down ? alpha(C.bad, .7) : alpha(C["chassis-line"], .9); g.setLineDash(down ? [6, 5] : []);
-  for (const y of [LT, LR]){ g.beginPath(); g.moveTo(xa + 8, y); g.lineTo(xb - 8, y); g.stroke(); }
-  g.setLineDash([]);
-  if (!down) T(g, "data →", xa + 14, LT + 46, {s:10.5, c:C.muted});
-  T(g, det ? "← ACK · NACK · CF (faded: repeats)" : "← ACK · NACK · CF (new info only)", xb - 14, LR + 30, {s:10.5, a:"right", c:C.muted});
-  if (down) T(g, "CABLE DOWN", cx, LT + 50, {s:13, w:700, a:"center", c:C.bad});
-  const L = xb - xa - 16, px = f => xa + 8 + f * L, fh = 24;
-  for (const f of d.frames[dir]){
-    if (f.t0 > t || f.arrive < t) continue;
-    const front = (t - f.t0) / prop, back = (t - f.t1) / prop;
-    if (front <= 0 || back >= 1) continue;
-    const x0 = px(Math.max(0, back)), x1 = px(Math.min(1, front));
-    let col = f.kind === "cc_update" ? C.cc : C.data, op = .22, tc = C.fg;
-    if (f.fate === "bad" && front > .5){ col = C.bad; tc = C.bad; }
-    if (f.fate === "down"){ col = C.down; op = .1; tc = C.muted; g.globalAlpha = Math.max(.15, 1 - front); }
-    pkt(g, x0, LT - fh/2, x1 - x0, fh, col, f.kind === "cc_update" ? "CC" : "#" + f.fid, {dash:f.replay || f.fate === "down", op, tc, fs:11});
-    if (f.fate === "bad" && front > .5 && back < .5) T(g, "⚡ bit error", px(.5), LT - fh/2 - 6, {s:11, w:700, a:"center", c:C.bad});
-    g.globalAlpha = 1;
-  }
-  for (const c of d.ctl){
-    if (c.dir !== rdir && c.dir !== dir) continue;
-    if (c.t1 > t || c.arrive < t) continue;
-    const f = (t - c.t1) / prop; if (f < 0 || f > 1) continue;
-    const fwd = c.dir === dir, quiet = !c.news;
-    if (quiet && !det) continue;
-    const [kk] = ctlStyle(c.kind), lab = ctlLabel(c);
-    const x = fwd ? px(f) : px(1 - f), y = fwd ? LT + 22 : LR;
-    const w = tw(g, lab, 10.5, 700, true) + 12, hh = 17;
-    g.globalAlpha = quiet ? .28 : (c.fate === "ok" ? 1 : Math.max(.2, 1 - f));
-    let col = C[kk]; if (c.fate !== "ok" && f > .5) col = c.fate === "down" ? C.down : C.bad;
-    rr(g, x - w/2, y - hh/2, w, hh, 4); g.fillStyle = C.surface; g.fill(); g.fillStyle = alpha(col, .18); g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke();
-    T(g, lab, x, y + .5, {s:10.5, w:700, a:"center", b:"middle", m:true});
-    g.globalAlpha = 1;
-  }
-}
-
-// a ring around the block the current caption is about, fading over ~25 ns
-const PULSE = {A:{stall:"cred", _:"llrA", flush:"rbA"}, S1:{nack:"c1", init:"c1", fill:"sbuf", fwd:"sbuf", _:"p1"}, S7:{flush:"rb7", _:"p7"},
-  B:{nack:"cB", init:"cB", fill:"bufB", deliver:"hbmB", _:"rxB"}, h1:{_:"h1"}, h2:{_:"h2"}};
-function drawPulse(g, d, t){
-  const i = noteIdx(d, t); if (i < 0) return;
-  const n = d.notes[i], age = t - n.t; if (age > 25) return;
-  const m = PULSE[n.at]; if (!m) return;
-  const r = R[m[n.kind] || m._]; if (!r) return;
-  const k = PROB.has(n.kind) ? C.bad : C.accent, a = 1 - age / 25;
-  g.save(); g.globalAlpha = a;
-  rr(g, r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8, 11); g.strokeStyle = k; g.lineWidth = 2.5; g.stroke();
-  rr(g, r[0] - 9, r[1] - 9, r[2] + 18, r[3] + 18, 15); g.strokeStyle = alpha(k, .25); g.lineWidth = 5; g.stroke();
-  g.restore();
-}
-
-// ---------------------------------------------------------------- flow graph: four cable ends, time runs down
-function drawLadder(d, t){
-  const [g, Wd, Hd] = fit($("cLadder"));
-  g.fillStyle = C.surface; g.fillRect(0, 0, Wd, Hd);
-  const span = +$("span").value, top = 34, bot = Hd - 16, m = 96, inner = Wd - 2 * m;
-  const X = {A:m, S1:m + inner * .42, S7:m + inner * .58, B:Wd - m};
-  const t0 = t - span, y = tt => top + (tt - t0) / span * (bot - top);
-  T(g, "XPU A", X.A, 16, {s:12, w:700, a:"center"}); T(g, "NIC", X.A, 29, {s:10.5, a:"center", c:C.muted});
-  T(g, "Switch", (X.S1 + X.S7)/2, 16, {s:12, w:700, a:"center"}); T(g, "port 1", X.S1, 29, {s:10.5, a:"center", c:C.muted}); T(g, "port 7", X.S7, 29, {s:10.5, a:"center", c:C.muted});
-  T(g, "XPU B", X.B, 16, {s:12, w:700, a:"center"}); T(g, "NIC", X.B, 29, {s:10.5, a:"center", c:C.muted});
-  const step = span <= 150 ? 25 : span <= 300 ? 50 : span <= 600 ? 100 : 200;
-  for (let k = Math.ceil(Math.max(0, t0) / step) * step; k <= t; k += step){ const yy = y(k); line(g, X.A, yy, X.B, yy, alpha(C.muted, .14)); T(g, k + " ns", X.A - 14, yy + 4, {s:10.5, a:"right", c:C.muted, m:true}); }
-  d.cfg.hops.forEach((hc, h) => { const [xa, xb] = h ? [X.S7, X.B] : [X.A, X.S1];
-    for (const [a, b] of hc.down){ if (b < t0 || a > t) continue; g.fillStyle = alpha(C.bad, .08); g.fillRect(xa, y(Math.max(a, t0)), xb - xa, y(Math.min(b, t)) - y(Math.max(a, t0))); } });
-  g.fillStyle = alpha(C["dev-s"], .06); g.fillRect(X.S1, top, X.S7 - X.S1, bot - top);
-  for (const k of ["A", "S1", "S7", "B"]) line(g, X[k], top, X[k], bot, C["chassis-line"], 3);
-  g.save(); g.beginPath(); g.rect(0, top, Wd, bot - top); g.clip();
-  for (const tf of d.fwdT){ if (tf < t0 || tf > t) continue; line(g, X.S1, y(tf), X.S7, y(tf), alpha(C.data, .45), 1, [2, 3]); }
-  for (const [h, dir, rdir] of [[0, "a2s", "s2a"], [1, "s2b", "b2s"]]){
-    const prop = d.cfg.hops[h].prop_ns, [xa, xb] = h ? [X.S7, X.B] : [X.A, X.S1];
-    for (const f of d.frames[dir]){
-      if (f.arrive < t0 || f.t0 > t) continue;
-      const col = f.fate === "down" ? C.down : (f.fate === "bad" ? C.bad : (f.kind === "cc_update" ? C.cc : C.data));
-      const endF = f.fate === "down" ? .5 : 1, xe = xa + (xb - xa) * endF;
-      g.beginPath(); g.moveTo(xa, y(f.t0)); g.lineTo(xe, y(f.t0 + prop * endF)); g.lineTo(xe, y(f.t1 + prop * endF)); g.lineTo(xa, y(f.t1)); g.closePath();
-      g.fillStyle = alpha(col, f.replay ? .1 : .22); g.fill();
-      g.setLineDash(f.replay || f.fate === "down" ? [4, 3] : []); g.strokeStyle = alpha(col, .9); g.lineWidth = 1; g.stroke(); g.setLineDash([]);
-      if (f.arrive <= t && f.fate === "bad") T(g, "✕ FCS", xb + 8, y(f.arrive) + 4, {s:10.5, w:700, c:C.bad});
-      if (h === 0 && y(f.t1) - y(f.t0) > 10 && f.kind === "data") T(g, "#" + f.fid, xa - 6, y((f.t0 + f.t1)/2) + 4, {s:10, a:"right", c:C.muted, m:true});
-    }
-    for (const c of d.ctl){
-      if (c.dir !== rdir && c.dir !== dir) continue;
-      if (c.arrive < t0 || c.t1 > t) continue;
-      if (!c.news && c.kind === "CF_UPDATE") continue;
-      if (c.kind === "LLR_ACK" && c.seq === ALL1) continue;
-      const [k] = ctlStyle(c.kind), col = c.fate === "ok" ? C[k] : (c.fate === "down" ? C.down : C.bad);
-      const [x0, x1] = c.dir === rdir ? [xb, xa] : [xa, xb], endF = c.fate === "ok" ? 1 : .5;
-      g.globalAlpha = c.kind === "LLR_ACK" ? .5 : 1;
-      line(g, x0, y(c.t1), x0 + (x1 - x0) * endF, y(c.t1 + prop * endF), col, c.kind === "LLR_NACK" || c.kind.startsWith("LLR_INIT") ? 2 : 1, c.fate === "ok" ? [] : [3, 3]);
-      if (c.kind !== "LLR_ACK" && c.kind !== "CF_UPDATE")
-        T(g, ctlLabel(c) + (c.fate === "ok" ? "" : " (lost)"), x0 + (c.dir === rdir ? 6 : -6), y(c.t1) + 4, {s:10.5, w:700, c:col, a:c.dir === rdir ? "left" : "right", m:true});
-      g.globalAlpha = 1;
-    }
-  }
-  g.restore();
-  line(g, X.A - 30, bot, X.B + 30, bot, C.accent, 1.5);
-  T(g, "now", X.B + 34, bot + 4, {s:10.5, w:700, c:C.accent});
-}
-
-function drawMarks(d){
-  const [g, Wd, Hd] = fit($("cMarks"));
-  g.clearRect(0, 0, Wd, Hd);
-  for (const hc of d.cfg.hops) for (const [a, b] of hc.down){ g.fillStyle = alpha(C.bad, .16); g.fillRect(a / d.dur * Wd, 0, (b - a) / d.dur * Wd, Hd); }
-  for (const n of d.notes){
-    g.fillStyle = PROB.has(n.kind) ? C.bad : (n.kind === "replay" ? C.ack : (n.kind === "up" || n.kind === "deliver" ? C.ok : C.accent));
-    g.fillRect(Math.round(n.t / d.dur * (Wd - 3)), 3, 3, Hd - 6);
-  }
-}
-
-// ---------------------------------------------------------------- captions, log, counters
-function noteIdx(d, t){ let r = -1; for (let i = 0; i < d.notes.length; i++){ if (d.notes[i].t <= t + 1e-6) r = i; else break; } return r; }
-function chip(at){ const [name, k] = WHERE[at] || [at, "muted"]; const s = document.createElement("span"); s.className = "chip"; s.style.setProperty("--k", `var(--${k})`); s.textContent = name; return s; }
-let filter = "all";
-const passes = n => filter === "all" || (filter === "prob" ? PROB.has(n.kind) : filter === "S" ? (n.at === "S1" || n.at === "S7") :
-  filter === "A" ? (n.at === "A" || n.at === "h1") : (n.at === "B" || n.at === "h2"));
-function buildLog(d){
-  const Lg = $("log"); Lg.textContent = "";
-  d.notes.forEach((n, i) => {
-    const b = document.createElement("button"); b.dataset.i = i;
-    if (PROB.has(n.kind)) b.classList.add("prob");
-    const t = document.createElement("span"); t.className = "t"; t.textContent = n.t.toFixed(1) + " ns";
-    const x = document.createElement("span"); x.className = "x"; x.textContent = n.text;
-    const c = document.createElement("span"); c.appendChild(chip(n.at));
-    b.append(t, c, x); b.hidden = !passes(n);
-    b.onclick = () => { stop(); setT(n.t); }; Lg.appendChild(b);
-  });
-  if (!d.notes.length){ const e = document.createElement("div"); e.className = "empty"; e.textContent = "Nothing has happened yet."; Lg.appendChild(e); }
-  lastNote = -2;
-}
-let lastNote = -2;
-function drawNotes(d, t){
-  const i = noteIdx(d, t);
-  if (i === lastNote) return; lastNote = i;
-  $("nowAt").textContent = "";
-  if (i < 0){ $("nowTxt").textContent = (playing ? "" : "Press Play. ") + "Frames leave XPU A's HBM, pass the NIC's credit gate and LLR, cross hop 1, wait in the switch, cross hop 2 and land in XPU B's HBM."; $("nowT").textContent = ""; }
-  else { const n = d.notes[i]; $("nowAt").appendChild(chip(n.at)); $("nowTxt").textContent = n.text; $("nowT").textContent = `${n.t.toFixed(1)} ns`; }
-  [...$("log").children].forEach((b, k) => { b.classList.toggle("cur", k === i); b.classList.toggle("future", k > i); });
-  const cur = $("log").children[i]; if (cur && playing && !cur.hidden){ const L = $("log"); const top = cur.offsetTop - L.offsetTop; if (top < L.scrollTop || top > L.scrollTop + L.clientHeight - 40) L.scrollTop = top - 40; }
-}
-let lastStats = "";
-function drawStats(d, t){
-  const v = view(d, t), last = v.li >= 0 ? d.lat[v.li].lat.toFixed(0) + " ns" : "–";
-  const rows = [["sec", "End to end"], ["delivered to XPU B", v.deliv], ["last latency", last],
-    ["in the switch buffer", v.swq.length], ["in XPU B's buffer", v.nq.length + (v.wr ? 1 : 0)],
-    ["sec", "Hop 1 · XPU A → port 1"], ["frames replayed", v.rep.A], ["FCS drops", v.drop.S1, v.drop.S1 > 0], ["XPU A credits in use", `${v.A.cr_used}/${v.A.cl}`, v.A.stalled],
-    ["sec", "Hop 2 · port 7 → XPU B"], ["frames replayed", v.rep.S7], ["FCS drops", v.drop.B, v.drop.B > 0], ["port 7 credits in use", `${v.S7.cr_used}/${v.S7.cl}`, v.S7.stalled]];
-  const key = JSON.stringify(rows); if (key === lastStats) return; lastStats = key;
-  const dl = $("stats"); dl.textContent = "";
-  for (const [k, val, bad] of rows){
-    if (k === "sec"){ const s = document.createElement("div"); s.className = "sec"; s.textContent = val; dl.appendChild(s); continue; }
-    const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = val; if (bad) dd.className = "bad";
-    dl.append(dt, dd);
-  }
-}
-
-// ---------------------------------------------------------------- main loop
-let d = D[0], t = 0, playing = false, lastFrame = 0, mode = "simple";
-try { if (localStorage.getItem("sue-viz-view") === "detail") mode = "detail"; } catch (e) {}
-const LIVE = {avail:false, on:false, id:null, busy:false, simT:0, metas:[], waiting:false, gen:0};
-const LOOK = 40;                 // ns the simulator stays ahead of the picture (a frame is logged when its last bit leaves)
-
-function drawAll(){
-  if (!d.snaps.A.length || !d.snaps.B.length || !d.snaps.S7.length) return;   // live: nothing from the simulator yet
-  $("clock").textContent = `t = ${t.toFixed(1)} ns` + (LIVE.on && LIVE.waiting ? "  (waiting for the simulator)" : "");
-  if (!LIVE.on) $("scrub").value = t;
-  drawPath(d, t);
-  if (mode === "detail") drawLadder(d, t);
-  drawNotes(d, t);
-  drawStats(d, t);
-}
-function setT(v){ t = Math.max(0, LIVE.on ? Math.min(v, Math.max(0, LIVE.simT - LOOK)) : Math.min(d.dur, v)); drawAll(); }
-function tick(now){
-  if (!playing) return;
-  const dt = Math.min(100, now - lastFrame) / 1000; lastFrame = now;
-  let nt = t + dt * +$("speed").value;
-  if (LIVE.on){
-    pump();
-    const lim = LIVE.simT - LOOK; LIVE.waiting = nt > lim; if (nt > lim) nt = Math.max(t, lim);
-    prune(d, nt);
-  }
-  if ($("pauseAt").checked){ const n = d.notes.find(n => n.t > t + 1e-6 && n.t <= nt); if (n){ setT(n.t); stop(); return; } }
-  if (!LIVE.on && nt >= d.dur){ setT(d.dur); stop(); return; }
-  setT(nt); requestAnimationFrame(tick);
-}
-function play(){ if (!LIVE.on && t >= d.dur) t = 0; playing = true; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
-function stop(){ playing = false; $("bPlay").textContent = !LIVE.on && t >= d.dur ? "Replay" : "Play"; }
-
-// ---------------- live client
-async function api(path, body){
-  const r = await fetch(path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
-  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j;
-}
-async function pump(){
-  if (!LIVE.on || LIVE.busy) return;
-  const want = t + LOOK + 20 + +$("speed").value * .6;
-  if (LIVE.simT >= want) return;
-  LIVE.busy = true; const gen = LIVE.gen;
-  try {
-    const r = await api("/live/step", {id:LIVE.id, until:want});
-    if (gen !== LIVE.gen) return;                       // restarted meanwhile
-    ingest(d, r.events); LIVE.simT = r.t;
-    if (addNotes(d, r.notes)) buildLog(d);
-  } catch (e){ $("liveInfo").textContent = "simulator unreachable: " + e.message; stop(); }
-  finally { if (gen === LIVE.gen) LIVE.busy = false; }
-}
-async function startLive(id){
-  stop(); LIVE.gen++; LIVE.busy = false;
-  const meta = LIVE.metas.find(m => m.id === id) || LIVE.metas[0];
-  const r = await api("/live/new", {scenario:meta.id});
-  LIVE.id = r.id; LIVE.simT = 0;
-  d = newData(meta, r.cfg); t = 0;
-  const first = await api("/live/step", {id:LIVE.id, until:LOOK + 60});
-  ingest(d, first.events); LIVE.simT = first.t; addNotes(d, first.notes);
-  showScenario(); buildLog(d); drawAll();
-  $("liveInfo").textContent = meta.id === "clean" ? "" : `(${meta.title}: its scripted faults still happen)`;
-  play();
-}
-
-// ---------------- scenario + mode switching
-function showScenario(){
-  for (const b of $("tabs").children) b.setAttribute("aria-selected", b.dataset.id === d.id ? "true" : "false");
-  $("sTitle").textContent = (LIVE.on ? "Live · " : "") + d.title; $("sSum").textContent = d.summary;
-  $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(LIVE.on ? "Use the buttons above to break things while it runs: every reaction you see is the simulator's." : d.watch);
-  const c = d.cfg, r = d.result, kb = n => `${(n * c.credit_size / 1024).toFixed(0)} KB`;
-  const downs = c.hops.flatMap((h, i) => h.down.map(([a, b]) => `hop ${i + 1} down ${a}–${b} ns`));
-  const bits = [`2 × ${c.hops[0].cable_m} m · ${c.rate_gbps}G`, `${c.frame} B frames`,
-    c.llr.enabled ? `LLR timer ${c.llr.replay_timer_ns} ns · ${c.llr.replay_ct_max} retries` : "LLR off",
-    `switch buffer ${kb(c.credits.S1)}`, `XPU B buffer ${kb(c.credits.B)}`, `XPU B HBM ${c.nic_gbps} Gb/s`,
-    ...(LIVE.on ? [] : downs), r && !LIVE.on ? `result: ${r.delivered} delivered · ${r.lost} lost · ${r.replayed} replayed` : null];
-  $("sCfg").innerHTML = ""; for (const s of bits.filter(Boolean)){ const e = document.createElement("span"); e.textContent = s; $("sCfg").appendChild(e); }
-}
-function pick(id){
-  if (LIVE.on){ startLive(id); return; }
-  stop();
-  d = D.find(x => x.id === id) || D[0]; t = 0;
-  showScenario();
-  $("scrub").max = d.dur;
-  buildLog(d); drawMarks(d); drawAll();
-  if (location.hash.slice(1) !== d.id) history.replaceState(null, "", location.search + "#" + d.id);
-}
-function setMode(m){
-  mode = m; try { localStorage.setItem("sue-viz-view", m); } catch (e) {}
-  $("vSimple").setAttribute("aria-pressed", m === "simple"); $("vDetail").setAttribute("aria-pressed", m === "detail");
-  $("ladderCard").hidden = m === "simple";
-  drawAll();
-}
-function setSource(live){
-  if (live && !LIVE.avail){ $("livehint").hidden = false; return; }
-  LIVE.on = live; $("livehint").hidden = true;
-  $("sRec").setAttribute("aria-pressed", !live); $("sLive").setAttribute("aria-pressed", live);
-  $("livebar").hidden = !live; $("tl").hidden = live;
-  $("bPrevN").disabled = $("bNextN").disabled = live;
-  if (live){ $("pauseAt").checked = false; startLive(d.id); }
-  else { LIVE.gen++; stop(); $("pauseAt").checked = true; pick(d.id); }
-}
-
-for (const x of D){
-  const b = document.createElement("button"); b.setAttribute("role", "tab"); b.dataset.id = x.id; b.textContent = x.title;
-  b.onclick = () => pick(x.id); $("tabs").appendChild(b);
-}
-$("bPlay").onclick = () => playing ? stop() : play();
-$("bNextN").onclick = () => { stop(); const n = d.notes.find(n => n.t > t + 1e-6); setT(n ? n.t : d.dur); };
-$("bPrevN").onclick = () => { stop(); const ns = d.notes.filter(n => n.t < t - 1e-6); setT(ns.length ? ns[ns.length - 1].t : 0); };
-$("scrub").oninput = e => { stop(); setT(+e.target.value); };
-$("span").onchange = () => drawAll();
-$("vSimple").onclick = () => setMode("simple"); $("vDetail").onclick = () => setMode("detail");
-$("sRec").onclick = () => setSource(false); $("sLive").onclick = () => setSource(true);
-$("bRestart").onclick = () => startLive(d.id);
-for (const b of document.querySelectorAll(".filters button")){
-  b.onclick = () => {
-    filter = b.dataset.f;
-    for (const o of document.querySelectorAll(".filters button")) o.setAttribute("aria-pressed", o === b);
-    [...$("log").children].forEach(r => { if (r.dataset.i != null) r.hidden = !passes(d.notes[+r.dataset.i]); });
-  };
-}
-for (const b of document.querySelectorAll("#livebar [data-cmd]")){
-  b.onclick = async () => {
-    try {
-      const arg = {hop:+(b.dataset.hop || 1)}; if (b.dataset.ns) arg.ns = +b.dataset.ns; if (b.dataset.gbps) arg.gbps = +b.dataset.gbps;
-      const r = await api("/live/cmd", {id:LIVE.id, cmd:b.dataset.cmd, arg});
-      d.cfg = r.cfg; showScenario();
-      if (!playing) play();
-    } catch (e){ $("liveInfo").textContent = "command failed: " + e.message; }
-  };
-}
-$("cMarks").onclick = e => { const r = e.target.getBoundingClientRect(); stop(); setT((e.clientX - r.left) / r.width * d.dur); };
-document.addEventListener("keydown", e => {
-  if (e.target.closest && e.target.closest("input, select, textarea")) return;
-  if (e.key === " " && !(e.target.closest && e.target.closest("button"))){ e.preventDefault(); $("bPlay").click(); }
-  else if (e.key === "ArrowRight" && !LIVE.on){ e.preventDefault(); stop(); setT(t + (e.shiftKey ? 10 : 1)); }
-  else if (e.key === "ArrowLeft" && !LIVE.on){ e.preventDefault(); stop(); setT(t - (e.shiftKey ? 10 : 1)); }
-});
-window.addEventListener("resize", () => { if (!LIVE.on) drawMarks(d); drawAll(); });
-window.addEventListener("hashchange", () => pick(location.hash.slice(1)));
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawAll());
-const q = new URLSearchParams(location.search);
-if (q.get("view") === "detail" || q.get("view") === "simple") mode = q.get("view");
-setMode(mode);
-pick(location.hash.slice(1) || D[0].id);
-if (q.has("t")) setT(+q.get("t"));        // ?t=200 opens at a given time (handy for screenshots)
-// live mode is available when the page is served by tools/live.py
-if (location.protocol.startsWith("http")){
-  fetch("/live/hello").then(r => r.ok ? r.json() : null).then(j => {
-    if (!j || !j.ok) return;
-    LIVE.avail = true; LIVE.metas = j.scenarios;
-    $("sLive").title = "Drive the page from the running simulator";
-    if (q.has("live")) setSource(true);
-  }).catch(() => {});
-}
-})();
-</script>
+<script src="js/data.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</html>

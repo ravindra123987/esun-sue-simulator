@@ -6,7 +6,7 @@
   --dev-a:#ea580c; --dev-s:#0d9488; --dev-b:#7c3aed;
   --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --top:44px; --side:272px; --dock:300px; --r:6px;
+  --top:44px; --side:256px; --dock:300px; --r:6px;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0b0f16; --surface:#111722; --surface-2:#161d2a; --surface-3:#1c2534; --fg:#e6ebf3; --muted:#97a3b6; --line:#243147; --accent:#60a5fa; --accent-fg:#0b0f16;
@@ -108,14 +108,15 @@ select.sel{padding:4px 24px 4px 8px; border-radius:var(--r); border:1px solid va
 .status.bad{color:var(--bad)}
 
 /* ---------- stage */
-.col{display:grid; grid-template-rows:minmax(0,1fr) auto; min-height:0}
-.stage{display:grid; grid-template-rows:auto minmax(0,1fr) auto auto; min-height:0; background:var(--bg)}
+.col{display:flex; flex-direction:column; min-height:0; overflow:auto}
+.stage{display:grid; grid-template-rows:auto auto auto auto; flex:none; background:var(--bg)}
 .banner{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 14px; border-bottom:1px solid var(--line); background:var(--surface); min-height:44px}
 .banner .txt{font-size:13.5px; font-weight:500}
 button.fid{display:inline; font:inherit; font-family:var(--f-mono); font-size:.92em; font-weight:700; padding:0 4px; margin:0; border-radius:4px; border:1px solid color-mix(in srgb, var(--accent) 40%, transparent); background:color-mix(in srgb, var(--accent) 10%, var(--surface)); color:var(--fg); line-height:1.3}
 button.fid:hover{background:color-mix(in srgb, var(--accent) 22%, var(--surface))}
-.banner .when{font-family:var(--f-mono); font-size:12px; color:var(--muted)}
-.pic{position:relative; overflow:auto; min-height:0; display:flex; padding:8px}
+.banner .when{font-family:var(--f-mono); font-size:12px; color:var(--muted); display:grid; justify-items:end; gap:3px}
+.banner .when .tag{font-size:10.5px; color:var(--accent); border-color:color-mix(in srgb, var(--accent) 45%, transparent)}
+.pic{position:relative; overflow-x:auto; overflow-y:hidden; display:flex; padding:6px}
 #cNet{display:block; margin:auto; cursor:default; flex:none}
 #cNet.hit{cursor:pointer}
 .transport{display:flex; align-items:center; gap:8px; padding:6px 12px; border-top:1px solid var(--line); background:var(--surface); flex-wrap:wrap}
@@ -128,7 +129,7 @@ button.fid:hover{background:color-mix(in srgb, var(--accent) 22%, var(--surface)
 .timeline input{width:100%; margin:0; accent-color:var(--accent)}
 
 /* ---------- dock */
-.dock{display:grid; grid-template-rows:6px auto minmax(0,1fr); height:var(--dock); min-height:0; border-top:1px solid var(--line); background:var(--surface)}
+.dock{display:grid; grid-template-rows:6px auto minmax(0,1fr); height:var(--dock); flex:none; min-height:0; border-top:1px solid var(--line); background:var(--surface)}
 .dock.collapsed{height:auto; grid-template-rows:6px auto 0}
 .dock.collapsed .panel{display:none}
 .handle{cursor:row-resize; background:var(--surface-2); border-bottom:1px solid var(--line)}
@@ -139,7 +140,7 @@ button.fid:hover{background:color-mix(in srgb, var(--accent) 22%, var(--surface)
 .dtabs button[aria-selected="true"]{color:var(--fg); font-weight:600; background:var(--surface-3)}
 .dtabs .grow{flex:1}
 .dtabs .count{font-family:var(--f-mono); font-size:10.5px; margin-left:6px; color:var(--muted)}
-.panel{min-height:0; overflow:auto}
+.panel{min-height:0; overflow:auto; overscroll-behavior:contain}
 .panel[hidden]{display:none}
 .ptools{display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 10px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--surface); z-index:1}
 .ptools .grow{flex:1}

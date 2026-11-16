@@ -34,12 +34,16 @@ $("bTheme").onclick = () => {
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { RD.readTheme(); drawAll(true); });
 
 // ---------------------------------------------------------------- layout: the picture fits the stage, panels resize
+let zoom = store.get("sue-viz-zoom", "fit");
 function layout(){
-  const r = $("pic").getBoundingClientRect(), aw = r.width - 16, ah = r.height - 16;
-  const s = Math.max(.72, Math.min(aw / RD.W, ah / RD.H));
-  cv.style.width = Math.round(RD.W * s) + "px"; cv.style.height = Math.round(RD.H * s) + "px";
+  const aw = $("pic").clientWidth - 12;
+  const s = zoom === "fit" ? Math.max(.66, aw / RD.W) : +zoom;
+  const w = Math.round(RD.W * s) + "px", h = Math.round(RD.H * s) + "px";
+  if (cv.style.width !== w){ cv.style.width = w; cv.style.height = h; }
   drawAll(true);
 }
+$("zoom").value = zoom;
+$("zoom").onchange = () => { zoom = $("zoom").value; store.set("sue-viz-zoom", zoom); layout(); };
 new ResizeObserver(() => layout()).observe($("pic"));
 new ResizeObserver(() => { if (tab === "flow") drawAll(true); }).observe($("pFlow"));
 window.addEventListener("resize", () => { if (!LIVE.on) RD.drawMarks($("cMarks"), d); });
@@ -49,21 +53,13 @@ $("tSide").onclick = () => setSide($("app").classList.contains("noside"));
 setSide(store.get("sue-viz-side", innerWidth > 900 ? "1" : "0") === "1");
 
 const dock = $("dock");
-// the panels never squeeze the picture below ~330 px; what is left goes to the dock
-let dockWant = +store.get("sue-viz-dock", "300");
-function setDock(px, remember = true){
-  if (remember){ dockWant = px; store.set("sue-viz-dock", String(Math.round(px))); }
-  const room = innerHeight - 44 - 44 - 72 - 330;
-  px = Math.max(120, Math.min(room, px));
-  $("app").style.setProperty("--dock", px + "px");
-}
-setDock(dockWant, false);
-window.addEventListener("resize", () => setDock(dockWant, false));
+function setDock(px){ px = Math.max(140, Math.min(Math.max(140, innerHeight - 200), px)); $("app").style.setProperty("--dock", px + "px"); store.set("sue-viz-dock", String(Math.round(px))); }
+setDock(+store.get("sue-viz-dock", "300"));
 if (store.get("sue-viz-dock-open", "1") === "0") dock.classList.add("collapsed");
 $("dockToggle").onclick = () => { dock.classList.toggle("collapsed"); store.set("sue-viz-dock-open", dock.classList.contains("collapsed") ? "0" : "1"); $("dockToggle").textContent = dock.classList.contains("collapsed") ? "▴" : "▾"; };
 $("dockHandle").addEventListener("pointerdown", e => {
   e.preventDefault(); dock.classList.remove("collapsed"); $("dockHandle").setPointerCapture(e.pointerId);
-  const move = ev => setDock(innerHeight - ev.clientY), up = () => { $("dockHandle").removeEventListener("pointermove", move); $("dockHandle").removeEventListener("pointerup", up); };
+  const move = ev => setDock(dock.getBoundingClientRect().bottom - ev.clientY), up = () => { $("dockHandle").removeEventListener("pointermove", move); $("dockHandle").removeEventListener("pointerup", up); };
   $("dockHandle").addEventListener("pointermove", move); $("dockHandle").addEventListener("pointerup", up);
 });
 function setTab(name){
@@ -114,7 +110,7 @@ function richText(text){
 }
 const passes = n => filter === "all" || (filter === "prob" ? PROB.has(n.kind) : filter === "S" ? (n.at === "S1" || n.at === "S7") :
   filter === "A" ? (n.at === "A" || n.at === "h1") : (n.at === "B" || n.at === "h2"));
-let lastNote = -2;
+let lastNote = -2, pausedHere = false, resumedAt = -1;
 function buildLog(){
   const Lg = $("log"); Lg.textContent = "";
   d.notes.forEach((n, i) => {
@@ -134,6 +130,8 @@ function drawNotes(){
   const i = noteIdx(d, t);
   if (i === lastNote) return; lastNote = i;
   $("nowAt").textContent = ""; $("nowTxt").textContent = "";
+  const nx = pausedHere ? d.notes.find(n => n.t > t + 1e-6) : null;
+  $("pausedTag").hidden = !pausedHere; $("pausedTag").textContent = nx ? `paused · Continue runs to ${nx.t.toFixed(1)} ns` : "paused at the last event";
   if (i < 0){ $("nowTxt").textContent = (playing ? "" : "Press Play. ") + "Frames leave XPU A's HBM, pass the NIC's credit gate and LLR, cross hop 1, wait in the switch, cross hop 2 and land in XPU B's HBM."; $("nowT").textContent = ""; }
   else { const n = d.notes[i]; $("nowAt").appendChild(chip(n.at)); $("nowTxt").appendChild(richText(n.text)); $("nowT").textContent = `${n.t.toFixed(1)} ns`; }
   [...$("log").children].forEach((b, k) => { b.classList.toggle("cur", k === i); b.classList.toggle("future", k > i); });
@@ -232,19 +230,19 @@ function drawAll(force){
 function setT(v){ t = Math.max(0, LIVE.on ? Math.min(v, Math.max(0, LIVE.simT - LOOK)) : Math.min(d.dur, v)); drawAll(); }
 function tick(now){
   if (!playing) return;
-  const dt = Math.min(100, now - lastFrame) / 1000; lastFrame = now;
+  const dt = Math.max(0, Math.min(100, now - lastFrame)) / 1000; lastFrame = now;   // a frame timestamp can precede the click's performance.now()
   let nt = t + dt * +$("speed").value;
   if (LIVE.on){
     pump();
     const lim = LIVE.simT - LOOK; LIVE.waiting = nt > lim; if (nt > lim) nt = Math.max(t, lim);
     prune(d, nt);
   }
-  if ($("pauseAt").checked){ const n = d.notes.find(n => n.t > t + 1e-6 && n.t <= nt); if (n){ setT(n.t); stop(); return; } }
+  if ($("pauseAt").checked){ const n = d.notes.find(n => n.t > Math.max(t, resumedAt) + 1e-6 && n.t <= nt); if (n){ setT(n.t); stop(true); return; } }
   if (!LIVE.on && nt >= d.dur){ setT(d.dur); stop(); return; }
   setT(nt); requestAnimationFrame(tick);
 }
-function play(){ if (!LIVE.on && t >= d.dur) t = 0; playing = true; lastNote = -2; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
-function stop(){ playing = false; lastNote = -2; $("bPlay").textContent = !LIVE.on && t >= d.dur ? "Replay" : "Play"; }
+function play(){ if (!LIVE.on && t >= d.dur) t = 0; playing = true; resumedAt = pausedHere ? t : -1; pausedHere = false; lastNote = -2; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
+function stop(atEvent = false){ playing = false; pausedHere = !!atEvent; lastNote = -2; $("bPlay").textContent = !LIVE.on && t >= d.dur ? "Replay" : (atEvent ? "Continue" : "Play"); }
 
 // ---------------------------------------------------------------- live client
 async function api(path, body){

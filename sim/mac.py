@@ -69,6 +69,7 @@ class Mac:
             "cc_tx", "cc_rx", "cc_reclaimed", "cc_negative", "cf_tx", "timer_replays")}
         self.lost_fids = []
         self.stalled = False            # waiting for credits (tracing only)
+        self.forward = None             # switch: the egress Mac that pulls from rxbuf (sim/path.py)
         self._last_snap = None
 
     # ================================================================ tracing
@@ -77,12 +78,14 @@ class Mac:
             self.sim.log(ev, mac=self.name, **kw)
 
     def snapshot(self) -> dict:
-        """The state the visualiser draws (docs/viz)."""
-        return {"llr": self.state, "tx_seq": self.tx_seq, "acked": self.acked_seq,
-                "buf": [f.seq for f in self.buf], "out_data": self.out_data, "replay_ct": self.replay_ct,
-                "timer": self.rt_running, "next_rx": self.next_rx, "ack_state": self.ack_state,
-                "cr_used": (self.s_cc[0] - self.s_cf[0]) % CF_MOD, "cl": self.cl[0], "stalled": self.stalled,
-                "occ": self.occ, "rxq": len(self.rxbuf)}
+        """The state the visualiser draws (docs/viz). Senders and receivers report different halves;
+        the replay buffer is contiguous in seq, so its first seq and length describe it."""
+        if self.source is not None:            # a sender: LLR transmit and its credits
+            return {"llr": self.state, "tx_seq": self.tx_seq, "acked": self.acked_seq,
+                    "buf0": self.buf[0].seq if self.buf else None, "nbuf": len(self.buf),
+                    "replay_ct": self.replay_ct, "timer": self.rt_running,
+                    "cr_used": (self.s_cc[0] - self.s_cf[0]) % CF_MOD, "cl": self.cl[0], "stalled": self.stalled}
+        return {"next_rx": self.next_rx, "ack_state": self.ack_state, "occ": self.occ}   # a receiver
 
     def snap_if_changed(self):
         s = self.snapshot()
@@ -385,6 +388,9 @@ class Mac:
             self.sink(fr, self.sim.now)
 
     def _drain(self):
+        if self.forward is not None:
+            self.forward.kick()                    # the egress port pulls from rxbuf when it can send
+            return
         if self.draining or not self.rxbuf:
             return
         self.draining = True
@@ -402,6 +408,15 @@ class Mac:
         if self.sink:
             self.sink(fr, self.sim.now)
         self._drain()
+
+    def release_head(self) -> Frame:
+        """The switch's egress port took the oldest buffered frame: free its credits (sim/path.py)."""
+        fr = self.rxbuf.popleft()
+        self.occ -= fr.credits
+        self.r_cf[fr.vc] = (self.r_cf[fr.vc] + fr.credits) % CF_MOD
+        self.cf_dirty = True
+        self._log("fwd", fid=fr.fid)
+        return fr
 
     def _rx_cc(self, fr: Frame):
         self.stats["cc_rx"] += 1

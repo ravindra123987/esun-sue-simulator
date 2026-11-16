@@ -11,7 +11,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M0 | Read the specs, build the delta table | draft done: [docs/delta-table.md](docs/delta-table.md) |
 | M1 | Scapy layers, Wireshark dissector, golden pcaps | first cut: [sue/](sue/), [wireshark/](wireshark/), [pcaps/golden/](pcaps/golden/) |
 | M1b | Upstream Wireshark support for UEC 1.1 (RODL, Unified Local, UFH, CC_Update) | dissector polished for porting: [wireshark/UPSTREAM.md](wireshark/UPSTREAM.md); issue drafted, not posted |
-| M2 | LLR + CBFC link simulator | first cut (one link): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [live](https://ravindra123987.github.io/esun-sue-simulator/viz/), [docs/viz/](docs/viz/) |
+| M2 | LLR + CBFC link simulator | first cut (one link, plus a two-hop path through a switch): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [live](https://ravindra123987.github.io/esun-sue-simulator/viz/), [docs/viz/](docs/viz/) |
 | M3 | SUE-T endpoint in the simulator | not started |
 | M4 | netns emulator with a user-space switch | not started |
 | M5 | Multi-plane, three-way comparison | not started |
@@ -30,7 +30,8 @@ docs/viz/       packet viewer: replays simulator traces (index.html + generated 
 sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
 wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC)
 pcaps/golden/   reference captures, one packet type each, + golden.json expectations
-sim/            discrete-event link model: LLR (UEC §5.1), CBFC (§5.2), their interaction (§5.2.9); trace.py records events
+sim/            discrete-event model: LLR (UEC §5.1), CBFC (§5.2), their interaction (§5.2.9); link.py = one link,
+                path.py = XPU A → switch → XPU B (two hops); trace.py records events and writes captions
 tools/          make_golden.py, run_m2.py (M2 experiments + plots), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests and tshark-based dissector tests
 ```
@@ -46,22 +47,28 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/pip install -e '.[sim]' && .venv/bin/python tools/run_m2.py   # M2 experiments (~5 s)
 tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/09-ufh16-conversation.pcap
 .venv/bin/python tools/make_traces.py      # regenerate docs/viz/traces.js, then open docs/viz/index.html
-.venv/bin/python tools/live.py            # live packet viewer at http://127.0.0.1:8765/
+python3 tools/live.py                     # live packet viewer at http://127.0.0.1:8765/ (standard library only)
 ```
 
 ## Packet viewer
 
-[docs/viz/index.html](docs/viz/index.html) replays what the link simulator actually did, drawn as one scale-up hop: XPU A (HBM send queue and on-die SUE NIC with its CBFC credit gate, LLR transmit, replay buffer and MAC/PHY) cabled to port 1 of an ESUN switch (FCS check and LLR receive, lossless ingress buffer, pipeline, egress port 7). Seven scenarios: a clean link, a bit error, a bit error with a lost NACK, a credit pool too small for the loop, a short outage that LLR absorbs, a long outage that ends in FLUSH, and the same bit error with LLR off. Frames on the cable are drawn to scale, a flow graph shows the exchange over time, and captions from `sim/trace.py` explain each event. The switch pipeline latency and the second hop are drawn but not modelled yet. It is published at **https://ravindra123987.github.io/esun-sue-simulator/viz/** (GitHub Pages, serving `docs/`), or open the file locally; it needs only `traces.js` next to it.
+[docs/viz/index.html](docs/viz/index.html) replays what the two-hop simulator (`sim/path.py`) actually did on the path **XPU A → switch → XPU B**. That is three devices and two 800G cables. Each cable end runs its own LLR and CBFC, so the switch is the receiver on hop 1 (port 1) and the sender on hop 2 (port 7):
 
-It has two views: **Simple** (the NIC, the cable and the switch, with only the state that matters) and **Detailed** (every block inside the NIC and the switch, plus a flow graph). It also has two sources: **Recorded** replays `traces.js`, and **Live** drives the page from a simulator running on your machine:
+- **XPU A**: an HBM send queue, then a NIC with the CBFC credit gate, LLR transmit and its replay buffer.
+- **Switch**: port 1 checks the FCS and runs LLR receive, then the frame waits in the lossless ingress buffer whose size is XPU A's credit pool. Port 7 takes it out when its own LLR window and XPU B's credits allow, keeps it in a second replay buffer, and sends it on.
+- **XPU B**: the NIC checks the frame, buffers it, and DMA writes it into HBM at a set rate.
+
+Nine scenarios: a clean path, a bit error on hop 1 and on hop 2 (the switch repairs hop 2 by itself), a lost NACK, a slow XPU B whose backpressure moves back one hop at a time, a credit pool too small for hop 1's loop, a short outage that LLR absorbs, a long outage that ends in FLUSH, and a bit error with LLR off. Frames on the cables are drawn to scale and labelled with their frame number, so one frame can be followed across both hops. A banner and an event log show captions from `sim/trace.py`; the log can be filtered by device or to problems only. A counters panel shows totals for the path and for each hop. Switch pipeline latency is not modelled (0 ns). It is published at **https://ravindra123987.github.io/esun-sue-simulator/viz/** (GitHub Pages, serving `docs/`), or open the file locally; it needs only `traces.js` next to it.
+
+It has two views: **Simple** shows each block's essential state; **Detailed** adds LLR sequence numbers, timers and ACK state, and a flow graph across all four cable ends. It also has two sources: **Recorded** replays `traces.js`, and **Live** drives the page from a simulator running on your machine. Live needs only Python 3.11+ and a clone (no venv):
 
 ```
-.venv/bin/python tools/live.py      # then open http://127.0.0.1:8765/
+python3 tools/live.py      # then open http://127.0.0.1:8765/  (--port N to change it)
 ```
 
-In live mode the page asks the simulator to advance a few nanoseconds ahead of what it shows and draws the events it gets back. Buttons act on the running simulation: corrupt the next frame, lose the next NACK, cut the link, change the switch's egress rate. Live mode is local only; the published page offers Recorded.
+In live mode the page asks the simulator to advance a few nanoseconds ahead of what it shows and draws the events it gets back. Buttons act on the running simulation, per hop: corrupt the next frame, lose the next NACK, cut the cable. A further button sets XPU B's HBM write rate. Live mode is local only (it listens on 127.0.0.1); the published page offers Recorded.
 
-To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (link, LLR and CBFC settings, plus optional corruption hooks) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
+To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (per-hop cable settings, LLR, switch and XPU B buffers, plus optional corruption hooks per wire) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
 
 ## Specs
 

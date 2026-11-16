@@ -7,7 +7,7 @@ page asks it to advance simulated time a little ahead of what it is showing
 (POST /live/step) and draws the events that come back, so every packet on
 screen is one the simulator has just produced. Commands (POST /live/cmd)
 change the running simulation: corrupt the next frame, lose the next NACK,
-take the link down, change the switch's egress rate.
+take either cable down, change how fast XPU B can write into HBM.
 
 Standard library only; listens on 127.0.0.1.
 """
@@ -25,8 +25,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from sim.link import LinkSession            # noqa: E402
 from sim.model import CtlOS, Frame          # noqa: E402
+from sim.path import PathSession            # noqa: E402
 from sim.trace import Annotator             # noqa: E402
 from tools.make_traces import SCENARIOS, setup  # noqa: E402
 
@@ -61,13 +61,14 @@ class Live:
     """One running simulation and the events not yet sent to the browser."""
 
     def __init__(self, sc):
-        link, llr, cbfc, hooks, cfg = setup(sc)
+        kw, cfg = setup(sc)
         cfg["sim_ns"] = None
         self.cfg = cfg
         self.trace = []
-        self.s = LinkSession(link, llr, cbfc, hooks=hooks, trace=self.trace)
-        self.ann = Annotator()
-        self.pending = [n for a, b in link.down for n in self.ann.link_down(a, b)]
+        self.s = PathSession(trace=self.trace, **kw)
+        self.ann = Annotator(cfg)                # shares cfg, so commands that change it reach the captions
+        self.pending = [n for i, h in enumerate(cfg["hops"]) for a, b in h["down"]
+                        for n in self.ann.link_down(i + 1, a, b)]
         self.lock = threading.Lock()
         self.seen = time.time()
 
@@ -89,32 +90,39 @@ class Live:
             return {"t": round(self.now, 3), "events": events, "notes": notes}
 
     def cmd(self, name, arg=None):
+        """arg: {"hop": 1 | 2, "ns": outage length, "gbps": XPU B's HBM write rate}."""
+        arg = arg if isinstance(arg, dict) else {}
+        hop = 2 if arg.get("hop") == 2 else 1
         with self.lock:
             self.seen = time.time()
             t, s = self.now, self.s
             if name == "corrupt_frame":
-                s.a2b.corrupt_hook = _chain(s.a2b.corrupt_hook, _once(
+                w = s.wires["a2s" if hop == 1 else "s2b"]
+                w.corrupt_hook = _chain(w.corrupt_hook, _once(
                     lambda o: isinstance(o, Frame) and o.kind == "data" and o.tx_count == 1))
-                text = "You corrupt the next new data frame the NIC sends."
+                who = "XPU A's NIC" if hop == 1 else "switch port 7"
+                text = f"You corrupt the next new data frame {who} sends on hop {hop}."
             elif name == "lose_nack":
-                s.b2a.corrupt_hook = _chain(s.b2a.corrupt_hook, _once(
+                w = s.wires["s2a" if hop == 1 else "b2s"]
+                w.corrupt_hook = _chain(w.corrupt_hook, _once(
                     lambda o: isinstance(o, CtlOS) and o.kind == "LLR_NACK"))
-                text = "You arrange for the switch port's next NACK to be lost on the wire."
+                text = f"You arrange for the next NACK on hop {hop} to be lost on the cable."
             elif name == "link_down":
-                dur = max(10.0, min(float(arg or 300), 20_000.0))
-                s.link.down.append((t, t + dur))
-                self.cfg["down"].append([round(t, 3), round(t + dur, 3)])
-                self.pending.extend(self.ann.link_down(t, t + dur))
-                return {"notes": [], "cfg": self.cfg}
-            elif name == "egress":
-                g = max(50.0, min(float(arg or 800), 800.0))
-                s.cbfc.drain_gbps = g
-                self.cfg["cbfc"]["drain_gbps"] = g
-                text = f"You set the switch's egress port to {g:g} Gb/s."
+                dur = max(10.0, min(float(arg.get("ns") or 300), 20_000.0))
+                s.links[hop - 1].down.append((t, t + dur))
+                self.cfg["hops"][hop - 1]["down"].append([round(t, 3), round(t + dur, 3)])
+                for n in self.ann.link_down(hop, t, t + dur):
+                    self.pending.append(n)
+                return {"cfg": self.cfg}
+            elif name == "hbm":
+                g = max(50.0, min(float(arg.get("gbps") or 800), 800.0))
+                s.nic.drain_gbps = g
+                self.cfg["nic_gbps"] = g
+                text = f"You set XPU B's HBM write rate to {g:g} Gb/s."
             else:
                 raise ValueError(f"unknown command {name!r}")
-            self.pending.append({"t": round(t, 3), "kind": "cmd", "text": text})
-            return {"notes": [], "cfg": self.cfg}
+            self.pending.append({"t": round(t, 3), "at": "cmd", "kind": "cmd", "text": text})
+            return {"cfg": self.cfg}
 
 
 SESSIONS: dict[str, Live] = {}

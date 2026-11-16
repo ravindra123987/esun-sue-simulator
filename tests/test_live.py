@@ -1,6 +1,6 @@
 """The live server (tools/live.py): stepping, captions and commands act on a running simulation."""
 
-from sim.link import LinkSession
+from sim.path import PathSession
 from tools import live as L
 from tools import make_traces as MT
 
@@ -10,13 +10,13 @@ def scenario(sid):
 
 
 def test_stepping_in_chunks_gives_the_same_events_as_one_run():
-    link, llr, cbfc, hooks, _ = MT.setup(scenario("bit-error"))
+    kw, _ = MT.setup(scenario("bit-error-2"))
     one = []
-    LinkSession(link, llr, cbfc, hooks=hooks, trace=one).run(500)
-    lv = L.Live(scenario("bit-error"))
+    PathSession(trace=one, **kw).run(600)
+    lv = L.Live(scenario("bit-error-2"))
     got = []
-    for until in range(37, 540, 37):
-        got += lv.step(min(until, 500))["events"]
+    for until in range(37, 640, 37):
+        got += lv.step(min(until, 600))["events"]
     assert got == one
 
 
@@ -32,19 +32,20 @@ def test_live_captions_match_the_recorded_ones():
 def test_commands_change_the_running_simulation():
     lv = L.Live(scenario("clean"))
     lv.step(100)
-    lv.cmd("corrupt_frame")
-    kinds = [n["kind"] for n in lv.step(400)["notes"]]
-    assert kinds[0] == "cmd" and kinds.index("bad") < kinds.index("nack") < kinds.index("replay")
+    lv.cmd("corrupt_frame", {"hop": 2})
+    notes = lv.step(600)["notes"]
+    assert notes[0]["kind"] == "cmd"
+    assert [n["at"] for n in notes if n["kind"] == "replay"] == ["S7"]          # the switch repairs hop 2
 
-    lv.cmd("egress", 200)
-    ev = lv.step(800)["events"]
+    lv.cmd("hbm", {"gbps": 200})
+    ev = lv.step(1000)["events"]
     eg = [e for e in ev if e["ev"] == "egress"]
     assert eg and all(abs((e["t_end"] - e["t"]) - 1024 / 25) < 1e-6 for e in eg)   # 200 Gb/s = 25 B/ns
 
-    lv.cmd("link_down", 300)
-    out = lv.step(1200)
-    assert any(f["ev"] == "frame" and f["fate"] == "down" for f in out["events"])
-    assert [n["kind"] for n in out["notes"]][:2] == ["down", "up"]
+    lv.cmd("link_down", {"hop": 1, "ns": 300})
+    out = lv.step(1400)
+    assert any(f["ev"] == "frame" and f["dir"] == "a2s" and f["fate"] == "down" for f in out["events"])
+    assert [(n["kind"], n["at"]) for n in out["notes"]][:2] == [("down", "h1"), ("up", "h1")]
 
 
 def test_one_request_never_runs_away():

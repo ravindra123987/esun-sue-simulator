@@ -85,9 +85,16 @@ def t2_packing_vs_load():
         f.run(30_000_000)
         r = f.result()
         res[g] = summary(r, {"goodput_gbps": round(r.payload_bytes * 8 / r.finished_ns, 1), "pack_hist": r.pack_hist})
+        # the same with a RODL window that never closes: the packing that remains is the port's, not the window's
+        f = Fabric(n=2, workload=AllToAll(2, bytes_per_peer=1 << 20, senders=[0]), suet=SUETCfg(xpu_gbps=g, window=1024))
+        f.run(30_000_000)
+        r = f.result()
+        res[g]["window_1024"] = {"pack_avg": round(r.pack_avg, 2), "efficiency": round(r.efficiency, 4),
+                                 "lat_p50_ns": round(r.lat_p50_ns, 1), "lat_p99_ns": round(r.lat_p99_ns, 1)}
     fig, a1 = plt.subplots(figsize=(6.4, 3.8))
     a2 = a1.twinx()
     a1.plot(rates, [res[g]["pack_avg"] for g in rates], "o-", color="#2f6fde", label="CMD_PDUs per packet")
+    a1.plot(rates, [res[g]["window_1024"]["pack_avg"] for g in rates], "o:", color="#2f6fde", lw=1, ms=4, label="… with a 1024-packet RODL window")
     a1.plot(rates, [100 * res[g]["efficiency"] / 10 for g in rates], "s--", color="#0c9a86", label="wire efficiency (% / 10)")
     a2.plot(rates, [res[g]["lat_p50_ns"] for g in rates], "^-", color="#d23f73", label="p50 latency")
     a2.plot(rates, [res[g]["lat_p99_ns"] for g in rates], "v:", color="#d23f73", label="p99 latency")

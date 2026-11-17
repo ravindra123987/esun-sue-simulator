@@ -31,6 +31,18 @@ def test_packing_is_opportunistic_and_bounded():
     assert r.pack_hist == {1: r.ep["tx_pkts"] - r.ep["acks_tx"]}
 
 
+def test_below_the_port_rate_only_a_closed_rodl_window_makes_packets_pack():
+    """One XPU writing 256 B stores at half the port rate: on its own every store would go out alone, but
+    64 single-store packets are in flight before the first ACK (~0.5 µs) returns, so the PDC stalls on
+    its window and the backlog goes out as full 2 KB packets: a bimodal histogram (T2).  A window that
+    never closes removes every multi-PDU packet."""
+    wl = lambda: AllToAll(2, bytes_per_peer=131072, senders=[0])  # noqa: E731
+    f, r = run(n=2, wl=wl(), suet=SUETCfg(xpu_gbps=400, window=64))
+    assert r.pack_hist[1] > 200 and r.pack_hist[8] > 10 and r.pack_avg > 1.3
+    f, r2 = run(n=2, wl=wl(), suet=SUETCfg(xpu_gbps=400, window=256))
+    assert r2.pack_hist == {1: 512} and r2.lat_p99_ns < r.lat_p99_ns and r2.efficiency < r.efficiency
+
+
 def test_wire_bytes_match_the_accounting():
     """One-way traffic, one store per packet: every request is the 300 B frame sim/wire.py predicts,
     every bare ACK 64 B, and the efficiency lands between "an ACK per packet" and "ACKs for free"."""

@@ -47,24 +47,30 @@ Same payload, same wire: a 1 KB transfer is four packed 256 B stores in SUE-T (9
 
 ## T2. Packing is opportunistic: what the load decides (§7.2.3, §7.3)
 
-Two XPUs, one way, 1 MB of 256 B stores, operational ACKs over UFH_16; the XPU command interface swept from 100 Gb/s to 3.2 Tb/s into one 800G port. The scheduler never waits to pack.
+Two XPUs, one way: XPU A writes 1 MB to XPU B as 4096 stores of 256 B, operational ACKs over UFH_16, one 800G port. The knob is how fast A's command interface hands stores to SUE-T, swept from 100 Gb/s to 3.2 Tb/s; below 800 G the XPU is the bottleneck, above it the port is. The scheduler never waits to pack: a store that finds the port free goes out alone, and a packet carries more only if stores piled up while the port was busy or blocked. *Latency* is from the XPU handing over a store to its ACK arriving, so time spent in the 64 KB transmit buffer counts. *Packets* counts both directions; the receiver holds a bare ACK for 100 ns and ACKs are cumulative, so one ACK covers every packet that arrived meanwhile.
 
 *Predict: at what interface rate does the average packet carry more than one transaction, and what happens to latency when the XPU outruns the port?*
 
 ![T2](img/m3-t2-packing.png)
 
-| XPU interface | CMD_PDUs / packet | Wire efficiency | Goodput (Gb/s) | p50 latency | p99 latency | Packets |
-|---|---|---|---|---|---|---|
-| 100 G | 1.00 | 77.8 % | 94 | 495 ns | 539 ns | 4916 |
-| 200 G | 1.00 | 79.9 % | 186 | 484 ns | 528 ns | 4506 |
-| 400 G | 1.64 | 86.3 % | 367 | 518 ns | 711 ns | 2657 |
-| 600 G | 2.52 | 89.6 % | 547 | 543 ns | 777 ns | 1747 |
-| 800 G | 6.60 | 93.7 % | 718 | 527 ns | 585 ns | 720 |
-| 1.2 T | 7.94 | 94.1 % | 724 | 1201 ns | 1266 ns | 619 |
-| 1.6 T | 7.95 | 94.1 % | 724 | 1215 ns | 1266 ns | 618 |
-| 3.2 T | 7.97 | 94.1 % | 724 | 1219 ns | 1266 ns | 617 |
+| XPU interface | CMD_PDUs / packet | Wire efficiency | Goodput (Gb/s) | p50 latency | p99 latency | Packets | CMD_PDUs / packet, window 1024 | Efficiency, window 1024 | p99, window 1024 |
+|---|---|---|---|---|---|---|---|---|---|
+| 100 G | 1.00 | 77.8 % | 94 | 495 ns | 539 ns | 4916 | 1.00 | 77.8 % | 539 ns |
+| 200 G | 1.00 | 79.9 % | 186 | 484 ns | 528 ns | 4506 | 1.00 | 79.9 % | 528 ns |
+| 400 G | 1.64 | 86.3 % | 367 | 518 ns | 711 ns | 2657 | 1.00 | 80.9 % | 522 ns |
+| 600 G | 2.52 | 89.6 % | 547 | 543 ns | 777 ns | 1747 | 1.00 | 81.3 % | 520 ns |
+| 800 G | 6.60 | 93.7 % | 718 | 527 ns | 585 ns | 720 | 6.60 | 93.7 % | 585 ns |
+| 1.2 T | 7.94 | 94.1 % | 724 | 1201 ns | 1266 ns | 619 | 7.94 | 94.1 % | 1266 ns |
+| 1.6 T | 7.95 | 94.1 % | 724 | 1215 ns | 1266 ns | 618 | 7.95 | 94.1 % | 1266 ns |
+| 3.2 T | 7.97 | 94.1 % | 724 | 1219 ns | 1266 ns | 617 | 7.97 | 94.1 % | 1266 ns |
 
-**Takeaway.** Below half the port rate every transaction travels alone (78 % with a bare ACK per packet, as T1 predicts). Packing appears exactly when transactions queue behind the port, and reaches the 2 KB cap (eight stores) once the XPU interface is faster than the port. The price is the queue: with the XPU at 1.2 T or more, the 64 KB transmit buffer stays full and p50 latency goes from 0.5 to 1.2 µs. §7.2.3's "more buffering increases the opportunity to pack" is exactly this trade; the lever is the transmit buffer size, not the scheduler.
+Three regimes:
+
+- **Below half the port rate (100–200 G)**: a store arrives every 11–22 ns and a single-store packet takes 3.1 ns to send, so the port is idle most of the time and every store travels alone. Efficiency is T1's one-packed figure, 78–80 % (between the bare-ACK 65 % and the piggybacked 82 %, because one ACK covers about five packets). Goodput is the interface rate minus the 16 B command word per store. Latency is the floor: four hops of about 65 ns, 150 ns at the receiver, up to 100 ns waiting for the ACK to go out.
+- **Between half and the full port rate (400–600 G)**: the port is still faster than the XPU, so nothing should queue, and with a large RODL window nothing does (1.00 CMD_PDUs per packet, 81 %). The packing in the main columns is an artefact of the **64-packet window**: at 400 G the PDC puts 64 single-store packets on the wire in 350 ns, less than the 0.5 µs it takes the first ACK to come back, and stalls. The stores that arrive during the stall go out as full 2 KB packets when the window reopens, which is why the histogram is bimodal (2219 packets of one store, 193 of eight, almost nothing in between), and why p99 latency rises 200 ns while p50 barely moves. 64 packets × 256 B is 16 KB, below the bandwidth-delay product of a 400 G stream over this round trip (25 KB); a window counted in packets is a window counted in bytes only for large packets.
+- **At and above the port rate (800 G and up)**: the port is the bottleneck, so a queue forms whatever the window. At exactly 800 G the packing settles at 6.6 per packet, which is where the port's per-store cost (a 7-store packet is 1896 B on the wire, 2.71 ns per store) equals the arrival interval (2.72 ns); the queue stays short and latency stays at the floor. Beyond that the queue grows until the 64 KB transmit buffer is full and the XPU is held back. Every store then waits for 64 KB ahead of it to drain through the port (about 0.7 µs), so p50 latency goes from 0.5 to 1.2 µs. Packing is at the 2 KB cap and the forward wire is 94 % payload.
+
+**Takeaway.** Packing is a side-effect of a queue, and the queue has two causes: a port slower than the XPU (the one §7.2.3 and §7.3 talk about), and a RODL window that closes while the port is idle (which the spec does not mention, and which with 256 B packets happens at half the port rate). The first buys 94 % wire efficiency for 0.7 µs of transmit-buffer latency; §7.2.3's "more buffering increases the opportunity to pack" is exactly that trade, and the lever is `tx_buf`. The second buys efficiency with tail latency: 86 % and a 711 ns p99 at 400 G against 81 % and 522 ns with a window that never closes. An implementation that sizes the hold buffer in packets should size it for its smallest packet, or expect the oscillation seen here.
 
 ## T3. ACK mode and header stack under all-to-all
 
@@ -172,6 +178,7 @@ Each one is a choice the spec leaves open. Change it and rerun `tools/run_m3.py`
 | M3-8 | Switch | VOQ, store-and-forward, 0 ns pipeline, 64 KB per VC per ingress port | Add RM104's 250 ns pipeline budget; cut-through; shared buffer | `Fabric(pipeline_ns=…)` |
 | M3-9 | XPU side | 1.6 T command interface, 64 KB TX buffer, 50 ns unpack, 100 ns to execute a command | Anything; the TX buffer is the packing-vs-latency lever (T2) | `SUETCfg.xpu_gbps`, `tx_buf`, `rx_ns`, `xpu_ns` |
 | M3-10 | Not modelled | Encryption, CRC time, DMA out of HBM, multiple SUE-T instances per XPU, the control channel (§7.7), jobid checks | — | — |
+| M3-11 | RODL window | 64 packets per PDC, whatever their size (the hold buffer of §7.2.2 counted in packets) | Count it in bytes, or more packets; T2 shows what 64 does to a stream of small packets at half the port rate | `SUETCfg.window` |
 
 ## Next
 

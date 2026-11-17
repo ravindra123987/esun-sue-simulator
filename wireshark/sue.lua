@@ -211,7 +211,8 @@ local function need(tvb, off, n, what)
     error(string.format("truncated: %s needs %d bytes at offset %d, %d left", what, n, off, tvb:len() - off), 0)
   end
 end
-local function first(fx) local v = { fx() }; return v[1] end
+-- the innermost occurrence: an emulated link-layer shim (0x88B6) wraps a whole Ethernet frame
+local function first(fx) local v = { fx() }; return v[#v] end
 
 local function crc_wire(tvb, off)
   if sue.prefs.crc_le then return tvb(off, 4):le_uint() end
@@ -550,6 +551,116 @@ function uetudp.dissector(tvb, pinfo, tree)
   end, tvb, pinfo, tree, "SUE-T over UDP/IP")
 end
 
+-- ======================================================================= emulated link layer (emu/shim.py)
+-- EtherType 0x88B6: what the netns emulator puts on a veth for the parts of UEC §5 a capture never
+-- shows: the LLR frame_seq (preamble), LLR_ACK/NACK/INIT/INIT_ECHO and CF_Update (control ordered
+-- sets), and a CRC-32 of the inner frame standing in for the FCS. The inner frame follows unchanged.
+local llr = Proto("sue_llr", "UE LLR (emulated on a veth)")
+local LLR_TYPE = { [0]="frame", [1]="LLR_ACK", [2]="LLR_NACK", [3]="LLR_INIT", [4]="LLR_INIT_ECHO", [0x10]="CF_UPDATE" }
+local fl = {}
+fl.type = ProtoField.uint8("sue.llr.type", "CtlOS type (Table 5-8 D1)", base.HEX, LLR_TYPE)
+fl.seq = ProtoField.uint24("sue.llr.seq", "frame_seq", base.DEC)
+fl.crc = ProtoField.uint32("sue.llr.crc", "Inner CRC-32 (FCS stand-in)", base.HEX)
+fl.crc_status = ProtoField.uint8("sue.llr.crc.status", "Inner CRC status", base.DEC, CRC_STATUS)
+fl.ack_seq = ProtoField.uint24("sue.llr.ack_nack_seq", "ack_nack_seq", base.DEC)
+fl.init_seq = ProtoField.uint24("sue.llr.init_seq", "init_seq", base.DEC)
+fl.init_data = ProtoField.uint16("sue.llr.init_data", "init_data", base.HEX)
+fl.cf1_vc = ProtoField.uint8("sue.cbfc.cf1_vc", "CF1_VC_index", base.DEC)
+fl.cf1 = ProtoField.uint16("sue.cbfc.cf1", "CF1_count (R_VC_CF)", base.DEC)
+fl.cf2_vc = ProtoField.uint8("sue.cbfc.cf2_vc", "CF2_VC_index", base.DEC)
+fl.cf2 = ProtoField.uint16("sue.cbfc.cf2", "CF2_count (R_VC_CF)", base.DEC)
+fl.cc_type = ProtoField.uint8("sue.cbfc.cc_type", "CC_Update message type", base.HEX, { [1]="VC[0:15]", [2]="VC[16:31]" })
+fl.cc = ProtoField.uint32("sue.cbfc.cc", "S_VC_CC", base.DEC)
+llr.fields = { fl.type, fl.seq, fl.crc, fl.crc_status, fl.ack_seq, fl.init_seq, fl.init_data,
+  fl.cf1_vc, fl.cf1, fl.cf2_vc, fl.cf2, fl.cc_type, fl.cc }
+local E_llr_bad = ProtoExpert.new("sue.llr.crc.bad", "Inner CRC mismatch: the frame was corrupted on the wire",
+  expert.group.CHECKSUM, expert.severity.WARN)
+llr.experts = { E_llr_bad }
+
+-- plain CRC-32 (zlib), for the FCS stand-in
+local CRC32T = {}
+for i = 0, 255 do
+  local c = i
+  for _ = 1, 8 do if c & 1 == 1 then c = (c >> 1) ~ 0xEDB88320 else c = c >> 1 end end
+  CRC32T[i] = c
+end
+local function crc32(s)
+  local c = 0xFFFFFFFF
+  for i = 1, #s do c = CRC32T[(c ~ s:byte(i)) & 0xFF] ~ (c >> 8) end
+  return c ~ 0xFFFFFFFF
+end
+
+local function seq20(tvb, off)        -- D2 = seq[19:12], D3 = seq[11:4], D4[7:4] = seq[3:0]
+  return (tvb(off, 1):uint() << 12) | (tvb(off + 1, 1):uint() << 4) | (tvb(off + 2, 1):uint() >> 4)
+end
+
+local eth_dis = Dissector.get("eth_withoutfcs")
+
+function llr.dissector(tvb, pinfo, tree)
+  if tvb:len() < 8 then return 0 end
+  local ty = tvb(0, 1):uint()
+  local t = tree:add(llr, tvb(0, 8), "UE LLR " .. (LLR_TYPE[ty] or string.format("type 0x%02x", ty)))
+  t:add(fl.type, tvb(0, 1))
+  pinfo.cols.protocol = "LLR"
+  if ty == 0 then
+    local seq = tvb(1, 3):uint()
+    t:add(fl.seq, tvb(1, 3))
+    local inner = tvb(8):tvb()
+    local wire, calc = tvb(4, 4):uint(), crc32(raw(tvb(8)))
+    local ci = t:add(fl.crc, tvb(4, 4))
+    local st = (wire == calc) and 0 or 1
+    ci:add(fl.crc_status, tvb(4, 4), st):set_generated()
+    ci:append_text(" [" .. CRC_STATUS[st] .. "]")
+    if st == 1 then ci:add_proto_expert_info(E_llr_bad) end
+    t:append_text(string.format(" seq %d%s", seq, st == 1 and " [bad CRC]" or ""))
+    if inner:len() >= 20 and inner(12, 2):uint() == 0x8808 and inner(14, 2):uint() == 0xFFFE then
+      -- CC_Update MAC control frame (UEC §5.2.6.2, Table 5-22)
+      local c = tree:add(llr, inner(), "CBFC CC_Update (MAC control, opcode 0xFFFE)")
+      c:add(fl.cc_type, inner(19, 1))
+      local base = (inner(19, 1):uint() == 2) and 16 or 0
+      local data = inner(20, 40)
+      for i = 0, 15 do
+        local bit = i * 20
+        local b = bit // 8
+        local v = ((data(b, 3):uint() >> (4 - (bit % 8))) & 0xFFFFF)
+        local it = c:add(fl.cc, data(b, 3), v)
+        it:prepend_text(string.format("VC %d: ", base + i))
+      end
+      pinfo.cols.info = string.format("LLR seq %d  CC_Update VC[%d:%d]", seq, base, base + 15)
+    elseif st == 1 then
+      pinfo.cols.info = string.format("LLR seq %d  [corrupted frame, %d B]", seq, inner:len())
+    elseif inner:len() >= 16 and inner(12, 2):uint() == 0xE790 and (inner(0, 1):uint() & 0x0E) == 0x02 then
+      local b0 = inner(0, 1):uint()
+      if (b0 & 0x80) == 0 and (b0 & 0x40) ~= 0 then
+        guarded(function(tv, p, root) dissect_ufh16(tv, p, root, inner(0, 6), inner(6, 6)) end,
+          inner(14):tvb(), pinfo, tree, "SUE-T over UFH_16")
+        pinfo.cols.info:prepend(string.format("LLR seq %d  ", seq))
+      end
+    else
+      eth_dis:call(inner, pinfo, tree)
+      pinfo.cols.info:prepend(string.format("LLR seq %d  ", seq))
+    end
+  elseif ty == 0x10 then
+    need(tvb, 8, 6, "CF_Update")
+    local a, b = seq20(tvb, 8), seq20(tvb, 11)
+    t:add(fl.cf1_vc, tvb(8, 1), (a >> 15) & 0x1F); t:add(fl.cf1, tvb(8, 3), a & 0x7FFF)
+    t:add(fl.cf2_vc, tvb(11, 1), (b >> 15) & 0x1F); t:add(fl.cf2, tvb(11, 3), b & 0x7FFF)
+    pinfo.cols.info = string.format("CF_Update  VC%d=%d VC%d=%d", (a >> 15) & 0x1F, a & 0x7FFF, (b >> 15) & 0x1F, b & 0x7FFF)
+  else
+    need(tvb, 8, 6, "LLR CtlOS")
+    local s = seq20(tvb, 8)
+    if ty == 3 or ty == 4 then
+      t:add(fl.init_seq, tvb(8, 3), s); t:add(fl.init_data, tvb(11, 2))
+      pinfo.cols.info = string.format("%s init_seq %d", LLR_TYPE[ty], s)
+    else
+      t:add(fl.ack_seq, tvb(8, 3), s)
+      pinfo.cols.info = string.format("%s ack_nack_seq %d", LLR_TYPE[ty] or "LLR", s)
+    end
+  end
+  return tvb:len()
+end
+
+DissectorTable.get("ethertype"):add(0x88B6, llr)
 DissectorTable.get("ethertype"):add(0xE790, ufh)
 local reg_et, reg_port = sue.prefs.esun_ethertype, sue.prefs.udp_port
 DissectorTable.get("ethertype"):add(reg_et, esun)

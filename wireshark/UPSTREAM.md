@@ -24,7 +24,7 @@ How the Lua prototype maps onto a C change to `epan/dissectors/packet-uet.c` (an
 | PSN resync | try ±window from the expected PSN on mismatch; register reuse makes it cheap | same (save the CRC register before the PSN bytes); preference `uet.rodl_psn_window`; expert infos in the `PI_SEQUENCE` group |
 | Unknown PSN | status "Unverified" + preference `assume_psn` | `PROTO_CHECKSUM_NOT_PRESENT`-style unverified status; keep the preference |
 | ESUN | Lua only, EtherType preference | **not upstream** until IEEE assigns EH-ET (Wireshark won't register a made-up EtherType); could be offered as a decode-as later |
-| CBFC CC_Update | not in Lua yet | `packet-macctrl.c`: opcode 0xFFFE (extension), CID FA-7A-CB, msg type 1/2, 16 × 20-bit S_VC_CC |
+| CBFC CC_Update | decoded in Lua (inside the emulator's 0x88B6 link-layer shim, M4) | `packet-macctrl.c`: opcode 0xFFFE (extension), CID FA-7A-CB, msg type 1/2, 16 × 20-bit S_VC_CC |
 
 ## Field names
 
@@ -43,7 +43,7 @@ Each MR is small, has a test capture under `test/captures/` and a test in `test/
 
 1. **RODL + Unified Local SES over UDP/IP.** pds.type 15 general header, next_hdr 0x07/0x08, packing. Capture: `pcaps/golden/08-udp-rodl-two-stores.pcap`. Existing CRC code already covers it.
 2. **UFH_16.** EtherType 0xE790 registration, compressed RODL request and ACK, CRC over UFH_16 with the hidden PSN, PSN tracking + resync, preferences. Captures: golden 01–06, 09–11. Test: all CRC statuses as in `golden.json` (Good everywhere except the deliberate bit flip).
-3. **CBFC CC_Update** in `packet-macctrl.c`. Needs a golden capture first (M2 builds CC_Update frames).
+3. **CBFC CC_Update** in `packet-macctrl.c`. Real CC_Update frames are in the emulator's captures (`pcaps/emu/*.pcap`, inside the 0x88B6 shim; M4); a bare golden capture is one `emu.shim.cc_update_frame()` call away.
 
 Before MR 1: open an issue describing the plan, link the UEC 1.1 sections, and mention the `packet-uet.c` authors. Draft in [docs/upstream/wireshark-issue-draft.md](../docs/upstream/wireshark-issue-draft.md).
 

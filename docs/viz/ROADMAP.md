@@ -41,10 +41,12 @@ Action items:
 
 ## M4: emulator
 
-The emulator produces pcaps, not traces. Two options, decide when M4 starts: (a) a `tools/pcap2trace.py` that turns a capture (with the M1 dissector's field values) into viewer events, so a real run replays in the same viewer; (b) leave pcaps to Wireshark and keep the viewer for the simulator. (a) is the one that teaches something.
+The emulator produces pcaps, not traces. Two options were on the table: (a) a `tools/pcap2trace.py` that turns a capture into viewer events, so a real run replays in the same viewer; (b) leave pcaps to Wireshark and keep the viewer for the simulator.
 
-- [ ] Decide (a) or (b).
-- [ ] If (a): timestamps from the capture, no internal state (no replay buffers, no credits): a "captured" picture mode that draws only what was on the wire.
+- [x] Decided: (a), because the emulator's captures carry more than a real NIC's would. The link-layer shim (`emu/shim.py`, decision E1 in [docs/experiments/emulator.md](../experiments/emulator.md)) puts the LLR sequence number, LLR_ACK/NACK/INIT and CF_Update on the wire, and `emu/analyze.py` already walks a capture unit by unit; so a capture holds every frame and control block the M2 picture draws, with real timestamps.
+- [ ] `tools/pcap2trace.py`: one capture per link (both directions) → `frame` events with `t0 = t1 = timestamp` (no serialisation time), `ctlos` events from shim units, `rx` verdicts from the shim CRC and sequence (accept / dup / ooo / bad), `pkt_tx` / `pkt_rx` from the decoded UFH_16 frames. No internal state (no replay buffers, credits or timers): a "captured" picture mode that draws only what was on the wire and greys out the internal blocks.
+- [ ] Time axis in milliseconds for captured scenarios (the simulator's is nanoseconds).
+- [ ] Scenario entries for `pcaps/emu/*.pcap` under a "Captured (M4)" group in the sidebar.
 
 ## M5: planes and the comparison
 

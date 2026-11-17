@@ -104,6 +104,8 @@ Rules: public specs only, personal time and identity (no tool attribution). Chec
 - Fault injection: corruption at a set BER, link down/up, dropped credit messages, a stuck receiver.
 - Check that the emulator reproduces the simulator's failure behaviour qualitatively.
 
+**Deliverable:** `docs/experiments/emulator.md`. *Status: first cut done: `emu/` (lab, switch, link end, endpoint, analyser), nine scenarios against the simulator's, captures the dissector decodes. Loads, delivery ACKs, ESUN on the endpoints and a faster data path are next.*
+
 ### M5: Multi-plane and the three-way comparison (2 weeks)
 - Each SUE-T instance has 4 ports connected to 4 switch planes. Scenarios: kill a plane, flap a link, add congestion, starve credits.
 - Run the same scenarios through the MRC (srv6-mrc-emulator) and MetaRoCE (metaroce-simulator) models.
@@ -139,5 +141,5 @@ pcaps/golden/   reference captures
 - [ ] Do SUE-T load balancing and the ESUN flow label work together? The flow label must stay constant per PDC to keep ordering. (M0/M5)
 - [x] SUE-T §7.6 balances each *packed group* across ports, but RODL needs one path per PDC. **M3 T5:** per-group balancing is safe only across equal-delay planes; with one plane 17 m longer, reorders become NACKs and Go-Back-N (efficiency 26 % vs 88 %). Balance across PDCs, or only across identical paths. See docs/delta-table.md open item 8; M5 adds the plane-failure case.
 - [x] LLR is "optional" in ESUN. What does SUE-T assume when LLR is off? **M2 E3:** every corrupted frame becomes an end-to-end loss for RODL Go-Back-N (or a dead PDC in SUE-lite); "lossless" at real error rates needs LLR or transport retransmission. See docs/experiments/llr-cbfc.md.
-- [ ] Should the user-space switch use AF_PACKET or AF_XDP? Benchmark in M4.
+- [x] Should the user-space switch use AF_PACKET or AF_XDP? **M4:** AF_PACKET. The emulator moves 410 packets/s end to end and the time is in the Python endpoints (0.46 ms to build a packet, 0.28 ms to parse and verify one), not in the socket; AF_XDP would not change that, a C data path would. See docs/experiments/emulator.md.
 - [ ] Wireshark CRC over UFH_16: the PSN is not on the wire. Track expected PSN per {src, dst, PDCID} conversation, and mark the CRC "unverified" after a gap rather than "bad"? Decide with the maintainers in M1b.

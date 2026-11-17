@@ -66,7 +66,23 @@ Two XPUs, one way: XPU A writes 1 MB to XPU B as 4096 stores of 256 B, operation
 
 Three regimes:
 
-- **Below half the port rate (100–200 G)**: a store arrives every 11–22 ns and a single-store packet takes 3.1 ns to send, so the port is idle most of the time and every store travels alone. Efficiency is T1's one-packed figure, 78–80 % (between the bare-ACK 65 % and the piggybacked 82 %, because one ACK covers about five packets). Goodput is the interface rate minus the 16 B command word per store. Latency is the floor: four hops of about 65 ns, 150 ns at the receiver, up to 100 ns waiting for the ACK to go out.
+- **Below half the port rate (100–200 G)**: at 100 G the XPU interface moves 12.5 B/ns, so a store (256 B plus a 16 B command word) arrives every 21.8 ns; a single-store packet is 292 B, 312 B on the wire with preamble and IPG, and the 800G port (100 B/ns) sends it in 3.1 ns. The port is busy 14 % of the time (29 % at 200 G), so a store never finds another one waiting and every store travels alone. Efficiency is T1's one-packed figure, 78–80 %: the receiver sends one 64 B ACK per 100 ns, which at 100 G covers five packets, so 5 × 312 + 84 = 1644 B cross the wire for 1280 B of payload (between the bare-ACK-per-packet 65 % and the piggybacked 82 %). Goodput is the interface rate × 256⁄272, the command word's share. Latency is the floor, which the trace of one store at 100 G shows in full:
+
+  | t (ns) | What happens | Takes |
+  |---|---|---|
+  | 43.5 | the XPU hands the store to SUE-T over the 100 G command interface | 21.8 |
+  | 65.3 | queue empty, port free: packet built at once (PSN 2, 292 B) and serialised at 100 B/ns | 3.1 |
+  | 68.4 | MAC/PHY pipeline (50 ns) and 3 m of twinax (4.6 ns/m) to the switch | 63.8 |
+  | 132.2 | the switch has the whole frame (store-and-forward), nothing ahead of it: serialised again | 3.1 |
+  | 135.3 | MAC/PHY and cable to B | 63.8 |
+  | 199.1 | B's MAC accepts it; the SUE-T receiver has it at 202.0 | 2.9 |
+  | 202.0 | unpack (50 ns), then B's XPU executes the store (100 ns): operational mode can ACK only now | 150.0 |
+  | 352.0 | the ACK waits for a reverse packet to ride on; none comes, so the 100 ns timer that PSN 0 started fires at 408.5 | 56.5 |
+  | 408.5 | one 64 B ACK ("all good up to PSN 4") goes back the same way: 0.8 + 63.8 + 0.8 + 63.8 | 129.3 |
+  | 537.8 | A's MAC accepts it; A's SUE-T marks stores 0–4 done | 0.6 |
+  | 538.4 | done. 538.4 − 43.5 = 494.9 ns, the p50 in the table | |
+
+  Four link traversals (267 ns) and the receiver's 150 ns are fixed; the ACK wait is anywhere from 0 to 100 ns depending on where the store falls in the ACK timer's cycle, which is the whole spread between p50 and p99.
 - **Between half and the full port rate (400–600 G)**: the port is still faster than the XPU, so nothing should queue, and with a large RODL window nothing does (1.00 CMD_PDUs per packet, 81 %). The packing in the main columns is an artefact of the **64-packet window**: at 400 G the PDC puts 64 single-store packets on the wire in 350 ns, less than the 0.5 µs it takes the first ACK to come back, and stalls. The stores that arrive during the stall go out as full 2 KB packets when the window reopens, which is why the histogram is bimodal (2219 packets of one store, 193 of eight, almost nothing in between), and why p99 latency rises 200 ns while p50 barely moves. 64 packets × 256 B is 16 KB, below the bandwidth-delay product of a 400 G stream over this round trip (25 KB); a window counted in packets is a window counted in bytes only for large packets.
 - **At and above the port rate (800 G and up)**: the port is the bottleneck, so a queue forms whatever the window. At exactly 800 G the packing settles at 6.6 per packet, which is where the port's per-store cost (a 7-store packet is 1896 B on the wire, 2.71 ns per store) equals the arrival interval (2.72 ns); the queue stays short and latency stays at the floor. Beyond that the queue grows until the 64 KB transmit buffer is full and the XPU is held back. Every store then waits for 64 KB ahead of it to drain through the port (about 0.7 µs), so p50 latency goes from 0.5 to 1.2 µs. Packing is at the 2 KB cap and the forward wire is 94 % payload.
 

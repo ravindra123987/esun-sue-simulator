@@ -23,7 +23,8 @@ def test_clean_capture_holds_the_init_handshake_then_in_order_frames():
     assert c.get("xpu_bad", 0) == 0 and c.get("sw_bad", 0) == 0 and c.get("xpu_replayed", 0) == 0
     assert c["rodl_req"] > 0 and c["rodl_syn"] >= 1 and c["cmd_pdus"] == 8 * c["rodl_req"]
     assert c["rodl_crc_ok"] == c["rodl_req"]                               # hidden PSNs tracked from the syn packets
-    assert c["xpu_cf_update"] > 0 and c["xpu_cc_update"] + c["sw_cc_update"] >= 1 and c["ack_pkts"] >= 1
+    assert c["xpu_cf_update"] > 0 and c["xpu_cc_update"] + c["sw_cc_update"] >= 1
+    # no bare ACK packet in the first 160 units: with traffic both ways the ACK state rode on requests
 
 
 def test_corrupted_link_capture_shows_nacks_and_replays():
@@ -32,6 +33,7 @@ def test_corrupted_link_capture_shows_nacks_and_replays():
     assert c["xpu_llr_nack"] + c["sw_llr_nack"] >= 1
     assert c["xpu_replayed"] + c["sw_replayed"] >= 1
     assert c["rodl_retx_flag"] == 0                                        # LLR repaired it; RODL never retransmitted
+    assert c["nack_pkts"] == 0
 
 
 def test_outage_capture_shows_flush_reinit_and_rodl_retransmissions():

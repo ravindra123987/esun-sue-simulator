@@ -6,6 +6,7 @@ and numbers to docs/experiments/llr-cbfc-results.json.
 
 import json
 import statistics
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -20,6 +21,14 @@ IMG = OUT / "img"
 CABLES = [2, 10, 50, 100]
 COLORS = {2: "#2f6fde", 10: "#0c9a86", 50: "#cf9200", 100: "#d23f73"}
 plt.rcParams.update({"figure.dpi": 130, "axes.grid": True, "grid.alpha": 0.3, "font.size": 10})
+LINK = "800G full duplex, one VC, 1 KB frames from a backlogged source, twinax at 4.6 ns/m, 50 ns MAC/PHY per traversal (RM104 App A), CtlOS slot every 2048 B"
+
+
+def assumptions(fig, text):
+    """Print the modelling assumptions behind a figure on the figure itself, so the PNG stands alone."""
+    lines = textwrap.wrap("Assumptions: " + text, width=int(fig.get_figwidth() * 22))
+    fig.text(0.01, 0.012, "\n".join(lines), fontsize=6.2, color="#555", ha="left", va="bottom", linespacing=1.25)
+    fig.tight_layout(rect=(0, 0.02 + len(lines) * 10.5 / 72 / fig.get_figheight(), 1, 1))
 
 
 def e1_replay_buffer():
@@ -40,7 +49,8 @@ def e1_replay_buffer():
     ax.set_ylabel("goodput (Gb/s)")
     ax.set_title("E1  LLR replay buffer vs cable length (800G, 1 KB frames)")
     ax.legend(fontsize=8)
-    fig.tight_layout()
+    assumptions(fig, f"{LINK}; LLR ACKs in CtlOS, unlimited sequence window; CBFC off; no bit errors; both ends start initialised; "
+                     f"30 µs runs. Dotted lines: BDP = estimated link round trip (incl. the wait for a CtlOS slot) × rate.")
     fig.savefig(IMG / "e1-replay-buffer.png")
     return res
 
@@ -66,7 +76,9 @@ def e2_credits():
     ax.set_ylabel("goodput (Gb/s)")
     ax.set_title("E2  CBFC credit pool vs cable length (800G, 1 KB frames)")
     ax.legend(fontsize=8)
-    fig.tight_layout()
+    assumptions(fig, f"{LINK}; LLR on with an unbounded replay buffer; 64 B credits, no PktOvhd; CF_Update in CtlOS with CF_min 20 ns "
+                     f"and CF_max 500 ns, CC_Update every 2 µs; receiver drains at 800G; no bit errors; 30 µs runs. Dotted lines: "
+                     f"estimated credit loop (flight + slot wait + CF_min + flight back) × rate ÷ 64 B.")
     fig.savefig(IMG / "e2-credits.png")
     return res
 
@@ -101,7 +113,9 @@ def e3_ber():
     a2.set_yscale("log")
     a2.set_ylabel("lost frames per million")
     a2.set_title("E3b  loss seen by the transport (0 drawn at 0.05)")
-    fig.tight_layout()
+    assumptions(fig, f"{LINK}, 3 m cable; post-FEC BER applied per frame and per CtlOS (far above real rates of ~1e-12 and below, so a "
+                     f"200 µs run has errors), 3 seeds averaged. LLR: 64 KB replay buffer, 2 µs replay timer, 8 retries then FLUSH; CBFC on "
+                     f"with 1024 credits of 64 B. 'Lost' = frames the transport never received; latency = first send to in-order receipt.")
     fig.savefig(IMG / "e3-ber.png")
     return res
 

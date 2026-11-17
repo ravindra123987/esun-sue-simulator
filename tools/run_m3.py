@@ -6,6 +6,7 @@ Writes plots to docs/experiments/img/m3-*.png and numbers to docs/experiments/su
 
 import json
 import statistics
+import textwrap
 import time
 from pathlib import Path
 
@@ -23,6 +24,16 @@ OUT = Path(__file__).resolve().parent.parent / "docs" / "experiments"
 IMG = OUT / "img"
 plt.rcParams.update({"figure.dpi": 130, "axes.grid": True, "grid.alpha": 0.3, "font.size": 10})
 STACK_COL = {"ufh16": "#2f6fde", "esun": "#0c9a86", "udp": "#cf9200"}
+XPU_SIDE = ("XPU interface: payload + 16 B command word per transaction (stand-in for §8.4.1's xpuid/vc/control, width unspecified), "
+            "64 KB TX buffer; receiver 50 ns unpack + 100 ns XPU; bare ACK after 100 ns without reverse traffic")
+LINK = "link: 800G, 3 m twinax at 4.6 ns/m, 50 ns MAC/PHY per traversal, LLR + CBFC on; switch store-and-forward, 0 ns pipeline"
+
+
+def assumptions(fig, text):
+    """Print the modelling assumptions behind a figure on the figure itself, so the PNG stands alone."""
+    lines = textwrap.wrap("Assumptions: " + text, width=int(fig.get_figwidth() * 22))
+    fig.text(0.01, 0.012, "\n".join(lines), fontsize=6.2, color="#555", ha="left", va="bottom", linespacing=1.25)
+    fig.tight_layout(rect=(0, 0.02 + len(lines) * 10.5 / 72 / fig.get_figheight(), 1, 1))
 
 
 def summary(r, extra=None):
@@ -71,7 +82,11 @@ def t1_wire_table():
     ax.set_ylabel("wire efficiency (%), preamble + IPG included")
     ax.set_title("T1  SUE-T wire efficiency vs RoCEv2 (stores, ACKs piggybacked)")
     ax.legend(fontsize=7.5, ncol=2)
-    fig.tight_layout()
+    assumptions(fig, "analytical (sim/wire.py), 256 B stores. Per CMD_PDU: UET_HDR_REQUEST_LCL 12 B for the first, 8 B compressed after; "
+                     "per packet: 4 B UET CRC, 4 B FCS, 64 B minimum frame, 20 B preamble + IPG. Stacks: UFH_16 + RODL 16 B (ACK 20 B), "
+                     "ESUN 30 B, UDP/IP 54 B. ACKs ride on a reverse request (bare 64 B ACK per packet: table in the doc). Delivery mode: "
+                     "a 16 B response command, packed like requests, whose packet needs its own ACK. RoCEv2: Eth/IP/UDP/BTH 54 B + RETH 16 B + "
+                     "ICRC 4 B per write, 66 B ACKs.")
     fig.savefig(IMG / "m3-t1-wire.png")
     return res
 
@@ -108,7 +123,8 @@ def t2_packing_vs_load():
     h1, l1 = a1.get_legend_handles_labels()
     h2, l2 = a2.get_legend_handles_labels()
     a1.legend(h1 + h2, l1 + l2, fontsize=8, loc="center left")
-    fig.tight_layout()
+    assumptions(fig, f"2 XPUs, A to B only, 1 MB as 256 B stores, UFH_16, operational ACK, one 800G port. {XPU_SIDE}. RODL: 64-packet "
+                     f"window (dotted: 1024), 20 µs RTO. {LINK}. Latency = XPU hand-over to ACK received, queueing included.")
     fig.savefig(IMG / "m3-t2-packing.png")
     return res
 
@@ -165,7 +181,10 @@ def t4_where_the_retry_lives():
     a2.set_ylabel("p99 transaction latency (ns)")
     a2.set_yscale("log")
     a2.set_title("T4b  tail latency")
-    fig.tight_layout()
+    assumptions(fig, f"8 XPUs, one port each, all-to-all of 32 KB per peer as 256 B stores, UFH_16, operational ACK; post-FEC BER on every "
+                     f"cable (far above real rates, to get events in a 3 ms run), 2 seeds averaged. LLR when on: 64 KB replay buffer, 2 µs "
+                     f"replay timer, 8 retries. RODL: 64-packet window, Go-Back-N on a NACK or on the RTO (20 µs, or 4 µs where stated); "
+                     f"SUE-lite: no retransmission, a loss closes the PDC and fails what is in flight. {XPU_SIDE}. {LINK}.")
     fig.savefig(IMG / "m3-t4-retry.png")
     return res
 
@@ -208,7 +227,10 @@ def t6_allreduce_tail():
     ax.set_ylabel("fraction of runs")
     ax.set_title("T6  completion-time distribution")
     ax.legend(fontsize=8)
-    fig.tight_layout()
+    assumptions(fig, f"8 XPUs, one port each; ring all-reduce of 1 MB: 7 reduce-scatter steps of 128 KB stores to the next XPU, then 7 "
+                     f"all-gather steps of 128 KB loads from the previous one; one chunk per step in flight (no pipelining), a step starts "
+                     f"when its data and the previous step's ACKs are in; start offsets random up to 300 ns, 12 seeds. UFH_16, RODL "
+                     f"64-packet window. {XPU_SIDE}. {LINK}. Ideal = 2(n-1) chunks of 128 KB at 800G.")
     fig.savefig(IMG / "m3-t6-allreduce.png")
     return res
 

@@ -20,6 +20,8 @@ Checks: 16 tests in `tests/test_sim.py`, including one forced corruption → exa
 
 ![E1](img/e1-replay-buffer.png)
 
+*Assumptions (also printed on the figure):* the link of [The model](#the-model) with 1 KB frames from a backlogged source; CBFC off and no errors, so the replay buffer is the only limit; the dotted BDP lines use the estimated round trip including the wait for a CtlOS slot.
+
 | Cable | Link round trip (est.) | BDP at 800G | Buffer for full rate (measured) |
 |---|---|---|---|
 | 2 m | ~139 ns | ~14 KB | 16 KB |
@@ -35,6 +37,8 @@ Below the bandwidth-delay product the link is window-limited: goodput ≈ buffer
 
 ![E2](img/e2-credits.png)
 
+*Assumptions (also printed on the figure):* LLR on with an unbounded replay buffer so that only credits limit the link; 64 B credits with no PktOvhd; CF_Update in CtlOS with CF_min 20 ns and CF_max 500 ns; the receiver drains at full rate, so the buffer never fills for any other reason; no errors.
+
 | Cable | Credit loop estimate | Credits needed (64 B) | Measured knee |
 |---|---|---|---|
 | 2 m | ~170 ns | ~265 | 256 → 755 Gb/s, 512 → full |
@@ -49,6 +53,8 @@ The credit loop is longer than the LLR loop: frame flight + waiting for a CtlOS 
 ## E3. LLR on vs off: what reaches the transport?
 
 ![E3](img/e3-ber.png)
+
+*Assumptions (also printed on the figure):* 3 m cable; the post-FEC error rate is applied per frame and per CtlOS and is far above real rates (around 1e-12 and below) so that a 200 µs run contains errors; three seeds averaged; LLR with a 64 KB replay buffer, 2 µs replay timer and 8 retries before FLUSH; CBFC on with 1024 credits.
 
 | Post-FEC BER | LLR off: lost frames / million | LLR off: goodput | LLR on: lost | LLR on: goodput | LLR on: frames replayed per error | LLR on: p99 latency |
 |---|---|---|---|---|---|---|

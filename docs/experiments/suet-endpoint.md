@@ -27,6 +27,8 @@ Analytical, from `sim/wire.py`. 256 B stores; efficiency = payload ÷ everything
 
 ![T1](img/m3-t1-wire.png)
 
+*Assumptions (also printed on the figure):* byte counts from `sim/wire.py` as listed under [The model](#the-model); ACKs ride on a reverse request, the bracketed numbers charge a bare 64 B ACK per packet; delivery mode uses a 16 B response command (M3-3) whose packet needs its own ACK; RoCEv2 is Eth/IP/UDP/BTH + RETH + ICRC with 66 B ACKs.
+
 | Packed per packet | 1 | 2 | 4 | 8 | 16 |
 |---|---|---|---|---|---|
 | UFH_16, operational ACK | 82.1 (64.7) | 88.9 (77.6) | 92.8 (86.2) | 94.8 (91.3) | 95.9 (94.0) |
@@ -52,6 +54,8 @@ Two XPUs, one way: XPU A writes 1 MB to XPU B as 4096 stores of 256 B, operation
 *Predict: at what interface rate does the average packet carry more than one transaction, and what happens to latency when the XPU outruns the port?*
 
 ![T2](img/m3-t2-packing.png)
+
+*Assumptions (also printed on the figure):* the 16 B command word per store on the XPU interface and the 64 KB transmit buffer (M3-9), the 64-packet RODL window (M3-11; the dotted line uses 1024), the 100 ns ACK hold (M3-2), 50 ns unpack + 100 ns XPU at the receiver (M3-9), 3 m cables with 50 ns MAC/PHY per traversal, a store-and-forward switch with no pipeline latency (M3-8).
 
 | XPU interface | CMD_PDUs / packet | Wire efficiency | Goodput (Gb/s) | p50 latency | p99 latency | Packets | CMD_PDUs / packet, window 1024 | Efficiency, window 1024 | p99, window 1024 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -119,6 +123,8 @@ Eight XPUs, all-to-all stores, bit errors on every cable, two seeds. Post-FEC er
 
 ![T4](img/m3-t4-retry.png)
 
+*Assumptions (also printed on the figure):* bit errors are applied per frame at the stated post-FEC rate, on every cable, two seeds averaged; LLR with the M2 defaults (64 KB replay buffer, 2 µs replay timer, 8 retries); RODL with a 64-packet window (M3-11) and a fixed RTO (M3-7); SUE-lite closes the PDC on a loss and fails everything in flight; XPU side and link as in T2.
+
 | Variant | BER | Done / failed | Completion | p99 latency | Max latency | Efficiency | RODL NACK / retx / timeouts | PDCs closed | LLR replays |
 |---|---|---|---|---|---|---|---|---|---|
 | LLR on + RODL retx | 1e-7 | 14336 / 0 | 3.33 µs | 1.69 µs | 1.89 µs | 93.0 % | 0 / 0 / 0 | 0 | 68 |
@@ -163,6 +169,8 @@ Eight XPUs, 1 MB, ring algorithm: seven reduce-scatter steps of 128 KB stores to
 *Predict: how close to 2(n−1) chunk times at line rate (18.4 µs) does it get?*
 
 ![T6](img/m3-t6-allreduce.png)
+
+*Assumptions (also printed on the figure):* one 128 KB chunk per step in flight with no pipelining, and a step starts only when its data has arrived and the previous step's ACKs are in (this is the collective library's choice, not SUE-T's); start offsets random up to 300 ns; XPU side, RODL window and link as in T2; the ideal line is 2(n−1) chunks at 800G with no per-step wait.
 
 | ACK mode | Completion p50 | min | max | Transaction p99 |
 |---|---|---|---|---|

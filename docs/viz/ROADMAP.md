@@ -50,7 +50,9 @@ The emulator produces pcaps, not traces. Two options were on the table: (a) a `t
 
 ## M5: planes and the comparison
 
-- [ ] N XPUs × P planes picture: a plane strip per switch, one row per XPU; a plane failure dims a strip, and the reaction (LLR FLUSH → RODL, or nothing in SUE-T 1.0; MRC demotion; MetaRoCE pair move) shows as traffic moving or dying.
+The simulator side exists now (`sim/planes.py`, `tools/run_m5.py`); its traces carry `rodl` events with `what` = `move` (failover), `bad` and `restore` (spray), `timeout`, `fatal`, and `sw_drop` from a switch discarding frames for a dead port. What is missing is the picture.
+
+- [ ] N XPUs × P planes picture: a plane strip per switch, one row per XPU; a plane failure dims a strip, and the reaction (LLR FLUSH → RODL, or nothing in SUE-T 1.0; MRC demotion; MetaRoCE pair move) shows as traffic moving or dying. Input: a `make_traces.py` family built on `sim.planes.build(design, scenario, trace=[])`.
 - [ ] Side-by-side mode: the same fault in SUE-T, MRC and MetaRoCE traces, one timeline. This is the picture for `docs/where-should-retry-live.md`.
 - [ ] Load-balancing scenario from T5: per-group balancing across unequal planes, reorder → NACK storm.
 

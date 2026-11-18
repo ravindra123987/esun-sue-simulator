@@ -19,6 +19,7 @@ class Workload:
         self.fabric = None
         self.finished = None
         self.n_done = self.n_failed = 0
+        self.timeline = []                      # (t, bytes) for every successful completion
 
     def attach(self, fabric):
         self.fabric = fabric
@@ -29,6 +30,8 @@ class Workload:
     def on_done(self, t: Txn, now):
         self.n_done += 1
         self.n_failed += not t.ok
+        if t.ok:
+            self.timeline.append((now, t.size))
         if self.n_done == self.total:
             self.finished = now
 

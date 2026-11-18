@@ -14,7 +14,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M2 | LLR + CBFC link simulator | first cut (one link, plus a two-hop path through a switch): [docs/experiments/llr-cbfc.md](docs/experiments/llr-cbfc.md); packet viewer: [live](https://ravindra123987.github.io/esun-sue-simulator/viz/), [docs/viz/](docs/viz/) |
 | M3 | SUE-T endpoint in the simulator | first cut: queues, packing, RODL (Go-Back-N or SUE-lite), both ACK modes, ports, all-to-all and ring all-reduce on an N-XPU fabric: [docs/experiments/suet-endpoint.md](docs/experiments/suet-endpoint.md) |
 | M4 | netns emulator with a user-space switch | first cut: netns lab, user-space switch with LLR + CBFC per port, SUE-T endpoints on real UFH_16 frames, nine fault scenarios checked against the simulator, captures the dissector decodes: [docs/experiments/emulator.md](docs/experiments/emulator.md) |
-| M5 | Multi-plane, three-way comparison | not started |
+| M5 | Multi-plane, three-way comparison | first cut: five recovery designs (SUE-T 1.0, SUE-T + failover, MetaRoCE-style, MRC-style, MRC + LLR) under six plane faults on a 4 × 4 fabric: [docs/where-should-retry-live.md](docs/where-should-retry-live.md) |
 | M6 | P4/bmv2 switch | not started |
 | M7 | UALoE, then UALink | later |
 
@@ -34,12 +34,13 @@ pcaps/emu/      trimmed captures from the emulator (LLR + CBFC on the wire, a co
 sim/            discrete-event model: LLR (UEC §5.1), CBFC (§5.2), their interaction (§5.2.9); link.py = one link,
                 path.py = XPU A → switch → XPU B (two hops); trace.py records events and writes captions;
                 suet.py = SUE-T endpoint (queues, packing, RODL, ACK modes, ports), fabric.py = N XPUs × P planes with
-                VOQ switches, workloads.py = all-to-all and ring all-reduce, wire.py = header byte accounting + RoCEv2 baseline
+                VOQ switches, workloads.py = all-to-all and ring all-reduce, wire.py = header byte accounting + RoCEv2 baseline,
+                planes.py = the M5 designs and plane faults (suet.py: path pin/failover/spray, RODL or out-of-order with SACK)
 emu/            netns emulator: shim.py (what the link layer looks like on a veth), port.py (LLR + CBFC link end in real time),
                 switch.py (user-space switch, VOQ), endpoint.py (SUE-T endpoint process), lab.py (namespaces, veths, tcpdump,
                 faults), analyze.py (pcap counts)
 tools/          make_golden.py, run_m2.py / run_m3.py (experiments + plots), run_m4.py (emulator scenarios, run in the VM / report
-                on the Mac), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
+                on the Mac), run_m5.py (plane faults x recovery designs), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests, tshark-based dissector tests, simulator tests, emulator tests over an in-memory wire
 ```
 
@@ -53,6 +54,7 @@ python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
 .venv/bin/python tools/make_golden.py      # regenerate pcaps/golden/
 .venv/bin/pip install -e '.[sim]' && .venv/bin/python tools/run_m2.py   # M2 experiments (~5 s)
 .venv/bin/python tools/run_m3.py           # M3 experiments (~20 s)
+.venv/bin/python tools/run_m5.py           # M5: where should the retry live (~5 min)
 tshark -X lua_script:wireshark/sue.lua -r pcaps/golden/09-ufh16-conversation.pcap
 tshark -X lua_script:wireshark/sue.lua -r pcaps/emu/ber-llr-link1.pcap    # LLR, CBFC and SUE-T frames from the emulator
 sudo python3 -m emu.lab --n 4 --out /tmp/emu  # M4 emulator, Linux root only; see docs/experiments/emulator.md for the VM recipe

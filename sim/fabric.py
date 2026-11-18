@@ -20,11 +20,35 @@ from .suet import Endpoint, PortTx, SUETCfg
 
 
 class Switch:
-    def __init__(self, sim, plane, n, pipeline_ns):
+    def __init__(self, sim, plane, n, pipeline_ns, detect_ns=1000.0, drop_down=True):
         self.sim, self.plane, self.n, self.pipeline_ns = sim, plane, n, pipeline_ns
         self.ports: list[Mac] = [None] * n       # port i: receives from XPU i, sends to XPU i
+        self.detect_ns, self.drop_down = detect_ns, drop_down
+        self.dropped = 0                         # frames discarded because their egress link was down
+
+    def egress_down(self, e) -> bool:
+        """The switch sees its port e down once the down interval has lasted detect_ns (PCS link fault)."""
+        now = self.sim.now
+        return any(a + self.detect_ns <= now < b for a, b in self.ports[e].wire.cfg.down)
+
+    def purge(self, e):
+        """A real switch discards frames for a port whose link is down, rather than holding them (and the
+        credits of the ingress ports they sit in) until the link returns."""
+        if not (self.drop_down and self.egress_down(e)):
+            return
+        for m in self.ports:
+            for fr in [f for f in m.rxbuf if f.dst == e and f.kind == "data"]:
+                m.release(fr)
+                self.dropped += 1
+                if self.sim.trace is not None:
+                    self.sim.log("sw_drop", plane=self.plane, port=e, fid=fr.fid)
+                for x in self.ports:
+                    x.kick()
 
     def arrived(self, port, fr):
+        if self.drop_down and self.egress_down(fr.dst):
+            self.purge(fr.dst)
+            return
         e = self.ports[fr.dst]
         if self.pipeline_ns > 0:
             self.sim.after(self.pipeline_ns, e.kick)
@@ -89,12 +113,13 @@ class FabricResult:
     pack_hist: dict
     ep: dict = field(default_factory=dict)      # summed endpoint stats
     mac: dict = field(default_factory=dict)     # summed MAC stats, NIC side and switch side
+    sw_dropped: int = 0                         # frames switches discarded for a down egress link
 
 
 class Fabric:
     def __init__(self, n=4, ports=1, link: LinkCfg = None, llr: LLRCfg = None, nic: CBFCCfg = None,
                  sw: CBFCCfg = None, suet: SUETCfg = None, pipeline_ns=0.0, workload=None,
-                 trace: list | None = None, hooks=None):
+                 trace: list | None = None, hooks=None, drop_down=True):
         self.n, self.P = n, ports
         self.cfg = suet or SUETCfg()
         self.link, self.llr = link or LinkCfg(), llr or LLRCfg()
@@ -106,7 +131,7 @@ class Fabric:
         self.fids = itertools.count(1)
         self.workload = workload
         self.eps = [Endpoint(sim, i, self.cfg, ports, self.fids, workload) for i in range(n)]
-        self.switches = [Switch(sim, p, n, pipeline_ns) for p in range(ports)]
+        self.switches = [Switch(sim, p, n, pipeline_ns, self.cfg.detect_ns, drop_down) for p in range(ports)]
         self.macs: dict[str, Mac] = {}
         self.wires: dict[str, Wire] = {}
         for p, swp in enumerate(self.switches):
@@ -124,6 +149,10 @@ class Fabric:
                 self.wires[up.name], self.wires[dn.name] = up, dn
         if hooks:
             hooks(self)
+        for swp in self.switches:                       # purge when a down egress link is detected
+            for e, m in enumerate(swp.ports):
+                for a, b in m.wire.cfg.down:
+                    sim.at(a + swp.detect_ns, swp.purge, e)
         if workload is not None:
             workload.attach(self)
         if trace is not None:
@@ -164,4 +193,4 @@ class Fabric:
             lat_p50_ns=statistics.median(lat), lat_p99_ns=lat[min(len(lat) - 1, int(len(lat) * 0.99))], lat_max_ns=lat[-1],
             payload_bytes=payload, wire_bytes=ep["tx_wire"], efficiency=payload / ep["tx_wire"] if ep["tx_wire"] else 0.0,
             pack_avg=sum(k * v for k, v in hist.items()) / npk if npk else 0.0, pack_hist=dict(sorted(hist.items())),
-            ep=ep, mac=mac)
+            ep=ep, mac=mac, sw_dropped=sum(s.dropped for s in self.switches))

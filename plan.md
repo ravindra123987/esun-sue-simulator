@@ -116,6 +116,8 @@ Rules: public specs only, personal time and identity (no tool attribution). Chec
 - A P4 program on bmv2 that parses the ESUN header / UFH and forwards on it, with TC-to-queue mapping.
 - Notes on how this maps to SAI, including UEC §7.6 SAI extensions for LLR and CBFC.
 
+**Deliverable:** `docs/p4-switch.md`. *Status: first cut done: p4/esun_switch.p4 in bmv2, 13 frame checks passing (including the UET CRC surviving the switch's TTL and ECN rewrites, which tests decision D3), SUE-T traffic on one and four planes through bmv2, and the SAI mapping. Not yet: a Tofino/TNA port, and LLR/CBFC next to bmv2 (it has no MAC).*
+
 ### M7 (later): UALoE, then native UALink
 - Carry UALink-style transactions over the M4 transport and compare them with SUE-T's Unified Local mapping.
 - Native UALink: a flit-level simulator for an efficiency and behaviour comparison.

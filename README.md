@@ -15,7 +15,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M3 | SUE-T endpoint in the simulator | first cut: queues, packing, RODL (Go-Back-N or SUE-lite), both ACK modes, ports, all-to-all and ring all-reduce on an N-XPU fabric: [docs/experiments/suet-endpoint.md](docs/experiments/suet-endpoint.md) |
 | M4 | netns emulator with a user-space switch | first cut: netns lab, user-space switch with LLR + CBFC per port, SUE-T endpoints on real UFH_16 frames, nine fault scenarios checked against the simulator, captures the dissector decodes: [docs/experiments/emulator.md](docs/experiments/emulator.md) |
 | M5 | Multi-plane, three-way comparison | done: five recovery designs (SUE-T 1.0, SUE-T + failover, MetaRoCE-style, MRC-style, MRC + LLR) under six plane faults, a bit-error sweep and a lossy fabric with trimming in the simulator, and the plane faults on real frames in the four-plane emulator: [docs/where-should-retry-live.md](docs/where-should-retry-live.md) |
-| M6 | P4/bmv2 switch | not started |
+| M6 | P4/bmv2 switch | first cut: a v1model switch for UFH_16 and ESUN (forwarding, TTL, TC to queue, ECN), 13 frame checks and SUE-T traffic through bmv2 in the lab, and a SAI mapping including the UEC LLR/CBFC additions: [docs/p4-switch.md](docs/p4-switch.md) |
 | M7 | UALoE, then UALink | later |
 
 The full plan is in [plan.md](plan.md).
@@ -36,15 +36,15 @@ sim/            discrete-event model: LLR (UEC §5.1), CBFC (§5.2), their inter
                 suet.py = SUE-T endpoint (queues, packing, RODL, ACK modes, ports), fabric.py = N XPUs × P planes with
                 VOQ switches, workloads.py = all-to-all and ring all-reduce, wire.py = header byte accounting + RoCEv2 baseline,
                 planes.py = the M5 designs and plane faults (suet.py: path pin/failover/spray, RODL or out-of-order with SACK)
+p4/             esun_switch.p4 (v1model) and build/esun_switch.json, the compiled program bmv2 loads
 emu/            netns emulator: shim.py (what the link layer looks like on a veth), port.py (LLR + CBFC link end in real time),
                 switch.py (user-space switch, VOQ), endpoint.py (SUE-T endpoint process), lab.py (namespaces, veths, tcpdump,
-                faults), analyze.py (pcap counts)
+                faults, a bmv2 switch mode), analyze.py (pcap counts), p4check.py (frame checks of the P4 switch)
 tools/          make_golden.py, run_m2.py / run_m3.py (experiments + plots), run_m4.py (emulator scenarios, run in the VM / report
-                on the Mac), run_m5.py (plane faults x recovery designs, bit-error sweep, lossy fabric), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
+                on the Mac), run_m5.py (plane faults x recovery designs, bit-error sweep, lossy fabric), run_m6.py (P4 switch in bmv2, VM), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests, tshark-based dissector tests, simulator tests, emulator tests over an in-memory wire
 ```
 
-`p4/` arrives with M6.
 
 ## Quick start
 

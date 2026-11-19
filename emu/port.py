@@ -43,6 +43,8 @@ class PortCfg:
     ctlos_frames: int = 8           # ... or this many received frames, whichever first (small frames, slow receiver)
     init_retry_s: float = 0.01      # LLR_INIT repeat interval while waiting for the echo
     burst: int = 8                  # frames per transmit opportunity before the loop reads the socket again
+    shim: bool = True               # False: plain frames on the wire, no link units (a NIC without LLR/CBFC
+                                    # next to a switch that has neither, e.g. the P4 switch of M6)
     cbfc: bool = True
     credit_size: int = 64
     total_credits: int = 1024       # our receive buffer, per VC
@@ -262,8 +264,10 @@ class Port:
             self.stats["tx_bytes"] += fr.size
         else:
             self.stats["replayed"] += 1
-        raw = S.wrap_frame(self.peer, self.mac, fr.seq, fr.inner)
-        raw = self._corrupt(raw, 14 + S.SHIM_LEN)
+        if self.cfg.shim:
+            raw = self._corrupt(S.wrap_frame(self.peer, self.mac, fr.seq, fr.inner), 14 + S.SHIM_LEN)
+        else:
+            raw = self._corrupt(fr.inner, 14)
         self._log("tx", fid=fr.fid, seq=fr.seq, kind=fr.kind, size=fr.size, replay=not first)
         self._put(raw)
         if c.llr and self.buf and not self.rt_running:
@@ -290,6 +294,8 @@ class Port:
 
     # ================================================================ CtlOS
     def _send_ctl(self, mtype, seq, init_data=0):
+        if not self.cfg.shim:
+            return                                  # no link layer on a plain wire
         raw = S.llr_ctlos(self.peer, self.mac, mtype, seq, init_data)
         if self.cfg.ber > 0 and self.rng.random() < 1.0 - (1.0 - self.cfg.ber) ** 64:
             self.stats["corrupted"] += 1
@@ -331,7 +337,8 @@ class Port:
             self.cf_dirty, self.last_cf = False, time.monotonic()
             self.stats["cf_tx"] += 1
             self._log("ctl", kind="CF_UPDATE", cf=dict(self.r_cf))
-            self._put(S.cf_update(self.peer, self.mac, 0, self.r_cf.get(0, 0), 1, self.r_cf.get(1, 0)))
+            if self.cfg.shim:
+                self._put(S.cf_update(self.peer, self.mac, 0, self.r_cf.get(0, 0), 1, self.r_cf.get(1, 0)))
             return
         self._cf_turn = True
         if want_ack:
@@ -407,6 +414,10 @@ class Port:
 
     # ================================================================ receive
     def on_wire(self, raw: bytes):
+        if not self.cfg.shim:                       # a plain frame: the kernel already dropped a bad FCS
+            if len(raw) >= 14:
+                self._on_frame(S.Unit(S.T_FRAME, 0, True, raw, 0, None, raw[:6], raw[6:12]))
+            return
         u = S.unwrap(raw)
         if u is None:
             return

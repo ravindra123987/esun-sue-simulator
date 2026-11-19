@@ -718,6 +718,7 @@ def main(argv=None):
     ap.add_argument("--drop-cf", type=float, default=0.0)
     ap.add_argument("--no-llr", action="store_true")
     ap.add_argument("--no-cbfc", action="store_true")
+    ap.add_argument("--no-shim", action="store_true", help="plain frames on the wire (with --no-llr --no-cbfc), e.g. for the P4 switch")
     ap.add_argument("--credits", type=int, default=1024)
     ap.add_argument("--sw-credits", type=int, default=1024)
     ap.add_argument("--replay-timer", type=float, default=0.05)
@@ -744,7 +745,10 @@ def main(argv=None):
     for q in range(a.planes):
         ber = a.ber if a.ber_port in (-1, q) else 0.0
         cfg = PortCfg(llr=not a.no_llr, cbfc=not a.no_cbfc, total_credits=a.credits, ber=ber, drop_cf=a.drop_cf,
-                      replay_timer_s=a.replay_timer, replay_ct_max=a.replay_ct_max, seed=1 + a.xpu + 101 * q)
+                      replay_timer_s=a.replay_timer, replay_ct_max=a.replay_ct_max, seed=1 + a.xpu + 101 * q,
+                      shim=not a.no_shim)
+        if a.no_shim and (cfg.llr or cfg.cbfc):
+            raise SystemExit("--no-shim needs --no-llr --no-cbfc: without the shim there is no link layer")
         name = a.ifname.format(p=q)
         names.append(name)
         sock = raw_socket(name)

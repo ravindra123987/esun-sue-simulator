@@ -58,7 +58,7 @@ The simulator side exists now (`sim/planes.py`, `tools/run_m5.py`); its traces c
 
 ## M6 / M7
 
-- [ ] M6: a "what the switch parsed" overlay from bmv2 logs (ESUN header fields, TC → queue). Low priority.
+- [ ] M6: a "what the switch parsed" overlay from bmv2 logs (ESUN header fields, TC → queue). Low priority. The switch now exists (p4/esun_switch.p4, docs/p4-switch.md); bmv2's `--log-console` prints the parsed headers and table hits per packet, which is the input this needs.
 - [ ] M7: UALink flits are a different picture (flit-level, no packets); start a new renderer rather than stretching this one.
 
 ## General

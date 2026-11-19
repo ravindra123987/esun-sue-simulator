@@ -1,0 +1,408 @@
+{
+ "checks": [
+  {
+   "check": "ufh16 forwarded by destination id",
+   "why": "UEC \u00a75.4.3: the DA overlay carries the 16-bit destination (Fig 3-120)",
+   "ok": true,
+   "detail": "received at [2]"
+  },
+  {
+   "check": "ufh16 unknown destination dropped",
+   "why": "ESUN \u00a75: static forwarding, no flooding",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "esun forwarded by DA, TTL decremented",
+   "why": "ESUN \u00a75.2: TTL decremented per hop",
+   "ok": true,
+   "detail": "ttl 14"
+  },
+  {
+   "check": "esun UET CRC survives the TTL rewrite",
+   "why": "decision D3: CRC over ESUN masks TTL, CoS and ECN",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "esun TTL 1 dropped",
+   "why": "ESUN \u00a75.2: a frame whose TTL would reach 0 is discarded",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "CC_Update not forwarded",
+   "why": "UEC \u00a75.2.6.2 / IEEE 802.3 Clause 31: MAC control is consumed by the link partner",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "unknown DA not flooded",
+   "why": "ESUN \u00a75: no learning, no flooding",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "UDP/IP SUE-T forwarded by DA",
+   "why": "SUE-T \u00a78.3: the third header stack",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "TC to queue: dscp 0 -> q0, dscp 1 -> q1, ESUN CoS 3 -> q3",
+   "why": "SUE-T \u00a77.3: requests and responses on separate TCs",
+   "ok": true,
+   "detail": "per-queue deltas [1, 1, 0, 1, 0, 0, 0, 0]"
+  },
+  {
+   "check": "ufh16 ECT -> CE, CRC still good",
+   "why": "UEC \u00a73.5.26.1: dscp/ecn byte masked in the UET CRC",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "esun ECT -> CE, CRC still good",
+   "why": "decision D3",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "non-ECT left alone",
+   "why": "RFC 3168: only ECT packets are marked",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "ufh16 ACK forwarded",
+   "why": "Fig 3-120: ACKs share the overlay",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "traffic": {
+  "1-plane-pinned": {
+   "completed": true,
+   "planes": 1,
+   "wall_s": 3.7,
+   "done": 12288,
+   "failed": 0,
+   "total": 12288,
+   "finished_s": 0.3706,
+   "retx": 0,
+   "rtos": 0,
+   "bad_marks": 0,
+   "port_pkts": [
+    1536
+   ],
+   "bmv2": {
+    "0": {
+     "tc_packets": [
+      1536,
+      82,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    }
+   }
+  },
+  "4-plane-spray": {
+   "completed": true,
+   "planes": 4,
+   "wall_s": 9.5,
+   "done": 49152,
+   "failed": 0,
+   "total": 49152,
+   "finished_s": 1.8079,
+   "retx": 0,
+   "rtos": 0,
+   "bad_marks": 0,
+   "port_pkts": [
+    1548,
+    1548,
+    1548,
+    1547
+   ],
+   "bmv2": {
+    "0": {
+     "tc_packets": [
+      1548,
+      1463,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "1": {
+     "tc_packets": [
+      1548,
+      1441,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "2": {
+     "tc_packets": [
+      1548,
+      1398,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "3": {
+     "tc_packets": [
+      1547,
+      1619,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    }
+   }
+  },
+  "4-plane-spray-plane-kill": {
+   "completed": true,
+   "planes": 4,
+   "wall_s": 9.4,
+   "done": 49152,
+   "failed": 0,
+   "total": 49152,
+   "finished_s": 2.6123,
+   "retx": 12,
+   "rtos": 11,
+   "bad_marks": 7,
+   "port_pkts": [
+    1948,
+    506,
+    1951,
+    1951
+   ],
+   "bmv2": {
+    "0": {
+     "tc_packets": [
+      1948,
+      1836,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "1": {
+     "tc_packets": [
+      494,
+      438,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "2": {
+     "tc_packets": [
+      1951,
+      1853,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "3": {
+     "tc_packets": [
+      1951,
+      1976,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    }
+   }
+  },
+  "4-plane-pinned-plane-kill": {
+   "completed": false,
+   "planes": 4,
+   "wall_s": 67.1,
+   "done": 20460,
+   "failed": 256,
+   "total": 49152,
+   "finished_s": null,
+   "retx": 131,
+   "rtos": 22,
+   "bad_marks": 0,
+   "port_pkts": [
+    535,
+    842,
+    464,
+    942
+   ],
+   "bmv2": {
+    "0": {
+     "tc_packets": [
+      535,
+      127,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "1": {
+     "tc_packets": [
+      747,
+      47,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "2": {
+     "tc_packets": [
+      464,
+      85,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    },
+    "3": {
+     "tc_packets": [
+      942,
+      56,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "drops": {
+      "no_route": 0,
+      "ttl": 0,
+      "mac_control": 0,
+      "parse": 0
+     },
+     "ce_marked": 0
+    }
+   }
+  }
+ }
+}

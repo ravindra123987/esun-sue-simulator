@@ -32,9 +32,14 @@ def ns(name, *args, check=True):
     return sh("ip", "netns", "exec", name, *args, check=check)
 
 
+P4_IMAGE = os.environ.get("P4_IMAGE", "p4lang/p4c:latest")       # carries p4c and bmv2 simple_switch
+P4_JSON = Path(__file__).resolve().parent.parent / "p4" / "build" / "esun_switch.json"
+
+
 class Lab:
-    def __init__(self, n, outdir, capture=True, planes=1):
+    def __init__(self, n, outdir, capture=True, planes=1, switch="python"):
         self.n, self.out, self.capture, self.planes = n, Path(outdir), capture, planes
+        self.switch = switch                     # "python" (emu/switch.py) | "bmv2" (p4/esun_switch.p4)
         self.out.mkdir(parents=True, exist_ok=True)
         self.procs, self.dumps = {}, []
         self.env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
@@ -48,6 +53,7 @@ class Lab:
         for p in range(self.planes):                     # one switch per plane; XPU i's port p -> switch p's port i
             sw = f"sw{p}"
             sh("ip", "netns", "add", sw)
+            ns(sw, "ip", "link", "set", "lo", "up")      # bmv2's Thrift control server listens on 127.0.0.1
             for i in range(self.n):
                 sh("ip", "link", "add", f"x{i}e{p}", "type", "veth", "peer", "name", f"{sw}-p{i}")
                 sh("ip", "link", "set", f"x{i}e{p}", "netns", f"xpu{i}")
@@ -78,7 +84,57 @@ class Lab:
                 self.dumps.append(p)
         time.sleep(0.5)                              # let tcpdump attach before the INIT handshake
 
+    # ------------------------------------------------------------ the P4 switch (M6)
+    def bmv2_cmds(self):
+        """Static tables: XPU i is behind port i (by UFH_16 destination and by MAC); TC 0 -> queue 0,
+        TC 1 (ACKs, responses) -> queue 1; ESUN CoS c -> queue c."""
+        cmds = []
+        for i in range(self.n):
+            cmds.append(f"table_add ufh_fwd set_port {i} => {i}")
+            cmds.append(f"table_add l2_fwd set_port 02:a0:00:00:00:{i:02x} => {i}")
+        cmds += ["table_add tc_ufh set_queue 0 => 0", "table_add tc_ufh set_queue 1 => 1"]
+        cmds += [f"table_add tc_esun set_queue {c} => {c}" for c in range(8)]
+        return cmds
+
+    def bmv2_cli(self, plane, cmds):
+        p = subprocess.run(["docker", "exec", "-i", f"bmv2-sw{plane}", "ip", "netns", "exec", f"sw{plane}",
+                            "simple_switch_CLI", "--thrift-port", "9090"], input="\n".join(cmds) + "\n",
+                           capture_output=True, text=True)
+        return p.stdout
+
+    def start_bmv2(self, plane=0):
+        name = f"bmv2-sw{plane}"
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        ifs = sum([["-i", f"{i}@sw{plane}-p{i}"] for i in range(self.n)], [])
+        cmd = ["docker", "run", "-d", "--rm", "--name", name, "--privileged", "--network", "host", "--pid", "host",
+               "-v", "/var/run/netns:/var/run/netns", "-v", f"{P4_JSON.parent}:/p4:ro", P4_IMAGE,
+               "ip", "netns", "exec", f"sw{plane}", "simple_switch", "--thrift-port", "9090",
+               *ifs, "/p4/" + P4_JSON.name, "--", "--priority-queues", "8"]    # target options after "--"
+        sh(*cmd)
+        for _ in range(300):                     # wait for the Thrift server, then load the tables
+            out = self.bmv2_cli(plane, ["show_tables"])
+            if "ufh_fwd" in out:
+                break
+            time.sleep(0.2)
+        else:
+            raise RuntimeError(f"bmv2 on plane {plane} did not come up")
+        self.bmv2_cli(plane, self.bmv2_cmds())
+        self.procs[name] = None
+
+    def bmv2_counters(self, plane):
+        cmds = [f"counter_read SwIngress.tc_ctr {q}" for q in range(8)] + \
+               [f"counter_read SwIngress.drop_ctr {k}" for k in range(4)] + ["counter_read SwEgress.ce_ctr 0"]
+        out = self.bmv2_cli(plane, cmds)
+        import re
+        vals = [int(m) for m in re.findall(r"(\d+) packets", out)]       # "SwIngress.tc_ctr[0]= (0 bytes, 0 packets)"
+        if len(vals) != 13:
+            return {"raw": out[-500:]}
+        return {"tc_packets": vals[:8], "drops": dict(zip(("no_route", "ttl", "mac_control", "parse"), vals[8:12])),
+                "ce_marked": vals[12]}
+
     def start_switch(self, args=(), plane=0):
+        if self.switch == "bmv2":
+            return self.start_bmv2(plane)
         tag = "switch" if self.planes == 1 else f"switch{plane}"
         cmd = ["ip", "netns", "exec", f"sw{plane}", PY, "-m", "emu.switch", "--ports", str(self.n), "--ifname", f"sw{plane}-p{{i}}",
                "--out", str(self.out / f"{tag}.json"), "--log", str(self.out / f"{tag}.log"), *map(str, args)]
@@ -111,17 +167,22 @@ class Lab:
                 fn(self)
             if not pending and self.all_done():
                 return True
-            if any(p.poll() is not None for p in self.procs.values()):
+            if any(p is not None and p.poll() is not None for p in self.procs.values()):
                 return False                         # something died: collect what there is
             time.sleep(0.05)
         return False
 
     def stop(self):
         time.sleep(0.3)                              # let the last ACKs and CtlOS land in the captures
+        if self.switch == "bmv2":
+            self.counters = {p: self.bmv2_counters(p) for p in range(self.planes)}
         for name, p in self.procs.items():
-            if p.poll() is None:
+            if p is not None and p.poll() is None:
                 p.send_signal(signal.SIGTERM)
-        for p in self.procs.values():
+        for name, p in self.procs.items():
+            if p is None:
+                subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+                continue
             try:
                 p.wait(5)
             except subprocess.TimeoutExpired:
@@ -147,10 +208,10 @@ class Lab:
 
 
 def run(n, outdir, switch_args=(), endpoint_args=(), per_xpu=None, faults=(), timeout=60, capture=True, planes=1,
-        per_plane=None):
+        per_plane=None, switch="python"):
     """One lab run; returns the merged results dict (and leaves pcaps/logs in outdir). `per_plane` adds switch
     arguments for one plane's switch (e.g. bit errors on plane 1)."""
-    lab = Lab(n, outdir, capture=capture, planes=planes)
+    lab = Lab(n, outdir, capture=capture, planes=planes, switch=switch)
     try:
         lab.build()
         lab.start_capture()
@@ -170,6 +231,9 @@ def run(n, outdir, switch_args=(), endpoint_args=(), per_xpu=None, faults=(), ti
         res["completed"] = ok
         res["n"] = n
         res["planes"] = planes
+        res["switch"] = res["switch"] if switch == "python" else None
+        if switch == "bmv2":
+            res["bmv2"] = getattr(lab, "counters", None)
         (lab.out / "result.json").write_text(json.dumps(res, indent=1))
         return res
     finally:

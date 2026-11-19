@@ -48,8 +48,27 @@ def test_commands_change_the_running_simulation():
     assert [(n["kind"], n["at"]) for n in out["notes"]][:2] == [("down", "h1"), ("up", "h1")]
 
 
-def test_live_offers_only_link_scenarios_for_now():
-    assert all(s.get("kind", "link") == "link" for s in L.SCENARIOS) and len(L.SCENARIOS) < len(MT.SCENARIOS)
+def test_live_offers_link_and_endpoint_scenarios():
+    kinds = {s.get("kind", "link") for s in L.SCENARIOS}
+    assert kinds == {"link", "endpoint"}
+
+
+def test_endpoint_live_session_runs_and_takes_commands():
+    sc = scenario("suet-stores")
+    lv = L.Live(L.custom(sc, {"suet": {"xpu_gbps": 400}, "hop2": {"cable_m": 10}}))
+    assert type(lv).__name__ == "EndpointLive" and lv.cfg["suet"]["xpu_gbps"] == 400 and lv.cfg["hops"][1]["cable_m"] == 10
+    out = lv.step(1000)
+    assert any(e["ev"] == "pkt_tx" and e["xpu"] == "A" for e in out["events"])     # relabelled to the viewer's names
+    assert any(n["kind"] == "issue" for n in out["notes"])
+    lv.cmd("xpu", {"gbps": 3200})
+    lv.cmd("corrupt_frame", {"hop": 1})
+    out = lv.step(3000)
+    assert lv.cfg["suet"]["xpu_gbps"] == 3200
+    assert any(e["ev"] == "rx" and e["mac"] == "S1" and e["res"] == "bad" for e in out["events"])
+    lv.cmd("link_down", {"hop": 2, "ns": 200})
+    out = lv.step(4500)
+    assert any(e["ev"] == "frame" and e["dir"] == "s2b" and e["fate"] == "down" for e in out["events"])
+    assert lv.step(1e12)["t"] <= 4500 + L.MAX_STEP_NS
 
 
 def test_one_request_never_runs_away():

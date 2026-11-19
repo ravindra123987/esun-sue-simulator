@@ -39,6 +39,8 @@
           <button class="btn" data-cmd="link_down" data-hop="2" data-ns="400">Cut 400 ns</button></div></div>
         <div class="grp"><div class="lbl">XPU B HBM write rate</div><div class="row">
           <button class="btn" data-cmd="hbm" data-gbps="200">200G</button><button class="btn" data-cmd="hbm" data-gbps="400">400G</button><button class="btn" data-cmd="hbm" data-gbps="800">800G</button></div></div>
+        <div class="grp" data-kinds="endpoint"><div class="lbl">XPU A issue rate (packing follows the queue)</div><div class="row">
+          <button class="btn" data-cmd="xpu" data-gbps="200">200G</button><button class="btn" data-cmd="xpu" data-gbps="800">800G</button><button class="btn" data-cmd="xpu" data-gbps="1600">1.6T</button><button class="btn" data-cmd="xpu" data-gbps="3200">3.2T</button></div></div>
         <div class="status" id="liveStatus"></div>
       </section>
       <section id="customSec" hidden>
@@ -54,6 +56,8 @@
           <label><span>Replay timer (ns)</span><input name="llr.replay_timer_ns" type="number" min="100" max="20000" step="100" value="2000"></label>
           <label><span>Max retries</span><input name="llr.replay_ct_max" type="number" min="1" max="255" value="8"></label>
           <label class="check full"><input name="llr.enabled" type="checkbox" checked> LLR enabled</label>
+          <label data-kinds="endpoint"><span>XPU A issue rate (Gb/s)</span><input name="suet.xpu_gbps" type="number" min="50" max="3200" step="50" value="1600"></label>
+          <label class="check full" data-kinds="endpoint"><input name="suet.retx" type="checkbox" checked> RODL retransmission (off = SUE-lite)</label>
           <button class="btn primary full" type="submit">Run with these settings</button>
         </form>
       </section>
@@ -149,7 +153,7 @@
     <div><h3>SUE-T endpoint scenarios</h3>
       <p>The scenarios under "SUE-T endpoint" run two SUE-T instances (<code>sim/suet.py</code>) on the same path. XPU A's HBM block becomes the transmit queue: transactions (<code>#id</code>) wait there until the port is free, then as many as fit are packed into one packet with a RODL sequence number (<code>PSN n ×k</code>). Packets cross both hops exactly like frames did, and the ACK comes back the other way: a bare ACK packet, or for free in the header of a request going that way. Click a transaction to follow it; the Counters tab shows packets, transactions per packet and wire efficiency so far. The link layer underneath (LLR, credits) is unchanged, so a lost packet with LLR off shows what the transport has to do by itself.</p></div>
     <div><h3>Live mode</h3>
-      <p>Run <code>python3 tools/live.py</code> in a clone of the repo and open <code>http://127.0.0.1:8765/</code>. The page then runs the simulator a few nanoseconds ahead of what it shows. The sidebar gains fault-injection buttons per hop and a custom-run form. Live mode is local only; the published page offers Recorded.</p></div>
+      <p>Run <code>python3 tools/live.py</code> in a clone of the repo and open <code>http://127.0.0.1:8765/</code>. The page then runs the simulator a few nanoseconds ahead of what it shows. The sidebar gains fault-injection buttons per hop and a custom-run form; the SUE-T endpoint scenarios also get XPU A's issue rate (watch packing follow the queue) and a SUE-lite switch. Live mode is local only; the published page offers Recorded.</p></div>
     <div><h3>Keyboard</h3>
       <div class="keys">
         <span><kbd>space</kbd></span><span>play / pause</span>

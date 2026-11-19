@@ -19,7 +19,12 @@ function newData(meta, cfg){
     swq:[], swqBy:new Map(), swq2:[], swq2By:new Map(), nq:[], nqBy:new Map(), seqFid:{a2s:new Map(), s2b:new Map(), s2a:new Map(), b2s:new Map()},
     firsts:[], deliv:[], lat:[], lastCtl:new Map(), replays:{A:[], S7:[], S1:[], B:[]}, drops:{S1:[], B:[], S7:[], A:[]}, fwdT:[], notes:[], dur:cfg.sim_ns || 0,
     // endpoint scenarios (sim/suet.py events)
-    pk:new Map(), pkts:[], pktRx:[], txns:new Map(), txnList:[], txnDone:[], rodl:[]};
+    pk:new Map(), pkts:[], pktRx:[], txns:new Map(), txnList:[], txnDone:[], rodl:[],
+    epBase:{A:epZero(), B:epZero()}};          // live mode: totals of what prune() has forgotten
+}
+function epZero(){
+  return {nextPsn:0, sent:0, acked:-1, expect:0, accepted:0, received:0, done:0, failed:0, retx:0, nacksTx:0, acksTx:0, acksData:0,
+    lastDone:null, pay:0, wire:0, nreq:0, npdu:0, pkts:0};
 }
 function ingest(d, events){
   for (const e of events){
@@ -69,11 +74,37 @@ function prune(d, t){
   if (d.swq.length > big){ d.swq = d.swq.filter(i => i.tout == null || i.tout >= cut); d.swqBy = new Map(d.swq.map(i => [i.fid, i])); }
   if (d.nq.length > big){ d.nq = d.nq.filter(i => i.te == null || i.te >= cut); d.nqBy = new Map(d.nq.map(i => [i.fid, i])); }
   for (const k in d.snaps){ const arr = d.snaps[k]; if (arr.length > big){ d.snaps[k] = arr.slice(Math.max(0, lastAt(arr, cut))); } }
+  if (d.swq2.length > big){ d.swq2 = d.swq2.filter(i => i.tout == null || i.tout >= cut); d.swq2By = new Map(d.swq2.map(i => [i.fid, i])); }
+  if (d.kind === "endpoint" && (d.pkts.length > big || d.txnList.length > big * 4)) pruneEp(d, cut);
+}
+// fold endpoint events older than `cut` into d.epBase so epState's totals stay right
+function pruneEp(d, cut){
+  for (const r of d.pktRx){
+    if (r.t >= cut) continue;
+    const b = d.epBase[r.xpu]; if (!b) continue;
+    if (r.cack != null && r.cack > b.acked) b.acked = r.cack;
+    if (r.res === "accept"){ b.expect = r.psn + 1; b.accepted++; const p = d.pk.get(r.fid); if (p) b.received += p.n; }
+  }
+  d.pktRx = d.pktRx.filter(r => r.t >= cut);
+  const keep = [];
+  for (const p of d.pkts){
+    if (p.t >= cut){ keep.push(p); continue; }
+    const b = d.epBase[p.xpu]; if (!b) continue;
+    b.wire += p.size + 20; b.pkts++;
+    if (p.kind === "ack"){ b.acksTx++; if (p.nack >= 0) b.nacksTx++; if (p.data) b.acksData++; b.pay += p.pay; }
+    else if (p.retx) b.retx++;
+    else { b.nextPsn = Math.max(b.nextPsn, p.psn + 1); b.sent++; b.nreq++; b.npdu += p.n; b.pay += p.pay; }
+    d.pk.delete(p.fid);
+  }
+  d.pkts = keep;
+  for (const e of d.txnDone){ if (e.t >= cut) continue; const b = d.epBase[e.xpu]; if (!b) continue; if (e.ok){ b.done++; b.lastDone = e; } else b.failed++; }
+  d.txnDone = d.txnDone.filter(e => e.t >= cut);
+  d.txnList = d.txnList.filter(x => { const old = x.pk && x.pk.t < cut && (!x.done || x.done.t < cut); if (old) d.txns.delete(x.in.id); return !old; });
+  d.rodl = d.rodl.filter(e => e.t >= cut);
 }
 // the SUE-T endpoint at XPU x, as of time t (endpoint scenarios are small: a linear pass is fine)
 function epState(d, x, t){
-  const s = {queued:[], nextPsn:0, sent:0, acked:-1, expect:0, accepted:0, received:0, done:0, failed:0, retx:0, nacksTx:0, acksTx:0, acksData:0,
-    lastDone:null, lastRx:null, pay:0, wire:0, nreq:0, npdu:0, pkts:0};
+  const s = Object.assign({queued:[], lastRx:null}, d.epBase[x] || epZero());
   for (const q of d.txnList){ const i = q.in; if (i.xpu !== x || i.t > t) continue; if (!q.pk || q.pk.t > t) s.queued.push(i.id); }
   for (const p of d.pkts){
     if (p.xpu !== x || p.t > t) continue;

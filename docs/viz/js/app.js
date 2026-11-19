@@ -85,7 +85,8 @@ function buildList(){
   }
 }
 function showScenario(){
-  for (const b of $("sclist").children) if (b.dataset.id){ b.setAttribute("aria-selected", b.dataset.id === d.id ? "true" : "false"); b.disabled = LIVE.on && D.find(x => x.id === b.dataset.id).kind === "endpoint"; }
+  for (const b of $("sclist").children) if (b.dataset.id){ b.setAttribute("aria-selected", b.dataset.id === d.id ? "true" : "false"); b.disabled = LIVE.on && !LIVE.metas.some(m => m.id === b.dataset.id); }
+  for (const g of document.querySelectorAll("#liveSec [data-kinds], #customSec [data-kinds]")) g.hidden = !g.dataset.kinds.split(" ").includes(d.kind);
   $("scname").innerHTML = ""; const bb = document.createElement("b"); bb.textContent = d.title; $("scname").append(LIVE.on ? "Live · " : "", bb);
   $("sTitle").textContent = d.title; $("sSum").textContent = d.summary;
   $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(LIVE.on ? "Use the fault-injection buttons: every reaction you see is the simulator's." : d.watch);
@@ -321,6 +322,7 @@ $("custom").onsubmit = e => {
   const over = {};
   for (const f of $("custom").elements){
     if (!f.name) continue;
+    const gate = f.closest("[data-kinds]"); if (gate && !gate.dataset.kinds.split(" ").includes(d.kind)) continue;
     const [sec, key] = f.name.split("."); over[sec] = over[sec] || {};
     over[sec][key] = f.type === "checkbox" ? f.checked : +f.value;
   }

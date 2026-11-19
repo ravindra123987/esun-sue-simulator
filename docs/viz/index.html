@@ -10,24 +10,26 @@
 
 <div class="app" id="app">
   <header class="top">
-    <button class="btn icon ghost" id="tSide" title="Toggle sidebar (S)" aria-label="Toggle sidebar">☰</button>
-    <div class="brand"><h1>Scale-up Packet Viewer</h1><small>UEC 1.1 · LLR · CBFC</small></div>
-    <span class="scname" id="scname"></span>
+    <button class="btn icon ghost" id="tSide" title="Toggle sidebar (S)" aria-label="Toggle sidebar"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    <a class="brand" id="bHome" href="#home" title="All scenarios (H)">
+      <svg class="logo" viewBox="0 0 28 28" width="26" height="26" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="var(--accent)"/><path d="M6 10h9M6 14h16M6 18h9" stroke="var(--accent-fg)" stroke-width="2.2" stroke-linecap="round"/><circle cx="19.5" cy="10" r="2" fill="var(--accent-fg)"/><circle cx="19.5" cy="18" r="2" fill="var(--accent-fg)" opacity=".55"/></svg>
+      <span class="name">Scale-up Packet Viewer</span></a>
+    <span class="crumb" id="scname"></span>
     <span class="grow"></span>
-    <span class="seg" role="group" aria-label="View">
+    <span class="seg runonly" id="segView" role="group" aria-label="View">
       <button id="vSimple" aria-pressed="true" title="Simple view (1)">Simple</button><button id="vDetail" aria-pressed="false" title="Detailed view (2)">Detailed</button></span>
-    <span class="seg" role="group" aria-label="Source">
+    <span class="seg runonly" role="group" aria-label="Source">
       <button id="sRec" aria-pressed="true" title="Replay recorded runs">Recorded</button><button id="sLive" aria-pressed="false" title="Drive the page from a running simulator"><span class="dot" id="liveDot"></span> Live</button></span>
-    <button class="btn ghost" id="bLegend" aria-expanded="false" aria-controls="legend">Legend</button>
+    <button class="btn ghost runonly" id="bLegend" aria-expanded="false" aria-controls="legend">Legend</button>
     <button class="btn icon ghost" id="bHelp" title="Help and shortcuts (?)" aria-label="Help">?</button>
-    <button class="btn icon ghost" id="bTheme" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+    <button class="btn icon ghost" id="bTheme" title="Toggle light / dark" aria-label="Toggle theme"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></svg></button>
   </header>
 
   <div class="main">
     <aside class="side" id="side">
-      <section>
-        <div class="sec-title">Scenarios</div>
-        <div class="sclist" id="sclist" role="listbox" aria-label="Scenarios"></div>
+      <section class="navsec">
+        <a class="homelink" id="navHome" href="#home"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor"/></svg> All scenarios</a>
+        <nav class="sclist" id="sclist" aria-label="Scenarios"></nav>
       </section>
       <section id="liveSec" hidden>
         <div class="sec-title">Fault injection <span class="livebadge"><span class="dot on"></span>LIVE</span></div>
@@ -61,40 +63,56 @@
           <button class="btn primary full" type="submit">Run with these settings</button>
         </form>
       </section>
-      <section>
-        <div class="sec-title">About this run</div>
-        <div class="about">
-          <h2 id="sTitle"></h2>
-          <p id="sSum"></p>
-          <p class="watch" id="sWatch"></p>
-          <div class="chips" id="sCfg"></div>
-        </div>
-      </section>
     </aside>
 
-    <div class="col">
-      <section class="stage" aria-label="Path">
+    <div class="home" id="home" hidden>
+      <div class="hero">
+        <div class="eyebrow">UEC 1.1 · ESUN · SUE-T · public specs only</div>
+        <h1>See what a scale‑up fabric does with every frame.</h1>
+        <p class="lead">Link-level retry and credits, the SUE-T transport on top, four planes failing and recovering, and a P4 switch: each scenario is a run of the simulator or of real frames from the emulator, replayed step by step with a caption for every event.</p>
+        <div class="cta"><a class="btn primary big" id="bTour" href="#clean">▶ Start with a clean path</a><button class="btn big" id="bHow">How to read the pictures</button>
+          <span class="facts" id="homeFacts"></span></div>
+      </div>
+      <div id="chapters"></div>
+      <footer class="foot">Every picture is drawn from recorded runs (<code>tools/make_traces.py</code>); nothing is animated by hand. Source and write-ups: <a href="https://github.com/ravindra123987/esun-sue-simulator">github.com/ravindra123987/esun-sue-simulator</a>.</footer>
+    </div>
+
+    <div class="col" id="run">
+      <section class="stage" aria-label="Scenario">
+        <div class="schead" id="schead">
+          <div class="scmain">
+            <div class="eyebrow" id="sEyebrow"></div>
+            <h2 id="sTitle"></h2>
+            <p class="sum" id="sSum"></p>
+            <div class="chips" id="sCfg"></div>
+          </div>
+          <div class="scaside">
+            <p class="watch" id="sWatch"></p>
+            <div class="scnav"><button class="btn" id="bPrevSc" title="Previous scenario (P)">←</button><button class="btn" id="bNextSc" title="Next scenario (N)"><span id="nextName">Next</span> →</button></div>
+          </div>
+        </div>
+        <div class="piccard">
         <div class="banner" aria-live="polite"><span id="nowAt"></span><span class="txt" id="nowTxt"></span><span class="when"><span id="nowT"></span><span class="tag" id="pausedTag" hidden></span></span></div>
         <div class="pic" id="pic"><canvas id="cNet" aria-label="XPU A, the switch and XPU B with the two cables between them" tabindex="0"></canvas></div>
-        <div class="transport">
-          <button class="btn primary" id="bPlay" title="Play / pause (space)">Play</button>
-          <button class="btn icon" id="bPrevN" title="Previous event ([)" aria-label="Previous event">⏮</button>
-          <button class="btn icon" id="bNextN" title="Next event (])" aria-label="Next event">⏭</button>
+        <div class="player">
+          <button class="play" id="bPlay" title="Play / pause (space)" data-state="play"><span class="ico" aria-hidden="true"></span><span class="lab" id="bPlayLab">Play</span></button>
+          <button class="btn icon" id="bPrevN" title="Previous event ([)" aria-label="Previous event"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 3v10M13 3L6 8l7 5z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg></button>
+          <button class="btn icon" id="bNextN" title="Next event (])" aria-label="Next event"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M12 3v10M3 3l7 5-7 5z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg></button>
           <span class="clock" id="clock">t = 0.0 ns</span>
+          <div class="timeline" id="tl">
+            <canvas id="cMarks" aria-hidden="true"></canvas>
+            <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
+          </div>
+          <span class="livebadge" id="liveTag" hidden><span class="dot on"></span>LIVE <span class="muted" id="liveT" style="font-weight:400"></span></span>
           <select class="sel" id="speed" title="Playback speed">
             <option value="2">2 ns/s</option><option value="5">5 ns/s</option><option value="10" selected>10 ns/s</option>
             <option value="25">25 ns/s</option><option value="60">60 ns/s</option><option value="150">150 ns/s</option>
           </select>
-          <label class="check" for="pauseAt"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
-          <label class="check" for="zoom">Size <select class="sel" id="zoom"><option value="fit">fit width</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label>
-          <span class="grow"></span>
-          <span class="livebadge" id="liveTag" hidden><span class="dot on"></span>LIVE <span class="muted" id="liveT" style="font-weight:400"></span></span>
+          <label class="check" for="pauseAt" title="Stop at every caption"><input type="checkbox" id="pauseAt" checked> Pause at events</label>
+          <select class="sel" id="zoom" title="Picture size"><option value="fit">Fit</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select>
           <button class="btn" id="bRestart" hidden>Restart</button>
-          <button class="btn" id="bShare" title="Copy a link to this moment">🔗 Share moment</button>
+          <button class="btn" id="bShare" title="Copy a link to this moment"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M6.5 9.5l3-3M7 4.5l1.2-1.2a2.6 2.6 0 0 1 3.7 3.7L10.7 8.2M9 11.5l-1.2 1.2a2.6 2.6 0 0 1-3.7-3.7L5.3 7.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Share</button>
         </div>
-        <div class="timeline" id="tl">
-          <canvas id="cMarks" aria-hidden="true"></canvas>
-          <input type="range" id="scrub" min="0" max="1000" step="0.1" value="0" aria-label="Simulation time">
         </div>
       </section>
 
@@ -149,7 +167,7 @@
     <div><h3>What you are looking at</h3>
       <p>Three devices and two 800G cables: XPU A's NIC sends to a switch, which forwards to XPU B's NIC. Each cable end runs its own link-level retry (LLR, UEC 1.1 §5.1) and credit-based flow control (CBFC, §5.2), so the switch is the receiver on hop 1 and the sender on hop 2. Every frame, control block and state on screen is what the simulator (<code>sim/path.py</code>) did.</p></div>
     <div><h3>Using it</h3>
-      <p>Pick a scenario in the sidebar and press Play; the picture stops at each event and the banner says what happened. Click any block to inspect its state, or click a frame anywhere to follow it: it is highlighted wherever it appears, and the Inspector lists its whole journey. <b>Share moment</b> copies a link to the current scenario, view and time.</p></div>
+      <p>Pick a scenario on the home page or in the sidebar and press Play; the picture stops at each event and the banner says what happened. Click any block to inspect its state, or click a frame anywhere to follow it: it is highlighted wherever it appears, and the Inspector lists its whole journey. <b>Share moment</b> copies a link to the current scenario, view and time.</p></div>
     <div><h3>SUE-T endpoint scenarios</h3>
       <p>The scenarios under "SUE-T endpoint" run two SUE-T instances (<code>sim/suet.py</code>) on the same path. XPU A's HBM block becomes the transmit queue: transactions (<code>#id</code>) wait there until the port is free, then as many as fit are packed into one packet with a RODL sequence number (<code>PSN n ×k</code>). Packets cross both hops exactly like frames did, and the ACK comes back the other way: a bare ACK packet, or for free in the header of a request going that way. Click a transaction to follow it; the Counters tab shows packets, transactions per packet and wire efficiency so far. The link layer underneath (LLR, credits) is unchanged, so a lost packet with LLR off shows what the transport has to do by itself.</p></div>
     <div><h3>Captured runs (M4)</h3>
@@ -167,6 +185,8 @@
         <span><kbd>[</kbd> <kbd>]</kbd></span><span>previous / next event</span>
         <span><kbd>1</kbd> <kbd>2</kbd></span><span>Simple / Detailed view</span>
         <span><kbd>e</kbd> <kbd>c</kbd> <kbd>f</kbd> <kbd>i</kbd></span><span>Events / Counters / Flow graph / Inspector</span>
+        <span><kbd>n</kbd> <kbd>p</kbd></span><span>next / previous scenario</span>
+        <span><kbd>h</kbd></span><span>all scenarios (home)</span>
         <span><kbd>s</kbd></span><span>toggle the sidebar</span>
         <span><kbd>esc</kbd></span><span>clear the selection, close dialogs</span>
         <span><kbd>?</kbd></span><span>this help</span>

@@ -10,8 +10,21 @@ if (!TR || !TR.length){
   return;
 }
 const store = {get(k, dflt){ try { const v = localStorage.getItem(k); return v == null ? dflt : v; } catch (e){ return dflt; } }, set(k, v){ try { localStorage.setItem(k, v); } catch (e) {} }};
-const GROUPS = {link:"Link layer (M2)", endpoint:"SUE-T endpoint (M3)", captured:"Captured on the wire (M4)", planes:"Planes and recovery (M5)",
-  compare:"Five designs, one fault (M5)", p4:"P4 switch in bmv2 (M6)"};
+// chapters: what a visitor is looking at, in reading order (kind -> chapter)
+const CHAPTERS = [
+  {kind:"link", name:"Link layer", sub:"LLR and CBFC, hop by hop", k:"data", src:"simulator · nanoseconds",
+    blurb:"One path, two 800G cables. Each cable end runs link-level retry and credit-based flow control, so errors are repaired on the hop where they happen and backpressure moves upstream one hop at a time."},
+  {kind:"endpoint", name:"Transport", sub:"SUE-T on top of the links", k:"mem", src:"simulator · nanoseconds",
+    blurb:"Two SUE-T instances on the same path: transactions packed into PSN-numbered packets, acknowledged back, and resent with Go-Back-N when the link layer is switched off."},
+  {kind:"captured", name:"On the wire", sub:"real frames from the emulator", k:"cf", src:"emulator captures · milliseconds",
+    blurb:"The same protocols as real frames between network namespaces, captured on both cables. Only what crossed the wire is drawn; nothing inside a device is assumed."},
+  {kind:"planes", name:"Planes and recovery", sub:"five designs, one fault each", k:"init", src:"simulator · microseconds",
+    blurb:"Four XPUs over four switch planes. One fault at a time, run against five recovery designs side by side: pinned, failover, and three ways of spraying."},
+  {kind:"p4", name:"Inside the switch", sub:"a P4 pipeline in bmv2", k:"dev-s", src:"bmv2 log · steps",
+    blurb:"Each test frame through the P4 switch as bmv2 logged it: parser states, table lookups, the queue it was given, ECN marking, and what came out."},
+];
+const chapterOf = x => CHAPTERS.find(c => c.kind === x.kind) || CHAPTERS[0];
+const shortTitle = x => { const s = x.title.replace(/^(SUE-T|Captured|RODL): /, ""); return s[0].toUpperCase() + s.slice(1); };
 const KIND_TAG = {"cap-clean":"capture", "cap-ber-hop2":"capture · LLR", "cap-outage-hop1":"capture · FLUSH", "cap-no-llr":"capture · RODL", "p4-pipeline":"bmv2 log",clean:"baseline", "bit-error":"hop 1 · error", "bit-error-2":"hop 2 · error", "lost-nack":"hop 1 · timer", backpressure:"flow control",
   "small-pool":"flow control", "outage-short":"hop 1 · outage", "outage-flush":"hop 1 · FLUSH", "no-llr":"LLR off",
   "suet-stores":"packing", "suet-delivery":"delivery ACK", "suet-loads":"loads", "suet-bidir":"both ways", "suet-gbn":"Go-Back-N", "suet-lite":"SUE-lite", "suet-slow-xpu":"no packing"};
@@ -35,13 +48,14 @@ function applyTheme(){ const th = store.get("sue-viz-theme", ""); if (th) docume
 applyTheme();
 $("bTheme").onclick = () => {
   const dark = matchMedia("(prefers-color-scheme: dark)").matches, cur = document.documentElement.dataset.theme || (dark ? "dark" : "light");
-  store.set("sue-viz-theme", cur === "dark" ? "light" : "dark"); applyTheme(); drawAll(true);
+  store.set("sue-viz-theme", cur === "dark" ? "light" : "dark"); applyTheme(); if (HOME.on) drawThumbs(); else drawAll(true);
 };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { RD.readTheme(); drawAll(true); });
 
 // ---------------------------------------------------------------- layout: the picture fits the stage, panels resize
 let zoom = store.get("sue-viz-zoom", "fit");
 function layout(){
+  if (HOME.on) return;
   const aw = $("pic").clientWidth - 12;
   const s = zoom === "fit" ? Math.max(.66, aw / RD.W) : +zoom;
   const w = Math.round(RD.W * s) + "px", h = Math.round(RD.H * s) + "px";
@@ -54,9 +68,9 @@ new ResizeObserver(() => layout()).observe($("pic"));
 new ResizeObserver(() => { if (tab === "flow") drawAll(true); }).observe($("pFlow"));
 window.addEventListener("resize", () => { if (!LIVE.on) RD.drawMarks($("cMarks"), d); });
 
-function setSide(open){ $("app").classList.toggle("noside", !open); store.set("sue-viz-side", open ? "1" : "0"); }
+function setSide(open){ $("app").classList.toggle("noside", !open); if (innerWidth > 900) store.set("sue-viz-side", open ? "1" : "0"); }
 $("tSide").onclick = () => setSide($("app").classList.contains("noside"));
-setSide(store.get("sue-viz-side", innerWidth > 900 ? "1" : "0") === "1");
+setSide(innerWidth > 900 && store.get("sue-viz-side", "1") === "1");      // on a phone the sidebar is an overlay: start closed
 
 const dock = $("dock");
 function setDock(px){ px = Math.max(140, Math.min(Math.max(140, innerHeight - 200), px)); $("app").style.setProperty("--dock", px + "px"); store.set("sue-viz-dock", String(Math.round(px))); }
@@ -80,21 +94,90 @@ for (const b of document.querySelectorAll(".dtabs [role=tab]")) b.onclick = () =
 // ---------------------------------------------------------------- sidebar: scenarios + about
 function buildList(){
   const L = $("sclist"); L.textContent = "";
-  let grp = null;
-  for (const x of D){
-    const gname = GROUPS[x.kind] || x.kind;
-    if (gname !== grp){ grp = gname; const h = document.createElement("div"); h.className = "grp-title"; h.textContent = gname; L.appendChild(h); }
-    const b = document.createElement("button"); b.className = "sc"; b.setAttribute("role", "option"); b.dataset.id = x.id;
-    const s = document.createElement("span"); s.textContent = x.title; const tg = document.createElement("span"); tg.className = "tag"; tg.textContent = KIND_TAG[x.id] || "";
-    b.append(s, tg); b.onclick = () => pick(x.id); L.appendChild(b);
-  }
+  CHAPTERS.forEach((ch, ci) => {
+    const xs = D.filter(x => x.kind === ch.kind); if (!xs.length) return;
+    const det = el("details", "chap"); det.dataset.kind = ch.kind; det.style.setProperty("--k", `var(--${ch.k})`);
+    const sm = el("summary"); sm.append(el("span", "n", String(ci + 1)), el("span", "nm", ch.name), el("span", "ct", String(xs.length)));
+    det.appendChild(sm);
+    for (const x of xs){
+      const b = el("button", "sc"); b.dataset.id = x.id; b.title = x.title;
+      b.append(el("span", "ti", shortTitle(x)));
+      b.onclick = () => { pick(x.id); if (innerWidth <= 900) setSide(false); }; det.appendChild(b);
+    }
+    L.appendChild(det);
+  });
 }
+// ---------------------------------------------------------------- home: every scenario as a card with a picture of itself
+const HOME = {on:false, io:null};
+function posterT(x){
+  if (x.kind === "p4") return 2 * x.cfg.step + 7.5;
+  if (x.kind === "planes"){ const n0 = x.notes[0]; return Math.min(x.dur, (n0 ? n0.t : 0) + x.dur * .035); }
+  const n = x.notes.find(n => PROB.has(n.kind));
+  return n ? Math.min(x.dur, n.t) : x.dur * .45;
+}
+function buildHome(){
+  const box = $("chapters"); box.textContent = "";
+  $("homeFacts").textContent = `${D.length} scenarios · ${CHAPTERS.length} chapters`;
+  CHAPTERS.forEach((ch, ci) => {
+    const xs = D.filter(x => x.kind === ch.kind); if (!xs.length) return;
+    const sec = el("section", "chapter"); sec.style.setProperty("--k", `var(--${ch.k})`);
+    const hd = el("div", "chhead"), tx = el("div");
+    tx.append(el("h2", null, ch.name), el("p", null, ch.blurb));
+    const meta = el("div", "chmeta"); meta.append(el("span", "tag", ch.src), el("span", "tag", `${xs.length} scenario${xs.length > 1 ? "s" : ""}`));
+    hd.append(el("span", "chnum", String(ci + 1)), tx, meta);
+    const grid = el("div", "cards");
+    for (const x of xs){
+      const a = el("a", "card"); a.href = "#" + x.id;
+      const th = el("div", "thumb"), cv2 = document.createElement("canvas"); cv2.dataset.id = x.id; th.appendChild(cv2);
+      if (x.kind === "link" || x.kind === "endpoint" || x.kind === "captured"){            // zoom on where the story happens
+        const n = x.notes.find(n => PROB.has(n.kind)), fx = {A:0, h1:.12, S1:.42, S7:.58, h2:.88, B:1}[n ? n.at : "h1"];
+        th.classList.add("zoom"); th.style.setProperty("--fx", fx == null ? .5 : fx);
+      }
+      const bd = el("div", "cbody"), tag = KIND_TAG[x.id];
+      const h3 = el("h3", null, shortTitle(x)); if (tag) h3.appendChild(el("span", "tag", tag));
+      bd.append(h3, el("p", null, x.summary));
+      a.append(th, bd); grid.appendChild(a);
+    }
+    sec.append(hd, grid); box.appendChild(sec);
+  });
+}
+function drawThumbs(all){
+  if (HOME.io) HOME.io.disconnect();
+  HOME.io = new IntersectionObserver(es => {
+    for (const e of es){
+      if (!e.isIntersecting) continue;
+      const x = D.find(y => y.id === e.target.dataset.id);
+      try { RD.draw(e.target, x, posterT(x), {mode:"simple", sel:null, hover:null, focus:null}); } catch (err) {}
+      HOME.io.unobserve(e.target);
+    }
+  }, {root:$("home"), rootMargin:"300px"});
+  for (const c of document.querySelectorAll(".thumb canvas")) HOME.io.observe(c);
+}
+function showHome(){
+  if (LIVE.on) setSource(false);
+  stop(); HOME.on = true;
+  $("app").classList.add("athome"); $("home").hidden = false; $("run").hidden = true;
+  $("scname").textContent = "";
+  for (const b of document.querySelectorAll(".sc")) b.setAttribute("aria-current", "false");
+  document.title = "Scale-up Packet Viewer";
+  if (location.hash && location.hash !== "#home") history.replaceState(null, "", location.pathname + "#home");
+  drawThumbs();
+}
+function leaveHome(){ if (!HOME.on) return; HOME.on = false; $("app").classList.remove("athome"); $("home").hidden = true; $("run").hidden = false; }
+function stepScenario(dir){ const i = D.findIndex(x => x.id === d.id), n = D[(i + dir + D.length) % D.length]; pick(n.id); }
 function showScenario(){
-  for (const b of $("sclist").children) if (b.dataset.id){ b.setAttribute("aria-selected", b.dataset.id === d.id ? "true" : "false"); b.disabled = LIVE.on && !LIVE.metas.some(m => m.id === b.dataset.id); }
+  for (const b of document.querySelectorAll(".sc")){ b.setAttribute("aria-current", b.dataset.id === d.id ? "true" : "false"); b.disabled = LIVE.on && !LIVE.metas.some(m => m.id === b.dataset.id); }
+  for (const dt of document.querySelectorAll("details.chap")) if (dt.dataset.kind === d.kind) dt.open = true;
   for (const g of document.querySelectorAll("#liveSec [data-kinds], #customSec [data-kinds]")) g.hidden = !g.dataset.kinds.split(" ").includes(d.kind);
-  $("scname").innerHTML = ""; const bb = document.createElement("b"); bb.textContent = d.title; $("scname").append(LIVE.on ? "Live · " : "", bb);
+  const ch = chapterOf(d), ci = CHAPTERS.indexOf(ch), sib = D.filter(x => x.kind === d.kind), si = sib.findIndex(x => x.id === d.id);
+  $("scname").textContent = ""; $("scname").append(el("span", "ch", ch.name), el("span", "sep", "/"), el("b", null, (LIVE.on ? "Live · " : "") + shortTitle(d)));
+  $("schead").style.setProperty("--k", `var(--${ch.k})`);
+  $("sEyebrow").textContent = ""; $("sEyebrow").append(el("span", "chnum", String(ci + 1)), `${ch.name} · ${ch.sub}`, el("span", "of", `${si + 1} of ${sib.length}`));
   $("sTitle").textContent = d.title; $("sSum").textContent = d.summary;
-  $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(LIVE.on ? "Use the fault-injection buttons: every reaction you see is the simulator's." : d.watch);
+  $("sWatch").textContent = ""; $("sWatch").append(el("b", null, "Watch for"), LIVE.on ? "Use the fault-injection buttons: every reaction you see is the simulator's." : d.watch);
+  const nx = D[(D.findIndex(x => x.id === d.id) + 1) % D.length]; $("nextName").textContent = "Next: " + shortTitle(nx); $("bNextSc").title = nx.title + " (N)";
+  $("segView").hidden = d.kind === "planes" || d.kind === "p4";
+  document.title = `${shortTitle(d)} · Scale-up Packet Viewer`;
   const c = d.cfg, r = d.result, kb = n => `${(n * c.credit_size / 1024).toFixed(0)} KB`;
   const downs = c.hops.flatMap((h, i) => h.down.map(([a, b]) => `hop ${i + 1} down ${a}–${b} ${d.unit}`));
   const su = c.suet || {}, wl = c.wl || {};
@@ -286,9 +369,9 @@ function drawInspector(v){
 
 // ---------------------------------------------------------------- main loop
 function drawAll(force){
-  if (!ready()) return;
-  $("clock").innerHTML = ""; $("clock").append(`t = ${fmtT(t)}`); if (LIVE.on && LIVE.waiting){ const s = el("small", null, "waiting for the simulator"); $("clock").appendChild(s); }
-  if (!LIVE.on) $("scrub").value = t;
+  if (HOME.on || !ready()) return;
+  $("clock").innerHTML = ""; $("clock").append(fmtT(t), el("small", null, LIVE.on ? (LIVE.waiting ? "waiting for the simulator" : "live") : `of ${fmtT(d.dur)}`));
+  if (!LIVE.on){ $("scrub").value = t; $("scrub").style.setProperty("--p", (d.dur ? 100 * t / d.dur : 0) + "%"); }
   cv.classList.toggle("hit", !!hover);
   const v = RD.draw(cv, d, t, {mode, sel, hover, focus});
   if (tab === "flow") RD.drawLadder($("cLadder"), d, t, +$("span").value);
@@ -310,8 +393,9 @@ function tick(now){
   if (!LIVE.on && nt >= d.dur){ setT(d.dur); stop(); return; }
   setT(nt); requestAnimationFrame(tick);
 }
-function play(){ if (!LIVE.on && t >= d.dur) t = 0; playing = true; resumedAt = pausedHere ? t : -1; pausedHere = false; lastNote = -2; $("bPlay").textContent = "Pause"; lastFrame = performance.now(); requestAnimationFrame(tick); }
-function stop(atEvent = false){ playing = false; pausedHere = !!atEvent; lastNote = -2; $("bPlay").textContent = !LIVE.on && t >= d.dur ? "Replay" : (atEvent ? "Continue" : "Play"); }
+function playLabel(text, state){ $("bPlayLab").textContent = text; $("bPlay").dataset.state = state; }
+function play(){ if (!LIVE.on && t >= d.dur) t = 0; playing = true; resumedAt = pausedHere ? t : -1; pausedHere = false; lastNote = -2; playLabel("Pause", "pause"); lastFrame = performance.now(); requestAnimationFrame(tick); }
+function stop(atEvent = false){ playing = false; pausedHere = !!atEvent; lastNote = -2; playLabel(!LIVE.on && t >= d.dur ? "Replay" : (atEvent ? "Continue" : "Play"), "play"); }
 
 // ---------------------------------------------------------------- live client
 async function api(path, body){
@@ -390,15 +474,18 @@ function unitControls(){
   const flow = document.querySelector('.dtabs [data-tab=flow]'); flow.disabled = !!d.cfg.no_flow; if (flow.disabled && tab === "flow") setTab("events");
 }
 function pick(id){
-  if (LIVE.on){ startLive(id); return; }
-  stop();
   const [sid, foc] = id.split("/");
-  d = D.find(x => x.id === sid) || D[0]; t = 0; sel = null; lastInsp = ""; lastStats = "";
+  if (!D.some(x => x.id === sid)){ showHome(); return; }
+  if (LIVE.on){ leaveHome(); startLive(id); return; }
+  stop();
+  const wasHome = HOME.on; leaveHome();
+  d = D.find(x => x.id === sid); t = 0; sel = null; lastInsp = ""; lastStats = "";
   focus = d.kind === "planes" && foc && d.extra.designs[foc] ? foc : null;
   for (const b of document.querySelectorAll(".filters button[data-f=A], .filters button[data-f=S], .filters button[data-f=B]")) b.hidden = d.kind === "planes" || d.kind === "p4";
   unitControls();
   showScenario();
   $("scrub").max = d.dur;
+  if (wasHome){ $("run").scrollTop = 0; layout(); }
   buildLog(); RD.drawMarks($("cMarks"), d); drawAll(true);
   if (location.hash.slice(1).split("/")[0] !== d.id) history.replaceState(null, "", location.search + "#" + d.id + (focus ? "/" + focus : ""));
 }
@@ -459,6 +546,12 @@ document.addEventListener("keydown", e => {
   if (e.target.closest && e.target.closest("input, select, textarea")) return;
   if (document.querySelector("dialog[open]")) return;
   const k = e.key;
+  if (k === "h"){ location.hash = "#home"; return; }
+  if (k === "?"){ $("help").showModal(); return; }
+  if (k === "s"){ $("tSide").click(); return; }
+  if (HOME.on) return;
+  if (k === "n"){ stepScenario(1); return; }
+  if (k === "p"){ stepScenario(-1); return; }
   if (k === " " && !(e.target.closest && e.target.closest("button"))){ e.preventDefault(); $("bPlay").click(); }
   else if (k === "ArrowRight" && !LIVE.on){ e.preventDefault(); stop(); setT(t + (e.shiftKey ? 10 : 1)); }
   else if (k === "ArrowLeft" && !LIVE.on){ e.preventDefault(); stop(); setT(t - (e.shiftKey ? 10 : 1)); }
@@ -467,19 +560,19 @@ document.addEventListener("keydown", e => {
   else if (k === "1") setMode("simple");
   else if (k === "2") setMode("detail");
   else if (k === "e") setTab("events"); else if (k === "c") setTab("counters"); else if (k === "f") setTab("flow"); else if (k === "i") setTab("inspect");
-  else if (k === "s") $("tSide").click();
-  else if (k === "?") $("help").showModal();
   else if (k === "Escape"){ if (sel) select(null); if (!$("legend").hidden) $("bLegend").click(); }
 });
-window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h.split("/")[0] !== d.id || (h.split("/")[1] || null) !== focus) pick(h); });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawAll(true));
+$("bPrevSc").onclick = () => stepScenario(-1); $("bNextSc").onclick = () => stepScenario(1);
+$("bHow").onclick = () => $("help").showModal();
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (HOME.on || !h || h === "home" || h.split("/")[0] !== d.id || (h.split("/")[1] || null) !== focus) pick(h); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => HOME.on ? drawThumbs() : drawAll(true));
 
 // ---------------------------------------------------------------- start
-buildList();
+buildList(); buildHome();
 const q = new URLSearchParams(location.search);
 if (q.get("view") === "detail" || q.get("view") === "simple") mode = q.get("view");
 setMode(mode);
-pick(location.hash.slice(1) || D[0].id);
+pick(location.hash.slice(1) || "home");
 if (q.has("t")) setT(+q.get("t"));
 if (q.has("sel")) select({kind:"frame", fid:+q.get("sel")});
 if (q.has("txn")) select({kind:"txn", id:+q.get("txn")});

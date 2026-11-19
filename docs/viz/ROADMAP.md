@@ -46,6 +46,17 @@ Six scenarios under "Planes and recovery (M5)", one per fault: plane 1 dies, fla
   - Found while building it: the "unknown DA not flooded" check sent a zero-padded ESUN frame, whose TTL of 0 dropped it before the DA table was looked up. It now sends TTL 15 and also checks the no-route counter.
 - [ ] M7: UALink flits are a different picture (flit-level, no packets); start a new renderer rather than stretching this one.
 
+## Redesign (done)
+
+After M6 the viewer held 27 scenarios of five kinds in one flat sidebar list named by milestone, with each scenario's description at the bottom of that sidebar.
+
+- [x] A home page (`#home`, the default): hero, five chapters with a short explanation each, one card per scenario. Thumbnails are the real picture, drawn by `RD.draw` at the scenario's first problem (path kinds zoomed on where it happens), so they follow the theme and the traces.
+- [x] Chapters replace milestone names (`CHAPTERS` in `js/app.js`): a collapsible sidebar, a breadcrumb, a colour per chapter.
+- [x] Scenario header above the picture: chapter, title, summary, setup chips, a "Watch for" callout, previous / next scenario.
+- [x] One player bar: play, event steps, time of total, a scrubber with the event marks on it, speed, share.
+- [x] Phone width: sidebar as an overlay (closed at start), single-column header, the timeline on its own row.
+- [x] Keys: `N` / `P` next / previous scenario, `H` home.
+
 ## General
 
 - [ ] A JS test harness (the CDP script in the session scratchpad is the only interaction test today); at least: every scenario loads, Play reaches the end, the inspector opens for every block key.

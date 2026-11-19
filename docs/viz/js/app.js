@@ -12,7 +12,7 @@ if (!TR || !TR.length){
 const store = {get(k, dflt){ try { const v = localStorage.getItem(k); return v == null ? dflt : v; } catch (e){ return dflt; } }, set(k, v){ try { localStorage.setItem(k, v); } catch (e) {} }};
 const GROUPS = {link:"Link layer (M2)", endpoint:"SUE-T endpoint (M3)", captured:"Captured on the wire (M4)", planes:"Planes and recovery (M5)",
   compare:"Five designs, one fault (M5)", p4:"P4 switch in bmv2 (M6)"};
-const KIND_TAG = {"cap-clean":"capture", "cap-ber-hop2":"capture · LLR", "cap-outage-hop1":"capture · FLUSH", "cap-no-llr":"capture · RODL",clean:"baseline", "bit-error":"hop 1 · error", "bit-error-2":"hop 2 · error", "lost-nack":"hop 1 · timer", backpressure:"flow control",
+const KIND_TAG = {"cap-clean":"capture", "cap-ber-hop2":"capture · LLR", "cap-outage-hop1":"capture · FLUSH", "cap-no-llr":"capture · RODL", "p4-pipeline":"bmv2 log",clean:"baseline", "bit-error":"hop 1 · error", "bit-error-2":"hop 2 · error", "lost-nack":"hop 1 · timer", backpressure:"flow control",
   "small-pool":"flow control", "outage-short":"hop 1 · outage", "outage-flush":"hop 1 · FLUSH", "no-llr":"LLR off",
   "suet-stores":"packing", "suet-delivery":"delivery ACK", "suet-loads":"loads", "suet-bidir":"both ways", "suet-gbn":"Go-Back-N", "suet-lite":"SUE-lite", "suet-slow-xpu":"no packing"};
 
@@ -25,8 +25,8 @@ const LIVE = {avail:false, on:false, id:null, busy:false, simT:0, metas:[], wait
 const LOOK = 40;                 // ns the simulator stays ahead of the picture (a frame is logged when its last bit leaves)
 const cv = $("cNet");
 const ready = () => (d.kind !== "link" && d.kind !== "endpoint") || (d.snaps.A.length && d.snaps.B.length && d.snaps.S7.length);
-// times in the scenario's own unit: ns (simulator), µs (planes), ms (emulator captures)
-const DEC = {ns:1, "µs":2, ms:2};
+// times in the scenario's own unit: ns (simulator), µs (planes), ms (emulator captures), steps (P4 pipeline, 10 per frame)
+const DEC = {ns:1, "µs":2, ms:2, step:1};
 const fmtT = x => `${(+x).toFixed(DEC[d.unit] != null ? DEC[d.unit] : 1)} ${d.unit}`;
 
 // ---------------------------------------------------------------- theme
@@ -395,7 +395,7 @@ function pick(id){
   const [sid, foc] = id.split("/");
   d = D.find(x => x.id === sid) || D[0]; t = 0; sel = null; lastInsp = ""; lastStats = "";
   focus = d.kind === "planes" && foc && d.extra.designs[foc] ? foc : null;
-  for (const b of document.querySelectorAll(".filters button[data-f=A], .filters button[data-f=S], .filters button[data-f=B]")) b.hidden = d.kind === "planes";
+  for (const b of document.querySelectorAll(".filters button[data-f=A], .filters button[data-f=S], .filters button[data-f=B]")) b.hidden = d.kind === "planes" || d.kind === "p4";
   unitControls();
   showScenario();
   $("scrub").max = d.dur;
@@ -417,6 +417,10 @@ cv.addEventListener("click", e => {
     focus = h.key === "focus:none" ? null : h.key.slice(7); sel = null; lastStats = ""; lastInsp = "";
     if (location.hash.slice(1) === d.id || location.hash.startsWith("#" + d.id + "/")) history.replaceState(null, "", location.search + "#" + d.id + (focus ? "/" + focus : ""));
     drawAll(true); return;
+  }
+  if (d.kind === "p4" && h && h.kind === "block" && h.key.startsWith("frame:")){      // jump to that frame, fully through the switch
+    stop(); t = Math.min(d.dur, +h.key.slice(6) * d.cfg.step + 6 * d.cfg.stage_steps); sel = h; lastInsp = ""; lastStats = "";
+    if (tab !== "inspect") setTab("inspect"); else drawAll(true); return;
   }
   select(h && sel && JSON.stringify(h) === JSON.stringify(sel) ? null : h);
 });

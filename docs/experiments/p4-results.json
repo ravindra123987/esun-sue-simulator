@@ -79,15 +79,927 @@
    "detail": ""
   }
  ],
+ "packets": [
+  {
+   "check": "ufh16 forwarded by destination id",
+   "src": 0,
+   "in": {
+    "len": 552,
+    "kind": "UFH_16 RODL request",
+    "dst": 2,
+    "src": 0,
+    "dscp": 0,
+    "ecn": 0,
+    "syn": 1,
+    "psn": 7000,
+    "stores": 2
+   },
+   "out": {
+    "2": {
+     "len": 552,
+     "kind": "UFH_16 RODL request",
+     "dst": 2,
+     "src": 0,
+     "dscp": 0,
+     "ecn": 0,
+     "syn": 1,
+     "psn": 7000,
+     "stores": 2
+    }
+   },
+   "bmv2": {
+    "id": 0,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0002"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "2"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "00"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=2 dscp=0 ecn=0 da_encode=2",
+     "ingress result egress_spec=2 priority=0"
+    ],
+    "egress_port": 2,
+    "tx_port": 2,
+    "dropped": false,
+    "deparsed": [
+     "ufh"
+    ]
+   }
+  },
+  {
+   "check": "ufh16 unknown destination dropped",
+   "src": 0,
+   "in": {
+    "len": 552,
+    "kind": "UFH_16 RODL request",
+    "dst": 9,
+    "src": 0,
+    "dscp": 0,
+    "ecn": 0,
+    "syn": 1,
+    "psn": 7000,
+    "stores": 2
+   },
+   "out": {},
+   "bmv2": {
+    "id": 1,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0009"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": false,
+      "action": "SwIngress.drop",
+      "params": [
+       "0"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "00"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=9 dscp=0 ecn=0 da_encode=2",
+     "ingress result egress_spec=511 priority=0"
+    ],
+    "egress_port": 511,
+    "tx_port": null,
+    "dropped": true,
+    "deparsed": []
+   }
+  },
+  {
+   "check": "esun forwarded by DA, TTL decremented",
+   "src": 1,
+   "in": {
+    "len": 302,
+    "kind": "ESUN",
+    "da": "02:a0:00:00:00:03",
+    "sa": "02:a0:00:00:00:01",
+    "cos": 0,
+    "ecn": 0,
+    "ttl": 15,
+    "flow_label": 4660,
+    "crc_ok": true
+   },
+   "out": {
+    "3": {
+     "len": 302,
+     "kind": "ESUN",
+     "da": "02:a0:00:00:00:03",
+     "sa": "02:a0:00:00:00:01",
+     "cos": 0,
+     "ecn": 0,
+     "ttl": 14,
+     "flow_label": 4660,
+     "crc_ok": true
+    }
+   },
+   "bmv2": {
+    "id": 2,
+    "port_in": 1,
+    "states": [
+     "start",
+     "parse_eth",
+     "parse_esun"
+    ],
+    "headers": [
+     "eth",
+     "esun"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.esun.cos": "00"
+      },
+      "table": "SwIngress.tc_esun",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     },
+     {
+      "key": {
+       "hdr.eth.dst": "02a000000003"
+      },
+      "table": "SwIngress.l2_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "3"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed esun da=2886218022915 cos=0 ecn=0 ttl=15 flow_label=4660",
+     "esun ttl decremented to 14",
+     "ingress result egress_spec=3 priority=0"
+    ],
+    "egress_port": 3,
+    "tx_port": 3,
+    "dropped": false,
+    "deparsed": [
+     "eth",
+     "esun"
+    ]
+   }
+  },
+  {
+   "check": "esun TTL 1 dropped",
+   "src": 1,
+   "in": {
+    "len": 302,
+    "kind": "ESUN",
+    "da": "02:a0:00:00:00:03",
+    "sa": "02:a0:00:00:00:01",
+    "cos": 0,
+    "ecn": 0,
+    "ttl": 1,
+    "flow_label": 4660,
+    "crc_ok": true
+   },
+   "out": {},
+   "bmv2": {
+    "id": 3,
+    "port_in": 1,
+    "states": [
+     "start",
+     "parse_eth",
+     "parse_esun"
+    ],
+    "headers": [
+     "eth",
+     "esun"
+    ],
+    "tables": [],
+    "msgs": [
+     "parsed esun da=2886218022915 cos=0 ecn=0 ttl=1 flow_label=4660"
+    ],
+    "egress_port": 511,
+    "tx_port": null,
+    "dropped": true,
+    "deparsed": []
+   }
+  },
+  {
+   "check": "CC_Update not forwarded",
+   "src": 0,
+   "in": {
+    "len": 60,
+    "kind": "MAC control (CC_Update)",
+    "da": "01:80:c2:00:00:01"
+   },
+   "out": {},
+   "bmv2": {
+    "id": 4,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_eth"
+    ],
+    "headers": [
+     "eth"
+    ],
+    "tables": [],
+    "msgs": [
+     "parsed ethernet da=1652522221569 ether_type=34824"
+    ],
+    "egress_port": 511,
+    "tx_port": null,
+    "dropped": true,
+    "deparsed": []
+   }
+  },
+  {
+   "check": "unknown DA not flooded",
+   "src": 0,
+   "in": {
+    "len": 302,
+    "kind": "ESUN",
+    "da": "02:a0:00:00:00:ff",
+    "sa": "02:a0:00:00:00:00",
+    "cos": 0,
+    "ecn": 0,
+    "ttl": 15,
+    "flow_label": 4660,
+    "crc_ok": true
+   },
+   "out": {},
+   "bmv2": {
+    "id": 5,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_eth",
+     "parse_esun"
+    ],
+    "headers": [
+     "eth",
+     "esun"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.esun.cos": "00"
+      },
+      "table": "SwIngress.tc_esun",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     },
+     {
+      "key": {
+       "hdr.eth.dst": "02a0000000ff"
+      },
+      "table": "SwIngress.l2_fwd",
+      "hit": false,
+      "action": "SwIngress.drop",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed esun da=2886218023167 cos=0 ecn=0 ttl=15 flow_label=4660",
+     "esun ttl decremented to 14",
+     "ingress result egress_spec=511 priority=0"
+    ],
+    "egress_port": 511,
+    "tx_port": null,
+    "dropped": true,
+    "deparsed": []
+   }
+  },
+  {
+   "check": "UDP/IP SUE-T forwarded by DA",
+   "src": 0,
+   "in": {
+    "len": 134,
+    "kind": "UDP/IP SUE-T",
+    "da": "02:a0:00:00:00:01",
+    "ip_dst": "10.0.0.1"
+   },
+   "out": {
+    "1": {
+     "len": 134,
+     "kind": "UDP/IP SUE-T",
+     "da": "02:a0:00:00:00:01",
+     "ip_dst": "10.0.0.1"
+    }
+   },
+   "bmv2": {
+    "id": 6,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_eth"
+    ],
+    "headers": [
+     "eth"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.eth.dst": "02a000000001"
+      },
+      "table": "SwIngress.l2_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "1"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ethernet da=2886218022913 ether_type=2048",
+     "ingress result egress_spec=1 priority=0"
+    ],
+    "egress_port": 1,
+    "tx_port": 1,
+    "dropped": false,
+    "deparsed": [
+     "eth"
+    ]
+   }
+  },
+  {
+   "check": "TC to queue: dscp 0 -> q0, dscp 1 -> q1, ESUN CoS 3 -> q3",
+   "src": 0,
+   "in": {
+    "len": 552,
+    "kind": "UFH_16 RODL request",
+    "dst": 1,
+    "src": 0,
+    "dscp": 0,
+    "ecn": 0,
+    "syn": 1,
+    "psn": 7000,
+    "stores": 2
+   },
+   "out": {
+    "1": {
+     "len": 552,
+     "kind": "UFH_16 RODL request",
+     "dst": 1,
+     "src": 0,
+     "dscp": 0,
+     "ecn": 0,
+     "syn": 1,
+     "psn": 7000,
+     "stores": 2
+    }
+   },
+   "bmv2": {
+    "id": 7,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0001"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "1"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "00"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=1 dscp=0 ecn=0 da_encode=2",
+     "ingress result egress_spec=1 priority=0"
+    ],
+    "egress_port": 1,
+    "tx_port": 1,
+    "dropped": false,
+    "deparsed": [
+     "ufh"
+    ]
+   }
+  },
+  {
+   "check": "TC to queue: dscp 0 -> q0, dscp 1 -> q1, ESUN CoS 3 -> q3",
+   "src": 0,
+   "in": {
+    "len": 552,
+    "kind": "UFH_16 RODL request",
+    "dst": 1,
+    "src": 0,
+    "dscp": 1,
+    "ecn": 0,
+    "syn": 1,
+    "psn": 7000,
+    "stores": 2
+   },
+   "out": {
+    "1": {
+     "len": 552,
+     "kind": "UFH_16 RODL request",
+     "dst": 1,
+     "src": 0,
+     "dscp": 1,
+     "ecn": 0,
+     "syn": 1,
+     "psn": 7000,
+     "stores": 2
+    }
+   },
+   "bmv2": {
+    "id": 8,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0001"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "1"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "01"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "1"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=1 dscp=1 ecn=0 da_encode=2",
+     "ingress result egress_spec=1 priority=1"
+    ],
+    "egress_port": 1,
+    "tx_port": 1,
+    "dropped": false,
+    "deparsed": [
+     "ufh"
+    ]
+   }
+  },
+  {
+   "check": "TC to queue: dscp 0 -> q0, dscp 1 -> q1, ESUN CoS 3 -> q3",
+   "src": 0,
+   "in": {
+    "len": 302,
+    "kind": "ESUN",
+    "da": "02:a0:00:00:00:01",
+    "sa": "02:a0:00:00:00:00",
+    "cos": 3,
+    "ecn": 0,
+    "ttl": 15,
+    "flow_label": 4660,
+    "crc_ok": true
+   },
+   "out": {
+    "1": {
+     "len": 302,
+     "kind": "ESUN",
+     "da": "02:a0:00:00:00:01",
+     "sa": "02:a0:00:00:00:00",
+     "cos": 3,
+     "ecn": 0,
+     "ttl": 14,
+     "flow_label": 4660,
+     "crc_ok": true
+    }
+   },
+   "bmv2": {
+    "id": 9,
+    "port_in": 0,
+    "states": [
+     "start",
+     "parse_eth",
+     "parse_esun"
+    ],
+    "headers": [
+     "eth",
+     "esun"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.esun.cos": "03"
+      },
+      "table": "SwIngress.tc_esun",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "3"
+      ]
+     },
+     {
+      "key": {
+       "hdr.eth.dst": "02a000000001"
+      },
+      "table": "SwIngress.l2_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "1"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed esun da=2886218022913 cos=3 ecn=0 ttl=15 flow_label=4660",
+     "esun ttl decremented to 14",
+     "ingress result egress_spec=1 priority=3"
+    ],
+    "egress_port": 1,
+    "tx_port": 1,
+    "dropped": false,
+    "deparsed": [
+     "eth",
+     "esun"
+    ]
+   }
+  },
+  {
+   "check": "ufh16 ECT -> CE, CRC still good",
+   "src": 2,
+   "in": {
+    "len": 552,
+    "kind": "UFH_16 RODL request",
+    "dst": 3,
+    "src": 2,
+    "dscp": 0,
+    "ecn": 1,
+    "syn": 1,
+    "psn": 7000,
+    "stores": 2
+   },
+   "out": {
+    "3": {
+     "len": 552,
+     "kind": "UFH_16 RODL request",
+     "dst": 3,
+     "src": 2,
+     "dscp": 0,
+     "ecn": 3,
+     "syn": 1,
+     "psn": 7000,
+     "stores": 2
+    }
+   },
+   "bmv2": {
+    "id": 10,
+    "port_in": 2,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0003"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "3"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "00"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=3 dscp=0 ecn=1 da_encode=2",
+     "ingress result egress_spec=3 priority=0",
+     "egress ecn marked CE, queue depth 0"
+    ],
+    "egress_port": 3,
+    "tx_port": 3,
+    "dropped": false,
+    "deparsed": [
+     "ufh"
+    ]
+   }
+  },
+  {
+   "check": "esun ECT -> CE, CRC still good",
+   "src": 3,
+   "in": {
+    "len": 302,
+    "kind": "ESUN",
+    "da": "02:a0:00:00:00:00",
+    "sa": "02:a0:00:00:00:03",
+    "cos": 0,
+    "ecn": 2,
+    "ttl": 15,
+    "flow_label": 4660,
+    "crc_ok": true
+   },
+   "out": {
+    "0": {
+     "len": 302,
+     "kind": "ESUN",
+     "da": "02:a0:00:00:00:00",
+     "sa": "02:a0:00:00:00:03",
+     "cos": 0,
+     "ecn": 3,
+     "ttl": 14,
+     "flow_label": 4660,
+     "crc_ok": true
+    }
+   },
+   "bmv2": {
+    "id": 11,
+    "port_in": 3,
+    "states": [
+     "start",
+     "parse_eth",
+     "parse_esun"
+    ],
+    "headers": [
+     "eth",
+     "esun"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.esun.cos": "00"
+      },
+      "table": "SwIngress.tc_esun",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     },
+     {
+      "key": {
+       "hdr.eth.dst": "02a000000000"
+      },
+      "table": "SwIngress.l2_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed esun da=2886218022912 cos=0 ecn=2 ttl=15 flow_label=4660",
+     "esun ttl decremented to 14",
+     "ingress result egress_spec=0 priority=0",
+     "egress ecn marked CE, queue depth 0"
+    ],
+    "egress_port": 0,
+    "tx_port": 0,
+    "dropped": false,
+    "deparsed": [
+     "eth",
+     "esun"
+    ]
+   }
+  },
+  {
+   "check": "non-ECT left alone",
+   "src": 2,
+   "in": {
+    "len": 552,
+    "kind": "UFH_16 RODL request",
+    "dst": 3,
+    "src": 2,
+    "dscp": 0,
+    "ecn": 0,
+    "syn": 1,
+    "psn": 7000,
+    "stores": 2
+   },
+   "out": {
+    "3": {
+     "len": 552,
+     "kind": "UFH_16 RODL request",
+     "dst": 3,
+     "src": 2,
+     "dscp": 0,
+     "ecn": 0,
+     "syn": 1,
+     "psn": 7000,
+     "stores": 2
+    }
+   },
+   "bmv2": {
+    "id": 12,
+    "port_in": 2,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0003"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "3"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "00"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=3 dscp=0 ecn=0 da_encode=2",
+     "ingress result egress_spec=3 priority=0"
+    ],
+    "egress_port": 3,
+    "tx_port": 3,
+    "dropped": false,
+    "deparsed": [
+     "ufh"
+    ]
+   }
+  },
+  {
+   "check": "ufh16 ACK forwarded",
+   "src": 3,
+   "in": {
+    "len": 60,
+    "kind": "UFH_16 ACK",
+    "dst": 0,
+    "src": 3,
+    "dscp": 0,
+    "ecn": 0,
+    "cack_psn": 10
+   },
+   "out": {
+    "0": {
+     "len": 60,
+     "kind": "UFH_16 ACK",
+     "dst": 0,
+     "src": 3,
+     "dscp": 0,
+     "ecn": 0,
+     "cack_psn": 10
+    }
+   },
+   "bmv2": {
+    "id": 13,
+    "port_in": 3,
+    "states": [
+     "start",
+     "parse_ufh"
+    ],
+    "headers": [
+     "ufh"
+    ],
+    "tables": [
+     {
+      "key": {
+       "hdr.ufh.dst": "0000"
+      },
+      "table": "SwIngress.ufh_fwd",
+      "hit": true,
+      "action": "SwIngress.set_port",
+      "params": [
+       "0"
+      ]
+     },
+     {
+      "key": {
+       "hdr.ufh.dscp": "00"
+      },
+      "table": "SwIngress.tc_ufh",
+      "hit": true,
+      "action": "SwIngress.set_queue",
+      "params": [
+       "0"
+      ]
+     }
+    ],
+    "msgs": [
+     "parsed ufh16 dst=0 dscp=0 ecn=0 da_encode=2",
+     "ingress result egress_spec=0 priority=0"
+    ],
+    "egress_port": 0,
+    "tx_port": 0,
+    "dropped": false,
+    "deparsed": [
+     "ufh"
+    ]
+   }
+  }
+ ],
+ "pairing": {
+  "sent": 14,
+  "bmv2_packets": 14
+ },
  "traffic": {
   "1-plane-pinned": {
    "completed": true,
    "planes": 1,
-   "wall_s": 3.7,
+   "wall_s": 4.0,
    "done": 12288,
    "failed": 0,
    "total": 12288,
-   "finished_s": 0.3706,
+   "finished_s": 0.4326,
    "retx": 0,
    "rtos": 0,
    "bad_marks": 0,
@@ -98,7 +1010,7 @@
     "0": {
      "tc_packets": [
       1536,
-      82,
+      255,
       0,
       0,
       0,
@@ -119,25 +1031,25 @@
   "4-plane-spray": {
    "completed": true,
    "planes": 4,
-   "wall_s": 9.5,
+   "wall_s": 10.1,
    "done": 49152,
    "failed": 0,
    "total": 49152,
-   "finished_s": 1.8079,
+   "finished_s": 1.8027,
    "retx": 0,
    "rtos": 0,
    "bad_marks": 0,
    "port_pkts": [
-    1548,
-    1548,
-    1548,
-    1547
+    1561,
+    1563,
+    1562,
+    1562
    ],
    "bmv2": {
     "0": {
      "tc_packets": [
-      1548,
-      1463,
+      1561,
+      1476,
       0,
       0,
       0,
@@ -155,8 +1067,8 @@
     },
     "1": {
      "tc_packets": [
-      1548,
-      1441,
+      1563,
+      1467,
       0,
       0,
       0,
@@ -174,8 +1086,8 @@
     },
     "2": {
      "tc_packets": [
-      1548,
-      1398,
+      1562,
+      1448,
       0,
       0,
       0,
@@ -193,8 +1105,8 @@
     },
     "3": {
      "tc_packets": [
-      1547,
-      1619,
+      1562,
+      1606,
       0,
       0,
       0,
@@ -215,25 +1127,25 @@
   "4-plane-spray-plane-kill": {
    "completed": true,
    "planes": 4,
-   "wall_s": 9.4,
+   "wall_s": 11.6,
    "done": 49152,
    "failed": 0,
    "total": 49152,
-   "finished_s": 2.6123,
-   "retx": 12,
-   "rtos": 11,
-   "bad_marks": 7,
+   "finished_s": 3.3281,
+   "retx": 10,
+   "rtos": 10,
+   "bad_marks": 8,
    "port_pkts": [
-    1948,
-    506,
-    1951,
-    1951
+    1958,
+    422,
+    1959,
+    1958
    ],
    "bmv2": {
     "0": {
      "tc_packets": [
-      1948,
-      1836,
+      1958,
+      1815,
       0,
       0,
       0,
@@ -251,8 +1163,8 @@
     },
     "1": {
      "tc_packets": [
-      494,
-      438,
+      412,
+      384,
       0,
       0,
       0,
@@ -270,8 +1182,8 @@
     },
     "2": {
      "tc_packets": [
-      1951,
-      1853,
+      1959,
+      1839,
       0,
       0,
       0,
@@ -289,8 +1201,8 @@
     },
     "3": {
      "tc_packets": [
-      1951,
-      1976,
+      1958,
+      1980,
       0,
       0,
       0,
@@ -311,25 +1223,25 @@
   "4-plane-pinned-plane-kill": {
    "completed": false,
    "planes": 4,
-   "wall_s": 67.1,
-   "done": 20460,
-   "failed": 256,
+   "wall_s": 68.2,
+   "done": 14684,
+   "failed": 272,
    "total": 49152,
    "finished_s": null,
-   "retx": 131,
-   "rtos": 22,
+   "retx": 124,
+   "rtos": 21,
    "bad_marks": 0,
    "port_pkts": [
-    535,
-    842,
-    464,
-    942
+    399,
+    602,
+    347,
+    702
    ],
    "bmv2": {
     "0": {
      "tc_packets": [
-      535,
-      127,
+      399,
+      99,
       0,
       0,
       0,
@@ -347,8 +1259,8 @@
     },
     "1": {
      "tc_packets": [
-      747,
-      47,
+      514,
+      34,
       0,
       0,
       0,
@@ -366,8 +1278,8 @@
     },
     "2": {
      "tc_packets": [
-      464,
-      85,
+      347,
+      55,
       0,
       0,
       0,
@@ -385,8 +1297,8 @@
     },
     "3": {
      "tc_packets": [
-      942,
-      56,
+      702,
+      45,
       0,
       0,
       0,

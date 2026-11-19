@@ -156,6 +156,8 @@
       <p>The scenarios under "Captured on the wire" are real frames from the emulator (<code>emu/</code>), two XPUs and a user-space switch, both cables captured. Times are milliseconds; a frame is drawn crossing its cable in 0.6 ms so you can see it. Each block shows only what the capture shows at that point: frames, LLR replays, CRC failures, LLR and credit control units, and the SUE-T packets decoded from the frames. Receive verdicts and RODL's accept / gap decisions are inferred from the sequence numbers; the switch's buffers and credits are not visible on a wire.</p></div>
     <div><h3>Planes and recovery (M5)</h3>
       <p>Each scenario is one fault on a fabric of four XPUs and four switch planes, run with every recovery design: SUE-T 1.0 (pinned), SUE-T with failover, MetaRoCE-style and MRC-style spraying, and MRC-style over LLR links. Each row shows the design's cable use per XPU and plane at this moment (crossed out when a cable is down, outlined when LLR is replaying), its stores completed per µs over the run, and its counters. Click a row to see that design's fabric: every cable direction drawn by how busy it is, and the path each XPU uses towards each peer. Times are microseconds.</p></div>
+    <div><h3>P4 switch in bmv2 (M6)</h3>
+      <p>The test frames from the M6 checks, one at a time, through the switch in <code>p4/esun_switch.p4</code> as bmv2 logged them: the frame as sent, the parser states it took, each ingress table's key and whether it hit, the queue (0–7) it was given, whether egress set ECN to CE, the headers written back, and the frame each XPU actually received, with rewritten fields in orange. Every frame takes 10 steps; time here is steps, not a clock. Click a frame in the strip to jump to it, or a stage for its details. Drop reasons that are not a table miss (TTL, MAC control) come from the program's rules: bmv2 logs only the drop port.</p></div>
     <div><h3>Live mode</h3>
       <p>Run <code>python3 tools/live.py</code> in a clone of the repo and open <code>http://127.0.0.1:8765/</code>. The page then runs the simulator a few nanoseconds ahead of what it shows. The sidebar gains fault-injection buttons per hop and a custom-run form; the SUE-T endpoint scenarios also get XPU A's issue rate (watch packing follow the queue) and a SUE-lite switch. Live mode is local only; the published page offers Recorded.</p></div>
     <div><h3>Keyboard</h3>
@@ -193,5 +195,6 @@ python3 tools/live.py          # then open http://127.0.0.1:8765/</pre>
 <script src="js/data.js"></script>
 <script src="js/render.js"></script>
 <script src="js/planes.js"></script>
+<script src="js/p4view.js"></script>
 <script src="js/app.js"></script>
 </html>

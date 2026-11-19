@@ -120,6 +120,11 @@ const blockName = (d, key) => {
     if (k === "sw") return `Switch · plane ${v}`;
     if (k === "design") return (d.extra.designs[v] || {}).label || v;
   }
+  if (d.kind === "p4"){
+    const [k, v] = key.split(":");
+    if (k === "stage") return "P4 switch · " + d.cfg.stages[+v];
+    if (k === "frame") return `Test frame ${+v + 1}`;
+  }
   return (d.kind === "endpoint" && EP_NAMES[key]) || (d.kind === "captured" && CAP_NAMES[key]) || BLOCK_NAMES[key] || key;
 };
 const STATE_COL = s => ({ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[s] || C.muted);
@@ -237,6 +242,7 @@ function draw(cv, d, t, opts){
     g.fillStyle = C.grid; for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) g.fillRect(x, y, 1.3, 1.3);
     return drawCaptured(g, d, t, view(d, t), opts.mode === "detail");
   }
+  if (SUE.p4 && SUE.p4.handles(d)) return SUE.p4.draw(cv, d, t, opts, {fit, T, tw, pill, rr, alpha, C, HIT, setCur:o => { cur = o; }});
   if (SUE.planes && SUE.planes.handles(d)) return SUE.planes.draw(cv, d, t, opts, {fit, T, tw, pill, rr, alpha, C, HIT, setCur:o => { cur = o; }});
   return drawPath(cv, d, t, opts);
 }

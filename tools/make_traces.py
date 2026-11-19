@@ -212,6 +212,13 @@ SCENARIOS = [
                  "in-order RODL every reorder looks like a loss (NACK, Go-Back-N); with out-of-order delivery and SACK it "
                  "costs nothing. M3's T5 and M5's argument for RUD.",
          watch="The in-order row's stalls and resends against the SACK row finishing at full rate."),
+    # ---- the P4 switch (M6): bmv2's own log of each test frame (tools/p4_trace.py, docs/experiments/p4-results.json)
+    dict(id="p4-pipeline", kind="p4", title="What the P4 switch did with each frame",
+         summary="The 14 test frames from the M6 checks (emu/p4check.py), as bmv2 running p4/esun_switch.p4 logged them: "
+                 "which parser states each took, which tables it hit and with what key, the queue it was given, whether "
+                 "egress marked ECN, and what each XPU actually received.",
+         watch="The ingress stage: UFH_16 frames are forwarded on the 16-bit destination id, ESUN and IP frames on the "
+               "MAC DA. TTL is rewritten only for ESUN; MAC control and unknown destinations never leave."),
 ]
 
 # fabric names (sim/fabric.py) -> the viewer's path names
@@ -303,6 +310,11 @@ def run(sc):
         return convert(CAPTURES / sc["pcap"], sc)
     if sc.get("kind") == "planes":
         return run_planes(sc)
+    if sc.get("kind") == "p4":
+        from tools import p4_trace
+        tr = p4_trace.build()
+        tr.update({k: sc[k] for k in ("id", "title", "summary", "watch")})
+        return tr
     kw, cfg = setup(sc)
     tr = []
     s = PathSession(trace=tr, **kw)

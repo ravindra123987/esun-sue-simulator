@@ -39,9 +39,11 @@ Six scenarios under "Planes and recovery (M5)", one per fault: plane 1 dies, fla
 - [x] Load-balancing scenario from T5: per-packet spraying over unequal planes, in order (NACK and Go-Back-N storms) against out of order with SACK.
 - Found on the way: in the spray designs, a dead plane silences the whole fabric for most of a transport timer, because every PDC holds a hole and its window is a PSN span from it. The write-up said the other planes "never stopped"; corrected.
 
-## M6 / M7
+## M6 (done) / M7
 
-- [ ] M6: a "what the switch parsed" overlay from bmv2 logs (ESUN header fields, TC → queue). Low priority. The switch now exists (p4/esun_switch.p4, docs/p4-switch.md); bmv2's `--log-console` prints the parsed headers and table hits per packet, which is the input this needs.
+- [x] M6: "what the switch did with each frame", from bmv2's own log. `tools/run_m6.py` runs the frame checks with `--log-console --log-level debug`; the program logs its parsed fields, the TTL rewrite, the ingress result and ECN marking (`log_msg`); `emu/p4check.parse_bmv2_log` turns the log into one record per packet and pairs it with the frame sent and what each XPU received (14 of 14). `tools/p4_trace.py` makes the scenario; `docs/viz/js/p4view.js` draws the pipeline (frame in, parser, ingress tables, queues, egress ECN, deparser, frame out per XPU with rewritten fields marked) and a strip of all frames to jump between.
+  - Decided: a pipeline picture of its own, not an overlay on the path picture. The path picture is about time on cables; what the switch did to one frame is about stages and fields, and the checks send one frame at a time.
+  - Found while building it: the "unknown DA not flooded" check sent a zero-padded ESUN frame, whose TTL of 0 dropped it before the DA table was looked up. It now sends TTL 15 and also checks the no-route counter.
 - [ ] M7: UALink flits are a different picture (flit-level, no packets); start a new renderer rather than stretching this one.
 
 ## General

@@ -135,10 +135,11 @@ def test_flush_caption_counts_the_frames(traces):
 
 def test_build_is_deterministic(built):
     """A second build gives the same bytes (the fast kinds in full, and one planes scenario)."""
-    fast = {"link", "endpoint", "captured"}
+    fast = {"link", "endpoint", "captured", "p4"}
     first = [t for t in built if t["cfg"]["kind"] in fast or t["id"] == "planes-reorder"]
     again = MT.build(kinds=fast) + MT.build(ids={"planes-reorder"})
-    assert MT.render(first) == MT.render(again), "two builds differ: a scenario hook keeps state between runs"
+    by_id = lambda ts: sorted(ts, key=lambda t: t["id"])
+    assert MT.render(by_id(first)) == MT.render(by_id(again)), "two builds differ: a scenario hook keeps state between runs"
 
 
 def test_traces_js_is_up_to_date(built):
@@ -162,3 +163,24 @@ def test_planes_scenarios_carry_every_design_and_tell_the_m5_story(traces):
     assert pl["planes-plane-ber"]["result"]["mrc+llr"]["finished_us"] < pl["planes-plane-ber"]["result"]["mrc"]["finished_us"]
     ro = pl["planes-reorder"]["result"]
     assert ro["rud-spray"]["finished_us"] < ro["rodl-spray"]["finished_us"] / 3
+
+
+def test_p4_scenario_walks_every_recorded_frame(traces):
+    t = traces["p4-pipeline"]
+    fr = t["extra"]["frames"]
+    assert t["cfg"]["kind"] == "p4" and len(fr) == t["result"]["frames"] == 14 and t["cfg"]["sim_ns"] == 14 * t["cfg"]["step"]
+    assert t["result"]["checks_ok"] == t["result"]["checks"]
+    for f in fr:
+        assert f["dropped"] == (not f["out"]) and bool(f["drop"]) == f["dropped"], f["check"]
+        if not f["dropped"]:
+            assert 0 <= f["queue"] <= 7
+            for o in f["out"].values():
+                if f["ttl"] is not None:
+                    assert o["ttl"] == int(f["ttl"]) == f["in"]["ttl"] - 1
+                if f["ecn_marked"]:
+                    assert o["ecn"] == 3 and f["in"]["ecn"] in (1, 2)
+    why = {f["check"]: f["drop"] for f in fr if f["dropped"]}
+    assert "ufh_fwd" in why["ufh16 unknown destination dropped"] and "l2_fwd" in why["unknown DA not flooded"]
+    assert "TTL" in why["esun TTL 1 dropped"] and "MAC control" in why["CC_Update not forwarded"]
+    assert sorted(f["queue"] for f in fr if f["check"].startswith("TC to queue")) == [0, 1, 3]
+    assert {n["at"] for n in t["notes"]} == {"p4"} and len(t["notes"]) == 2 * len(fr)

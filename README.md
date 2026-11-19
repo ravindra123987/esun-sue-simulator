@@ -15,7 +15,7 @@ A learning project for Ethernet scale-up networking: **SUE-T** (endpoint transpo
 | M3 | SUE-T endpoint in the simulator | first cut: queues, packing, RODL (Go-Back-N or SUE-lite), both ACK modes, ports, all-to-all and ring all-reduce on an N-XPU fabric: [docs/experiments/suet-endpoint.md](docs/experiments/suet-endpoint.md) |
 | M4 | netns emulator with a user-space switch | first cut: netns lab, user-space switch with LLR + CBFC per port, SUE-T endpoints on real UFH_16 frames, nine fault scenarios checked against the simulator, captures the dissector decodes: [docs/experiments/emulator.md](docs/experiments/emulator.md) |
 | M5 | Multi-plane, three-way comparison | done: five recovery designs (SUE-T 1.0, SUE-T + failover, MetaRoCE-style, MRC-style, MRC + LLR) under six plane faults, a bit-error sweep and a lossy fabric with trimming in the simulator, and the plane faults on real frames in the four-plane emulator: [docs/where-should-retry-live.md](docs/where-should-retry-live.md) |
-| M6 | P4/bmv2 switch | first cut: a v1model switch for UFH_16 and ESUN (forwarding, TTL, TC to queue, ECN), 13 frame checks and SUE-T traffic through bmv2 in the lab, and a SAI mapping including the UEC LLR/CBFC additions: [docs/p4-switch.md](docs/p4-switch.md) |
+| M6 | P4/bmv2 switch | first cut: a v1model switch for UFH_16 and ESUN (forwarding, TTL, TC to queue, ECN), 13 frame checks and SUE-T traffic through bmv2 in the lab, and a SAI mapping including the UEC LLR/CBFC additions: [docs/p4-switch.md](docs/p4-switch.md); every test frame through the pipeline in the packet viewer |
 | M7 | UALoE, then UALink | later |
 
 The full plan is in [plan.md](plan.md).
@@ -26,7 +26,7 @@ The full plan is in [plan.md](plan.md).
 plan.md         milestones, design principles, open questions
 specs/          reference PDFs (git-ignored) + README with sources and how they relate
 docs/           delta table, findings (m1-decisions.md: choices the specs leave open), experiments
-docs/viz/       packet viewer app: index.html + app.css + js/{data,render,app}.js, generated traces.js; live via tools/live.py; ROADMAP.md = what each milestone adds
+docs/viz/       packet viewer app: index.html + app.css + js/{data,render,planes,p4view,app}.js, generated traces.js; live via tools/live.py; ROADMAP.md = what each milestone adds
 sue/            Scapy layers (UFH_16, RODL, Unified Local SES, ESUN), UET CRC, frame builders
 wireshark/      sue.lua dissector (UFH_16, RODL, SES, ESUN, UET CRC; the emulator's LLR shim, CF_Update, CC_Update)
 pcaps/golden/   reference captures, one packet type each, + golden.json expectations
@@ -41,7 +41,7 @@ emu/            netns emulator: shim.py (what the link layer looks like on a vet
                 switch.py (user-space switch, VOQ), endpoint.py (SUE-T endpoint process), lab.py (namespaces, veths, tcpdump,
                 faults, a bmv2 switch mode), analyze.py (pcap counts), p4check.py (frame checks of the P4 switch)
 tools/          make_golden.py, run_m2.py / run_m3.py (experiments + plots), run_m4.py (emulator scenarios, run in the VM / report
-                on the Mac; --viewer records path captures), pcap2trace.py (captures -> viewer events), run_m5.py (plane faults x recovery designs, bit-error sweep, lossy fabric), run_m6.py (P4 switch in bmv2, VM), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
+                on the Mac; --viewer records path captures), pcap2trace.py (captures -> viewer events), planes_trace.py and p4_trace.py (M5 and M6 viewer scenarios), run_m5.py (plane faults x recovery designs, bit-error sweep, lossy fabric), run_m6.py (P4 switch in bmv2, VM), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests, tshark-based dissector tests, simulator tests, emulator tests over an in-memory wire
 ```
 
@@ -85,6 +85,8 @@ The **SUE-T endpoint** group (M3) runs two SUE-T instances (`sim/suet.py`, `sim/
 The **Planes and recovery** group (M5) puts each fault from [docs/where-should-retry-live.md](docs/where-should-retry-live.md) on screen with all five designs side by side: cable use per XPU and plane, completions over time, and a click opens one design's whole fabric (`tools/planes_trace.py`, `docs/viz/js/planes.js`).
 
 The **Captured on the wire** group (M4) replays real frames from the emulator on the same picture: `tools/pcap2trace.py` turns two-link captures from the lab (`pcaps/emu/path/`) into viewer events, with times in milliseconds and each block showing only what crossed the wire.
+
+The **P4 switch in bmv2** group (M6) walks each test frame from the M6 checks through the switch's pipeline as bmv2 logged it: parser states, each ingress table's key and hit or miss, the queue, ECN marking at egress, and the frame each XPU received with rewritten fields marked (`tools/p4_trace.py` from `docs/experiments/p4-results.json`, `docs/viz/js/p4view.js`).
 
 To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (per-hop cable settings, LLR, switch and XPU B buffers, plus optional corruption hooks per wire) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
 

@@ -138,6 +138,14 @@ control SwIngress(inout headers_t hdr, inout meta_t meta, inout standard_metadat
     }
 
     apply {
+        // what the parser found, for the packet viewer's M6 overlay (bmv2 --log-console prints these)
+        if (hdr.ufh.isValid()) {
+            log_msg("parsed ufh16 dst={} dscp={} ecn={} da_encode={}", {hdr.ufh.dst, hdr.ufh.dscp, hdr.ufh.ecn, hdr.ufh.da_encode});
+        } else if (hdr.esun.isValid()) {
+            log_msg("parsed esun da={} cos={} ecn={} ttl={} flow_label={}", {hdr.eth.dst, hdr.esun.cos, hdr.esun.ecn, hdr.esun.ttl, hdr.esun.flow_label});
+        } else if (hdr.eth.isValid()) {
+            log_msg("parsed ethernet da={} ether_type={}", {hdr.eth.dst, hdr.eth.ether_type});
+        }
         if (hdr.ufh.isValid()) {
             ufh_fwd.apply();
             tc_ufh.apply();
@@ -152,6 +160,7 @@ control SwIngress(inout headers_t hdr, inout meta_t meta, inout standard_metadat
                     return;
                 }
                 hdr.esun.ttl = hdr.esun.ttl - 1;
+                log_msg("esun ttl decremented to {}", {hdr.esun.ttl});
                 tc_esun.apply();
             }
             l2_fwd.apply();
@@ -160,6 +169,7 @@ control SwIngress(inout headers_t hdr, inout meta_t meta, inout standard_metadat
             return;
         }
         tc_ctr.count((bit<32>) sm.priority);
+        log_msg("ingress result egress_spec={} priority={}", {sm.egress_spec, sm.priority});
     }
 }
 
@@ -174,9 +184,11 @@ control SwEgress(inout headers_t hdr, inout meta_t meta, inout standard_metadata
             if (hdr.ufh.isValid() && (hdr.ufh.ecn == 1 || hdr.ufh.ecn == 2)) {
                 hdr.ufh.ecn = 3;
                 ce_ctr.count(0);
+                log_msg("egress ecn marked CE, queue depth {}", {sm.enq_qdepth});
             } else if (hdr.esun.isValid() && (hdr.esun.ecn == 1 || hdr.esun.ecn == 2)) {
                 hdr.esun.ecn = 3;
                 ce_ctr.count(0);
+                log_msg("egress ecn marked CE, queue depth {}", {sm.enq_qdepth});
             }
         }
     }

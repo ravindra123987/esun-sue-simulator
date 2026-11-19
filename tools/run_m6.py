@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from emu import lab as L  # noqa: E402
-from emu.p4check import run_checks  # noqa: E402
+from emu.p4check import parse_bmv2_log, run_checks  # noqa: E402
 
 N = 4
 RAW = ["--no-llr", "--no-cbfc", "--no-shim"]
@@ -41,10 +41,18 @@ def frame_checks(out):
     try:
         lab.build()
         lab.start_capture()
-        lab.start_bmv2(0)
+        lab.start_bmv2(0, log=True)
         res = run_checks(N, lambda c: lab.bmv2_cli(0, c), lambda: lab.bmv2_counters(0))
+        time.sleep(0.5)
+        log = subprocess.run(["docker", "logs", "bmv2-sw0"], capture_output=True, text=True)
+        text = log.stdout + log.stderr
+        (Path(out) / "checks" / "bmv2.log").write_text(text)
+        recs = parse_bmv2_log(text)
+        sent = run_checks.sent
+        # bmv2 numbers packets in arrival order; the checks send one frame at a time, so they pair up in order
+        packets = [dict(s_, bmv2=recs[k] if k < len(recs) else None) for k, s_ in enumerate(sent)]
         lab.stop()
-        return res
+        return res, packets, {"sent": len(sent), "bmv2_packets": len(recs)}
     finally:
         subprocess.run(["docker", "rm", "-f", "bmv2-sw0"], capture_output=True)
         lab.destroy()
@@ -80,12 +88,13 @@ def main(argv=None):
     if a.compile_to:
         res["compile"] = compile_p4(a.compile_to)
         print("compile:", res["compile"], flush=True)
-    res["checks"] = frame_checks(out)
+    res["checks"], res["packets"], res["pairing"] = frame_checks(out)
+    print("packets:", res["pairing"], flush=True)
     for c in res["checks"]:
         print(("PASS " if c["ok"] else "FAIL ") + c["check"], c["detail"], flush=True)
     res["traffic"] = {}
     runs = [
-        ("1-plane-pinned", 1, ["--bytes-per-peer", "262144", "--path", "pin", "--order", "rodl", "--rto", "1.0"], ()),
+        ("1-plane-pinned", 1, ["--bytes-per-peer", "262144", "--path", "pin", "--order", "rodl", "--rto", "1.0", "--window", "8"], ()),
         ("4-plane-spray", 4, ["--bytes-per-peer", "1048576", "--path", "spray", "--order", "rud", "--rto", "1.0",
                               "--window", "8", "--probe", "1.0"], ()),
         ("4-plane-spray-plane-kill", 4, ["--bytes-per-peer", "1048576", "--path", "spray", "--order", "rud", "--rto", "1.0",

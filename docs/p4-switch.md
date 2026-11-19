@@ -31,7 +31,7 @@ What a P4 pipeline cannot do: **LLR and CBFC.** Both live below the MAC client, 
 | ESUN UET CRC still good after the TTL rewrite | decision D3 on a real pipeline |
 | ESUN with TTL 1 dropped | ESUN §5.2 |
 | CC_Update (MAC control) not forwarded | link-local |
-| Ethernet frame with an unknown DA not flooded | ESUN §5 |
+| ESUN frame (TTL 15) to an unknown DA: `l2_fwd` misses, nothing flooded, no-route counter +1 | ESUN §5 |
 | UDP/IP SUE-T frame forwarded by DA, unchanged | SUE-T §8.3, third header stack |
 | dscp 0 → queue 0, dscp 1 → queue 1, ESUN CoS 3 → queue 3 | TC mapping |
 | UFH_16 ECT → CE, CRC still good | byte 7 masked in the UET CRC |
@@ -47,12 +47,18 @@ The M4/M5 endpoints, four XPUs, through one bmv2 instance per plane (plain links
 
 | Run | Result | bmv2 counters |
 |---|---|---|
-| 1 plane, pinned RODL, 256 KB per peer | all 12 288 stores in 0.37 s, no retransmission | 1 536 packets on queue 0 (requests), 82 on queue 1 (ACKs), no drops |
-| 4 planes, spray + SACK, 1 MB per peer | all 49 152 stores in 1.81 s; 1 548 / 1 548 / 1 548 / 1 547 packets per plane | requests on queue 0, ACKs on queue 1 on every plane |
-| 4 planes, spray, plane 1 down at 0.5 s | all 49 152 in 2.61 s, 11 timeouts, plane 1 marked bad 7 times, 0 failed | plane 1 carried 494 requests before it died |
-| 4 planes, pinned, plane 1 down at 0.5 s | did not finish in 90 s; 256 stores failed | — |
+| 1 plane, pinned RODL, 256 KB per peer, window 8 | all 12 288 stores in 0.43 s, no retransmission | 1 536 packets on queue 0 (requests), 255 on queue 1 (ACKs), no drops |
+| 4 planes, spray + SACK, 1 MB per peer | all 49 152 stores in 1.80 s; 1 561 / 1 563 / 1 562 / 1 562 packets per plane | requests on queue 0, ACKs on queue 1 on every plane |
+| 4 planes, spray, plane 1 down at 0.5 s | all 49 152 in 3.33 s, 10 timeouts, plane 1 marked bad 8 times, 0 failed | plane 1 carried 412 requests before it died |
+| 4 planes, pinned, plane 1 down at 0.5 s | never finishes: the endpoints gave up after 68 s with 272 stores failed, 124 resends | — |
+
+The one-plane run limits each connection to 8 packets in flight (`--window 8`). With the default window, four XPUs offer more than one bmv2 instance forwards under Rosetta, its egress queues overflow, and the run spends its time resending (over a thousand resends in an earlier run): a measurement of the emulator, not of the transport. The four-plane runs spread the same load over four switches and do not need it. Times and counts move by a few per cent from run to run (wall-clock emulation).
 
 These repeat the M5 result on a third switch implementation: pinned connections cannot leave a dead plane, sprayed ones lose one timeout. The ACK count per queue also shows what TC separation buys: with traffic both ways (four-plane runs) the ACKs and requests share each link roughly half and half, and a strict-priority scheduler would keep ACKs from waiting behind 2 KB requests. bmv2's priority queueing is strict, but at the rates the lab reaches (a few thousand packets per second) its queues never build, so this run shows the mapping, not its benefit.
+
+### Every test frame, as bmv2 saw it
+
+`tools/run_m6.py` runs the frame checks with bmv2's debug log on (`--log-console --log-level debug`) and the program's own `log_msg` lines (parsed fields, the TTL rewrite, the ingress result, ECN marking). `emu/p4check.py` parses the log into one record per packet (parser states, headers, each table's key, hit or miss and action, egress port, dropped or sent) and pairs it with the frame sent and what each XPU received: 14 frames, 14 records. They are in `docs/experiments/p4-results.json` under `packets`, and the packet viewer's "P4 switch in bmv2 (M6)" scenario walks each one through the pipeline. Drop reasons for drops that are not a table miss (TTL, MAC control) are read from the program, since bmv2 logs a direct `drop()` call only as an egress port of 511.
 
 ## Mapping to SAI
 

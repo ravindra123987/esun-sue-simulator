@@ -41,10 +41,39 @@ def open_in_ns(ns, ifname):
     return s
 
 
+def summary(frame: bytes) -> dict:
+    """The fields of a frame the switch reads or rewrites, for the packet viewer (M6)."""
+    from scapy.layers.inet import IP
+    res = {"len": len(frame)}
+    if len(frame) >= 16 and frame[12:14] == b"\xe7\x90" and (frame[0] & 0xCE) == 0x42:
+        d = decode(frame)
+        p = d.pkt
+        res.update(kind="UFH_16 " + ("RODL request" if d.kind == "ufh16-rodl" else "ACK"), dst=p.dst, src=p.src, dscp=p.dscp, ecn=p.ecn)
+        if d.kind == "ufh16-rodl":
+            res.update(syn=p.syn, psn=p.explicit_psn, stores=len(d.ses))
+        else:
+            res.update(cack_psn=p.cack_psn)
+    elif len(frame) >= 18 and frame[12:14] == C.ESUN_ETHERTYPE.to_bytes(2, "big"):
+        e = Ether(frame)
+        h = e[ESUN]
+        res.update(kind="ESUN", da=e.dst, sa=e.src, cos=h.cos, ecn=h.ecn, ttl=h.ttl, flow_label=h.flow_label,
+                   crc_ok=int.from_bytes(frame[-4:], C.CRC_BYTE_ORDER) == K.esun_crc(frame[:-4]))
+    elif len(frame) >= 14 and frame[12:14] == b"\x88\x08":
+        res.update(kind="MAC control (CC_Update)", da=":".join(f"{b:02x}" for b in frame[:6]))
+    else:
+        e = Ether(frame)
+        if e.haslayer(IP):
+            res.update(kind="UDP/IP SUE-T", da=e.dst, ip_dst=e[IP].dst)
+        else:
+            res.update(kind="Ethernet", da=e.dst, ether_type=hex(e.type))
+    return res
+
+
 class Rig:
     def __init__(self, n):
         self.n = n
         self.socks = {i: open_in_ns(f"xpu{i}", "eth0") for i in range(n)}
+        self.sent = []                          # every frame sent, in order, with what came out (M6 viewer)
 
     def drain(self):
         for s in self.socks.values():
@@ -70,6 +99,8 @@ class Rig:
                     continue
                 got[i].append(data)
             time.sleep(0.002)
+        self.sent.append({"check": None, "src": src, "in": summary(frame),
+                          "out": {str(i): summary(v[0][:len(frame)] if len(v[0]) >= len(frame) else v[0]) for i, v in got.items() if v}})
         return got
 
 
@@ -92,6 +123,9 @@ def run_checks(n, cli, counters):
 
     def check(name, why, ok, detail=""):
         out.append({"check": name, "why": why, "ok": bool(ok), "detail": detail})
+        for s_ in rig.sent:
+            if s_["check"] is None:
+                s_["check"] = name                  # the frames this check sent
 
     def only(got, i):
         return [k for k, v in got.items() if v] == [i]
@@ -136,11 +170,12 @@ def run_checks(n, cli, counters):
     check("CC_Update not forwarded", "UEC §5.2.6.2 / IEEE 802.3 Clause 31: MAC control is consumed by the link partner",
           not any(got.values()) and c1["drops"]["mac_control"] == c0["drops"]["mac_control"] + 1)
 
-    # 6. plain Ethernet with an unknown DA: no flooding
+    # 6. ESUN with an unknown DA and a live TTL: the DA table misses, nothing is flooded
     c0 = counters()
-    got = rig.send(0, bytes.fromhex("02a0000000ff02a00000000088b5") + b"\x00" * 50)
+    got = rig.send(0, esun_frame(dst=0xff, src=0, ttl=15))
     c1 = counters()
-    check("unknown DA not flooded", "ESUN §5: no learning, no flooding", not any(got.values()))
+    check("unknown DA not flooded", "ESUN §5: no learning, no flooding",
+          not any(got.values()) and c1["drops"]["no_route"] == c0["drops"]["no_route"] + 1)
 
     # 7. UDP/IP SUE-T forwarded by DA, unchanged
     f = build_udp_rodl(xmac(1), xmac(0), "10.0.0.1", "10.0.0.0", 49152, rodl_header(psn=5, spdcid=1, dpdcid=0, syn=1),
@@ -180,4 +215,66 @@ def run_checks(n, cli, counters):
     f = build_ufh16_ack(dst=0, src=3, spdcid=0, dpdcid=3, ack_psn=10, cack_psn=10)
     got = rig.send(3, f)
     check("ufh16 ACK forwarded", "Fig 3-120: ACKs share the overlay", only(got, 0) and decode(got[0][0][:len(f)]).crc_ok)
+    run_checks.sent = rig.sent
     return out
+
+
+def parse_bmv2_log(text: str) -> list[dict]:
+    """bmv2 --log-console output -> one record per packet: parser states and headers, the program's own tables
+    (key, hit or miss, action, parameters), log_msg lines, egress port, dropped or transmitted. log_msg lines
+    carry only a thread id; a thread works on one packet at a time, so they belong to its current packet."""
+    import re
+    pk, cur_by_thread, last_table = {}, {}, None
+    lines = text.splitlines()
+    i = 0
+    head = re.compile(r"\[[^\]]*\] \[bmv2\] \[(\w)\] \[thread (\d+)\](?: \[(\d+)\.\d+\] \[cxt \d+\])? (.*)")
+    while i < len(lines):
+        m = head.match(lines[i])
+        i += 1
+        if not m:
+            continue
+        lvl, thread, pid, msg = m.groups()
+        if pid is not None:
+            pid = int(pid)
+            cur_by_thread[thread] = pid
+        else:
+            pid = cur_by_thread.get(thread)
+        if pid is None:
+            continue
+        r = pk.setdefault(pid, {"id": pid, "port_in": None, "states": [], "headers": [], "tables": [], "msgs": [],
+                                "egress_port": None, "tx_port": None, "dropped": False, "deparsed": []})
+        if lvl == "I":
+            r["msgs"].append(msg)
+            continue
+        if msg.startswith("Processing packet received on port"):
+            r["port_in"] = int(msg.split()[-1])
+        elif msg.startswith("Parser 'parser' entering state"):
+            r["states"].append(msg.split("'")[3])
+        elif msg.startswith("Extracting header"):
+            r["headers"].append(msg.split("'")[1])
+        elif msg.startswith("Looking up key:"):
+            key = {}
+            while i < len(lines) and lines[i].startswith("* "):
+                f, _, v = lines[i][2:].partition(":")
+                key[f.strip()] = v.strip()
+                i += 1
+            last_table = {"key": key}
+        elif msg.startswith("Table '"):
+            name = msg.split("'")[1]
+            t = dict(last_table or {"key": {}}, table=name, hit=": hit" in msg)
+            if name.startswith(("SwIngress.", "SwEgress.")):
+                r["tables"].append(t)
+            last_table = t
+        elif msg.startswith("Action entry is") and last_table is not None and last_table.get("table", "").startswith(("SwIngress.", "SwEgress.")):
+            name, _, params = msg[len("Action entry is "):].partition(" - ")
+            last_table["action"] = name.strip()
+            last_table["params"] = [x.strip() for x in params.split(",") if x.strip()]
+        elif msg.startswith("Egress port is"):
+            r["egress_port"] = int(msg.split()[-1])
+        elif msg.startswith("Dropping packet"):
+            r["dropped"] = True
+        elif msg.startswith("Deparsing header"):
+            r["deparsed"].append(msg.split("'")[1])
+        elif msg.startswith("Transmitting packet"):
+            r["tx_port"] = int(msg.split()[-1])
+    return [pk[k] for k in sorted(pk)]

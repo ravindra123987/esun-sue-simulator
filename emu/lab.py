@@ -104,13 +104,15 @@ class Lab:
                            capture_output=True, text=True)
         return p.stdout
 
-    def start_bmv2(self, plane=0):
+    def start_bmv2(self, plane=0, log=False):
+        """log=True: bmv2 logs every packet's parser states, table lookups and log_msg lines (docker logs)."""
         name = f"bmv2-sw{plane}"
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
         ifs = sum([["-i", f"{i}@sw{plane}-p{i}"] for i in range(self.n)], [])
         cmd = ["docker", "run", "-d", "--rm", "--name", name, "--privileged", "--network", "host", "--pid", "host",
                "-v", "/var/run/netns:/var/run/netns", "-v", f"{P4_JSON.parent}:/p4:ro", P4_IMAGE,
                "ip", "netns", "exec", f"sw{plane}", "simple_switch", "--thrift-port", "9090",
+               *(["--log-console", "--log-level", "debug"] if log else []),
                *ifs, "/p4/" + P4_JSON.name, "--", "--priority-queues", "8"]    # target options after "--"
         sh(*cmd)
         for _ in range(300):                     # wait for the Thrift server, then load the tables

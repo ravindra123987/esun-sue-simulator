@@ -8,11 +8,27 @@
         ["tmp_1", 16, false],
         ["tmp_0", 112, false],
         ["tmp_3", 112, false],
-        ["tmp_2", 32, false],
+        ["tmp_2", 16, false],
+        ["tmp_4", 6, false],
+        ["tmp_5", 2, false],
+        ["tmp_6", 4, false],
+        ["tmp_7", 48, false],
+        ["tmp_8", 3, false],
+        ["tmp_9", 2, false],
+        ["tmp_10", 4, false],
+        ["tmp_11", 16, false],
+        ["tmp_12", 48, false],
+        ["tmp_13", 16, false],
+        ["tmp_14", 4, false],
+        ["tmp_15", 32, false],
+        ["tmp_16", 9, false],
+        ["tmp_17", 3, false],
         ["hasReturned", 1, false],
+        ["tmp_18", 19, false],
+        ["tmp_19", 19, false],
         ["thr_0", 32, false],
         ["meta_t.is_ufh", 1, false],
-        ["_padding_0", 6, false]
+        ["_padding_0", 3, false]
       ]
     },
     {
@@ -383,7 +399,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/src/esun_switch.p4",
-        "line" : 187,
+        "line" : 199,
         "column" : 8,
         "source_fragment" : "SwDeparser"
       },
@@ -422,7 +438,7 @@
       "id" : 2,
       "source_info" : {
         "filename" : "/src/esun_switch.p4",
-        "line" : 168,
+        "line" : 178,
         "column" : 36,
         "source_fragment" : "ce_ctr"
       },
@@ -436,7 +452,7 @@
       "id" : 0,
       "source_info" : {
         "filename" : "/src/esun_switch.p4",
-        "line" : 167,
+        "line" : 177,
         "column" : 25,
         "source_fragment" : "ecn_threshold"
       },
@@ -787,7 +803,7 @@
       ]
     },
     {
-      "name" : "esun_switch147",
+      "name" : "esun_switch143",
       "id" : 9,
       "runtime_data" : [],
       "primitives" : [
@@ -796,6 +812,340 @@
           "parameters" : [
             {
               "type" : "field",
+              "value" : ["scalars", "tmp_2"]
+            },
+            {
+              "type" : "field",
+              "value" : ["ufh", "dst"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 143,
+            "column" : 72,
+            "source_fragment" : "hdr.ufh.dst"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_4"]
+            },
+            {
+              "type" : "field",
+              "value" : ["ufh", "dscp"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 143,
+            "column" : 85,
+            "source_fragment" : "hdr.ufh.dscp"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_5"]
+            },
+            {
+              "type" : "field",
+              "value" : ["ufh", "ecn"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 143,
+            "column" : 99,
+            "source_fragment" : "hdr.ufh.ecn"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_6"]
+            },
+            {
+              "type" : "field",
+              "value" : ["ufh", "da_encode"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 143,
+            "column" : 112,
+            "source_fragment" : "hdr.ufh.da_encode"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "parsed ufh16 dst={} dscp={} ecn={} da_encode={}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_2"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_4"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_5"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_6"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 143,
+            "column" : 12,
+            "source_fragment" : "log_msg(\"parsed ufh16 dst={} dscp={} ecn={} da_encode={}\", {hdr.ufh.dst, hdr.ufh.dscp, hdr.ufh.ecn, hdr.ufh.da_encode})"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "esun_switch145",
+      "id" : 10,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_7"]
+            },
+            {
+              "type" : "field",
+              "value" : ["eth", "dst"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 77,
+            "source_fragment" : "hdr.eth.dst"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_8"]
+            },
+            {
+              "type" : "field",
+              "value" : ["esun", "cos"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 90,
+            "source_fragment" : "hdr.esun.cos"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_9"]
+            },
+            {
+              "type" : "field",
+              "value" : ["esun", "ecn"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 104,
+            "source_fragment" : "hdr.esun.ecn"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_10"]
+            },
+            {
+              "type" : "field",
+              "value" : ["esun", "ttl"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 118,
+            "source_fragment" : "hdr.esun.ttl"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_11"]
+            },
+            {
+              "type" : "field",
+              "value" : ["esun", "flow_label"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 132,
+            "source_fragment" : "hdr.esun.flow_label"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "parsed esun da={} cos={} ecn={} ttl={} flow_label={}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_7"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_8"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_9"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_10"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_11"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 12,
+            "source_fragment" : "log_msg(\"parsed esun da={} cos={} ecn={} ttl={} flow_label={}\", {hdr.eth.dst, hdr.esun.cos, hdr.esun.ecn, hdr.esun.ttl, hdr.esun.flow_label})"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "esun_switch147",
+      "id" : 11,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_12"]
+            },
+            {
+              "type" : "field",
+              "value" : ["eth", "dst"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 147,
+            "column" : 60,
+            "source_fragment" : "hdr.eth.dst"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_13"]
+            },
+            {
+              "type" : "field",
+              "value" : ["eth", "ether_type"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 147,
+            "column" : 73,
+            "source_fragment" : "hdr.eth.ether_type"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "parsed ethernet da={} ether_type={}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_12"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_13"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 147,
+            "column" : 12,
+            "source_fragment" : "log_msg(\"parsed ethernet da={} ether_type={}\", {hdr.eth.dst, hdr.eth.ether_type})"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "act",
+      "id" : 12,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
               "value" : ["scalars", "hasReturned"]
             },
             {
@@ -807,24 +1157,18 @@
                   "left" : null,
                   "right" : {
                     "type" : "bool",
-                    "value" : true
+                    "value" : false
                   }
                 }
               }
             }
-          ],
-          "source_info" : {
-            "filename" : "/src/esun_switch.p4",
-            "line" : 147,
-            "column" : 16,
-            "source_fragment" : "return"
-          }
+          ]
         }
       ]
     },
     {
-      "name" : "esun_switch152",
-      "id" : 10,
+      "name" : "esun_switch155",
+      "id" : 13,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -851,7 +1195,43 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 152,
+            "line" : 155,
+            "column" : 16,
+            "source_fragment" : "return"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "esun_switch160",
+      "id" : 14,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "hasReturned"]
+            },
+            {
+              "type" : "expression",
+              "value" : {
+                "type" : "expression",
+                "value" : {
+                  "op" : "b2d",
+                  "left" : null,
+                  "right" : {
+                    "type" : "bool",
+                    "value" : true
+                  }
+                }
+              }
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 160,
             "column" : 20,
             "source_fragment" : "return"
           }
@@ -859,8 +1239,8 @@
       ]
     },
     {
-      "name" : "esun_switch154",
-      "id" : 11,
+      "name" : "esun_switch162",
+      "id" : 15,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -900,16 +1280,59 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 154,
+            "line" : 162,
             "column" : 16,
             "source_fragment" : "hdr.esun.ttl = hdr.esun.ttl - 1"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_14"]
+            },
+            {
+              "type" : "field",
+              "value" : ["esun", "ttl"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 163,
+            "column" : 55,
+            "source_fragment" : "hdr.esun.ttl"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "esun ttl decremented to {}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_14"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 163,
+            "column" : 16,
+            "source_fragment" : "log_msg(\"esun ttl decremented to {}\", {hdr.esun.ttl})"
           }
         }
       ]
     },
     {
-      "name" : "esun_switch160",
-      "id" : 12,
+      "name" : "esun_switch169",
+      "id" : 16,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -936,7 +1359,7 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 160,
+            "line" : 169,
             "column" : 12,
             "source_fragment" : "return"
           }
@@ -944,8 +1367,8 @@
       ]
     },
     {
-      "name" : "act",
-      "id" : 13,
+      "name" : "esun_switch171",
+      "id" : 17,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -953,37 +1376,7 @@
           "parameters" : [
             {
               "type" : "field",
-              "value" : ["scalars", "hasReturned"]
-            },
-            {
-              "type" : "expression",
-              "value" : {
-                "type" : "expression",
-                "value" : {
-                  "op" : "b2d",
-                  "left" : null,
-                  "right" : {
-                    "type" : "bool",
-                    "value" : false
-                  }
-                }
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name" : "esun_switch162",
-      "id" : 14,
-      "runtime_data" : [],
-      "primitives" : [
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["scalars", "tmp_2"]
+              "value" : ["scalars", "tmp_15"]
             },
             {
               "type" : "expression",
@@ -1005,7 +1398,7 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 162,
+            "line" : 171,
             "column" : 21,
             "source_fragment" : "(bit<32>) sm.priority"
           }
@@ -1019,21 +1412,87 @@
             },
             {
               "type" : "field",
-              "value" : ["scalars", "tmp_2"]
+              "value" : ["scalars", "tmp_15"]
             }
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 162,
+            "line" : 171,
             "column" : 8,
             "source_fragment" : "tc_ctr.count((bit<32>) sm.priority)"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_16"]
+            },
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "egress_spec"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 172,
+            "column" : 62,
+            "source_fragment" : "sm.egress_spec"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_17"]
+            },
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "priority"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 172,
+            "column" : 78,
+            "source_fragment" : "sm.priority"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "ingress result egress_spec={} priority={}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_16"]
+                },
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_17"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 172,
+            "column" : 8,
+            "source_fragment" : "log_msg(\"ingress result egress_spec={} priority={}\", {sm.egress_spec, sm.priority})"
           }
         }
       ]
     },
     {
-      "name" : "esun_switch175",
-      "id" : 15,
+      "name" : "esun_switch185",
+      "id" : 18,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1050,7 +1509,7 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 175,
+            "line" : 185,
             "column" : 16,
             "source_fragment" : "hdr.ufh.ecn = 3"
           }
@@ -1069,16 +1528,59 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 176,
+            "line" : 186,
             "column" : 16,
             "source_fragment" : "ce_ctr.count(0)"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_18"]
+            },
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "enq_qdepth"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 187,
+            "column" : 65,
+            "source_fragment" : "sm.enq_qdepth"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "egress ecn marked CE, queue depth {}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_18"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 187,
+            "column" : 16,
+            "source_fragment" : "log_msg(\"egress ecn marked CE, queue depth {}\", {sm.enq_qdepth})"
           }
         }
       ]
     },
     {
-      "name" : "esun_switch178",
-      "id" : 16,
+      "name" : "esun_switch189",
+      "id" : 19,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1095,7 +1597,7 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 178,
+            "line" : 189,
             "column" : 16,
             "source_fragment" : "hdr.esun.ecn = 3"
           }
@@ -1114,16 +1616,59 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 179,
+            "line" : 190,
             "column" : 16,
             "source_fragment" : "ce_ctr.count(0)"
+          }
+        },
+        {
+          "op" : "assign",
+          "parameters" : [
+            {
+              "type" : "field",
+              "value" : ["scalars", "tmp_19"]
+            },
+            {
+              "type" : "field",
+              "value" : ["standard_metadata", "enq_qdepth"]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 191,
+            "column" : 65,
+            "source_fragment" : "sm.enq_qdepth"
+          }
+        },
+        {
+          "op" : "log_msg",
+          "parameters" : [
+            {
+              "type" : "string",
+              "value" : "egress ecn marked CE, queue depth {}"
+            },
+            {
+              "type" : "parameters_vector",
+              "value" : [
+                {
+                  "type" : "field",
+                  "value" : ["scalars", "tmp_19"]
+                }
+              ]
+            }
+          ],
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 191,
+            "column" : 16,
+            "source_fragment" : "log_msg(\"egress ecn marked CE, queue depth {}\", {sm.enq_qdepth})"
           }
         }
       ]
     },
     {
-      "name" : "esun_switch172",
-      "id" : 17,
+      "name" : "esun_switch182",
+      "id" : 20,
       "runtime_data" : [],
       "primitives" : [
         {
@@ -1144,7 +1689,7 @@
           ],
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 172,
+            "line" : 182,
             "column" : 8,
             "source_fragment" : "ecn_threshold.read(thr, 0)"
           }
@@ -1174,14 +1719,101 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [13],
+          "action_ids" : [12],
           "actions" : ["act"],
           "base_default_next" : "node_3",
           "next_tables" : {
             "act" : "node_3"
           },
           "default_entry" : {
-            "action_id" : 13,
+            "action_id" : 12,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_esun_switch143",
+          "id" : 1,
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 143,
+            "column" : 12,
+            "source_fragment" : "log_msg(\"parsed ufh16 dst={} dscp={} ecn={} da_encode={}\", {hdr.ufh.dst, hdr.ufh.dscp, hdr.ufh.ecn, hdr.ufh.da_encode})"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [9],
+          "actions" : ["esun_switch143"],
+          "base_default_next" : "node_9",
+          "next_tables" : {
+            "esun_switch143" : "node_9"
+          },
+          "default_entry" : {
+            "action_id" : 9,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_esun_switch145",
+          "id" : 2,
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 145,
+            "column" : 12,
+            "source_fragment" : "log_msg(\"parsed esun da={} cos={} ecn={} ttl={} flow_label={}\", {hdr.eth.dst, hdr.esun.cos, hdr.esun.ecn, hdr.esun.ttl, hdr.esun.flow_label})"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [10],
+          "actions" : ["esun_switch145"],
+          "base_default_next" : "node_9",
+          "next_tables" : {
+            "esun_switch145" : "node_9"
+          },
+          "default_entry" : {
+            "action_id" : 10,
+            "action_const" : true,
+            "action_data" : [],
+            "action_entry_const" : true
+          }
+        },
+        {
+          "name" : "tbl_esun_switch147",
+          "id" : 3,
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 147,
+            "column" : 12,
+            "source_fragment" : "log_msg(\"parsed ethernet da={} ether_type={}\", {hdr.eth.dst, hdr.eth.ether_type})"
+          },
+          "key" : [],
+          "match_type" : "exact",
+          "type" : "simple",
+          "max_size" : 1024,
+          "with_counters" : false,
+          "support_timeout" : false,
+          "direct_meters" : null,
+          "action_ids" : [11],
+          "actions" : ["esun_switch147"],
+          "base_default_next" : "node_9",
+          "next_tables" : {
+            "esun_switch147" : "node_9"
+          },
+          "default_entry" : {
+            "action_id" : 11,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1189,7 +1821,7 @@
         },
         {
           "name" : "SwIngress.ufh_fwd",
-          "id" : 1,
+          "id" : 4,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
             "line" : 117,
@@ -1226,7 +1858,7 @@
         },
         {
           "name" : "SwIngress.tc_ufh",
-          "id" : 2,
+          "id" : 5,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
             "line" : 129,
@@ -1249,9 +1881,9 @@
           "direct_meters" : null,
           "action_ids" : [7],
           "actions" : ["SwIngress.set_queue"],
-          "base_default_next" : "node_20",
+          "base_default_next" : "node_26",
           "next_tables" : {
-            "SwIngress.set_queue" : "node_20"
+            "SwIngress.set_queue" : "node_26"
           },
           "default_entry" : {
             "action_id" : 7,
@@ -1262,10 +1894,10 @@
         },
         {
           "name" : "tbl_drop",
-          "id" : 3,
+          "id" : 6,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 146,
+            "line" : 154,
             "column" : 16,
             "source_fragment" : "drop(2)"
           },
@@ -1278,9 +1910,9 @@
           "direct_meters" : null,
           "action_ids" : [2],
           "actions" : ["SwIngress.drop"],
-          "base_default_next" : "tbl_esun_switch147",
+          "base_default_next" : "tbl_esun_switch155",
           "next_tables" : {
-            "SwIngress.drop" : "tbl_esun_switch147"
+            "SwIngress.drop" : "tbl_esun_switch155"
           },
           "default_entry" : {
             "action_id" : 2,
@@ -1290,11 +1922,11 @@
           }
         },
         {
-          "name" : "tbl_esun_switch147",
-          "id" : 4,
+          "name" : "tbl_esun_switch155",
+          "id" : 7,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 147,
+            "line" : 155,
             "column" : 16,
             "source_fragment" : "return"
           },
@@ -1305,14 +1937,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [9],
-          "actions" : ["esun_switch147"],
-          "base_default_next" : "node_20",
+          "action_ids" : [13],
+          "actions" : ["esun_switch155"],
+          "base_default_next" : "node_26",
           "next_tables" : {
-            "esun_switch147" : "node_20"
+            "esun_switch155" : "node_26"
           },
           "default_entry" : {
-            "action_id" : 9,
+            "action_id" : 13,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1320,10 +1952,10 @@
         },
         {
           "name" : "tbl_drop_0",
-          "id" : 5,
+          "id" : 8,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 151,
+            "line" : 159,
             "column" : 20,
             "source_fragment" : "drop(1)"
           },
@@ -1336,9 +1968,9 @@
           "direct_meters" : null,
           "action_ids" : [3],
           "actions" : ["SwIngress.drop"],
-          "base_default_next" : "tbl_esun_switch152",
+          "base_default_next" : "tbl_esun_switch160",
           "next_tables" : {
-            "SwIngress.drop" : "tbl_esun_switch152"
+            "SwIngress.drop" : "tbl_esun_switch160"
           },
           "default_entry" : {
             "action_id" : 3,
@@ -1348,11 +1980,11 @@
           }
         },
         {
-          "name" : "tbl_esun_switch152",
-          "id" : 6,
+          "name" : "tbl_esun_switch160",
+          "id" : 9,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 152,
+            "line" : 160,
             "column" : 20,
             "source_fragment" : "return"
           },
@@ -1363,27 +1995,27 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [10],
-          "actions" : ["esun_switch152"],
-          "base_default_next" : "node_16",
+          "action_ids" : [14],
+          "actions" : ["esun_switch160"],
+          "base_default_next" : "node_22",
           "next_tables" : {
-            "esun_switch152" : "node_16"
+            "esun_switch160" : "node_22"
           },
           "default_entry" : {
-            "action_id" : 10,
+            "action_id" : 14,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_esun_switch154",
-          "id" : 7,
+          "name" : "tbl_esun_switch162",
+          "id" : 10,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 154,
+            "line" : 162,
             "column" : 29,
-            "source_fragment" : "="
+            "source_fragment" : "= hdr.esun.ttl - 1; ..."
           },
           "key" : [],
           "match_type" : "exact",
@@ -1392,14 +2024,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [11],
-          "actions" : ["esun_switch154"],
+          "action_ids" : [15],
+          "actions" : ["esun_switch162"],
           "base_default_next" : "SwIngress.tc_esun",
           "next_tables" : {
-            "esun_switch154" : "SwIngress.tc_esun"
+            "esun_switch162" : "SwIngress.tc_esun"
           },
           "default_entry" : {
-            "action_id" : 11,
+            "action_id" : 15,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1407,7 +2039,7 @@
         },
         {
           "name" : "SwIngress.tc_esun",
-          "id" : 8,
+          "id" : 11,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
             "line" : 134,
@@ -1430,9 +2062,9 @@
           "direct_meters" : null,
           "action_ids" : [8],
           "actions" : ["SwIngress.set_queue"],
-          "base_default_next" : "node_16",
+          "base_default_next" : "node_22",
           "next_tables" : {
-            "SwIngress.set_queue" : "node_16"
+            "SwIngress.set_queue" : "node_22"
           },
           "default_entry" : {
             "action_id" : 8,
@@ -1443,7 +2075,7 @@
         },
         {
           "name" : "SwIngress.l2_fwd",
-          "id" : 9,
+          "id" : 12,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
             "line" : 123,
@@ -1466,10 +2098,10 @@
           "direct_meters" : null,
           "action_ids" : [6, 1],
           "actions" : ["SwIngress.set_port", "SwIngress.drop"],
-          "base_default_next" : "node_20",
+          "base_default_next" : "node_26",
           "next_tables" : {
-            "SwIngress.set_port" : "node_20",
-            "SwIngress.drop" : "node_20"
+            "SwIngress.set_port" : "node_26",
+            "SwIngress.drop" : "node_26"
           },
           "default_entry" : {
             "action_id" : 1,
@@ -1480,10 +2112,10 @@
         },
         {
           "name" : "tbl_drop_1",
-          "id" : 10,
+          "id" : 13,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 159,
+            "line" : 168,
             "column" : 12,
             "source_fragment" : "drop(3)"
           },
@@ -1496,9 +2128,9 @@
           "direct_meters" : null,
           "action_ids" : [4],
           "actions" : ["SwIngress.drop"],
-          "base_default_next" : "tbl_esun_switch160",
+          "base_default_next" : "tbl_esun_switch169",
           "next_tables" : {
-            "SwIngress.drop" : "tbl_esun_switch160"
+            "SwIngress.drop" : "tbl_esun_switch169"
           },
           "default_entry" : {
             "action_id" : 4,
@@ -1508,11 +2140,11 @@
           }
         },
         {
-          "name" : "tbl_esun_switch160",
-          "id" : 11,
+          "name" : "tbl_esun_switch169",
+          "id" : 14,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 160,
+            "line" : 169,
             "column" : 12,
             "source_fragment" : "return"
           },
@@ -1523,27 +2155,27 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [12],
-          "actions" : ["esun_switch160"],
-          "base_default_next" : "node_20",
+          "action_ids" : [16],
+          "actions" : ["esun_switch169"],
+          "base_default_next" : "node_26",
           "next_tables" : {
-            "esun_switch160" : "node_20"
+            "esun_switch169" : "node_26"
           },
           "default_entry" : {
-            "action_id" : 12,
+            "action_id" : 16,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_esun_switch162",
-          "id" : 12,
+          "name" : "tbl_esun_switch171",
+          "id" : 15,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 162,
+            "line" : 171,
             "column" : 8,
-            "source_fragment" : "tc_ctr.count((bit<32>) sm.priority)"
+            "source_fragment" : "tc_ctr.count((bit<32>) sm.priority); ..."
           },
           "key" : [],
           "match_type" : "exact",
@@ -1552,14 +2184,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [14],
-          "actions" : ["esun_switch162"],
+          "action_ids" : [17],
+          "actions" : ["esun_switch171"],
           "base_default_next" : null,
           "next_tables" : {
-            "esun_switch162" : null
+            "esun_switch171" : null
           },
           "default_entry" : {
-            "action_id" : 14,
+            "action_id" : 17,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1573,7 +2205,76 @@
           "id" : 0,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 141,
+            "line" : 142,
+            "column" : 12,
+            "source_fragment" : "hdr.ufh.isValid()"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["ufh", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "tbl_esun_switch143",
+          "false_next" : "node_5"
+        },
+        {
+          "name" : "node_5",
+          "id" : 1,
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 144,
+            "column" : 19,
+            "source_fragment" : "hdr.esun.isValid()"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["esun", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "tbl_esun_switch145",
+          "false_next" : "node_7"
+        },
+        {
+          "name" : "node_7",
+          "id" : 2,
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 146,
+            "column" : 19,
+            "source_fragment" : "hdr.eth.isValid()"
+          },
+          "expression" : {
+            "type" : "expression",
+            "value" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
+                "type" : "field",
+                "value" : ["eth", "$valid$"]
+              }
+            }
+          },
+          "true_next" : "tbl_esun_switch147",
+          "false_next" : "node_9"
+        },
+        {
+          "name" : "node_9",
+          "id" : 3,
+          "source_info" : {
+            "filename" : "/src/esun_switch.p4",
+            "line" : 149,
             "column" : 12,
             "source_fragment" : "hdr.ufh.isValid()"
           },
@@ -1589,14 +2290,14 @@
             }
           },
           "true_next" : "SwIngress.ufh_fwd",
-          "false_next" : "node_6"
+          "false_next" : "node_12"
         },
         {
-          "name" : "node_6",
-          "id" : 1,
+          "name" : "node_12",
+          "id" : 4,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 144,
+            "line" : 152,
             "column" : 19,
             "source_fragment" : "hdr.eth.isValid()"
           },
@@ -1611,15 +2312,15 @@
               }
             }
           },
-          "true_next" : "node_7",
+          "true_next" : "node_13",
           "false_next" : "tbl_drop_1"
         },
         {
-          "name" : "node_7",
-          "id" : 2,
+          "name" : "node_13",
+          "id" : 5,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 145,
+            "line" : 153,
             "column" : 16,
             "source_fragment" : "hdr.eth.ether_type == ETH_MACC"
           },
@@ -1638,14 +2339,14 @@
             }
           },
           "true_next" : "tbl_drop",
-          "false_next" : "node_10"
+          "false_next" : "node_16"
         },
         {
-          "name" : "node_10",
-          "id" : 3,
+          "name" : "node_16",
+          "id" : 6,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 149,
+            "line" : 157,
             "column" : 16,
             "source_fragment" : "hdr.esun.isValid()"
           },
@@ -1660,15 +2361,15 @@
               }
             }
           },
-          "true_next" : "node_11",
-          "false_next" : "node_16"
+          "true_next" : "node_17",
+          "false_next" : "node_22"
         },
         {
-          "name" : "node_11",
-          "id" : 4,
+          "name" : "node_17",
+          "id" : 7,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 150,
+            "line" : 158,
             "column" : 20,
             "source_fragment" : "hdr.esun.ttl <= 1"
           },
@@ -1687,11 +2388,11 @@
             }
           },
           "true_next" : "tbl_drop_0",
-          "false_next" : "tbl_esun_switch154"
+          "false_next" : "tbl_esun_switch162"
         },
         {
-          "name" : "node_16",
-          "id" : 5,
+          "name" : "node_22",
+          "id" : 8,
           "expression" : {
             "type" : "expression",
             "value" : {
@@ -1704,11 +2405,11 @@
             }
           },
           "false_next" : "SwIngress.l2_fwd",
-          "true_next" : "node_20"
+          "true_next" : "node_26"
         },
         {
-          "name" : "node_20",
-          "id" : 6,
+          "name" : "node_26",
+          "id" : 9,
           "expression" : {
             "type" : "expression",
             "value" : {
@@ -1721,7 +2422,7 @@
             }
           },
           "true_next" : null,
-          "false_next" : "tbl_esun_switch162"
+          "false_next" : "tbl_esun_switch171"
         }
       ]
     },
@@ -1730,18 +2431,18 @@
       "id" : 1,
       "source_info" : {
         "filename" : "/src/esun_switch.p4",
-        "line" : 166,
+        "line" : 176,
         "column" : 8,
         "source_fragment" : "SwEgress"
       },
-      "init_table" : "tbl_esun_switch172",
+      "init_table" : "tbl_esun_switch182",
       "tables" : [
         {
-          "name" : "tbl_esun_switch172",
-          "id" : 13,
+          "name" : "tbl_esun_switch182",
+          "id" : 16,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 172,
+            "line" : 182,
             "column" : 8,
             "source_fragment" : "ecn_threshold.read(thr, 0)"
           },
@@ -1752,25 +2453,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [17],
-          "actions" : ["esun_switch172"],
-          "base_default_next" : "node_25",
+          "action_ids" : [20],
+          "actions" : ["esun_switch182"],
+          "base_default_next" : "node_31",
           "next_tables" : {
-            "esun_switch172" : "node_25"
+            "esun_switch182" : "node_31"
           },
           "default_entry" : {
-            "action_id" : 17,
+            "action_id" : 20,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_esun_switch175",
-          "id" : 14,
+          "name" : "tbl_esun_switch185",
+          "id" : 17,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 175,
+            "line" : 185,
             "column" : 28,
             "source_fragment" : "= 3; ..."
           },
@@ -1781,25 +2482,25 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [15],
-          "actions" : ["esun_switch175"],
+          "action_ids" : [18],
+          "actions" : ["esun_switch185"],
           "base_default_next" : null,
           "next_tables" : {
-            "esun_switch175" : null
+            "esun_switch185" : null
           },
           "default_entry" : {
-            "action_id" : 15,
+            "action_id" : 18,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
           }
         },
         {
-          "name" : "tbl_esun_switch178",
-          "id" : 15,
+          "name" : "tbl_esun_switch189",
+          "id" : 18,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 178,
+            "line" : 189,
             "column" : 29,
             "source_fragment" : "= 3; ..."
           },
@@ -1810,14 +2511,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [16],
-          "actions" : ["esun_switch178"],
+          "action_ids" : [19],
+          "actions" : ["esun_switch189"],
           "base_default_next" : null,
           "next_tables" : {
-            "esun_switch178" : null
+            "esun_switch189" : null
           },
           "default_entry" : {
-            "action_id" : 16,
+            "action_id" : 19,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -1827,11 +2528,11 @@
       "action_profiles" : [],
       "conditionals" : [
         {
-          "name" : "node_25",
-          "id" : 7,
+          "name" : "node_31",
+          "id" : 10,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 173,
+            "line" : 183,
             "column" : 12,
             "source_fragment" : "thr != 0 && (bit<32>) sm.enq_qdepth >= thr - 1"
           },
@@ -1900,14 +2601,14 @@
             }
           },
           "false_next" : null,
-          "true_next" : "node_26"
+          "true_next" : "node_32"
         },
         {
-          "name" : "node_26",
-          "id" : 8,
+          "name" : "node_32",
+          "id" : 11,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 174,
+            "line" : 184,
             "column" : 16,
             "source_fragment" : "hdr.ufh.isValid() && (hdr.ufh.ecn == 1 || hdr.ufh.ecn == 2)"
           },
@@ -1962,15 +2663,15 @@
               }
             }
           },
-          "true_next" : "tbl_esun_switch175",
-          "false_next" : "node_28"
+          "true_next" : "tbl_esun_switch185",
+          "false_next" : "node_34"
         },
         {
-          "name" : "node_28",
-          "id" : 9,
+          "name" : "node_34",
+          "id" : 12,
           "source_info" : {
             "filename" : "/src/esun_switch.p4",
-            "line" : 177,
+            "line" : 188,
             "column" : 23,
             "source_fragment" : "hdr.esun.isValid() && (hdr.esun.ecn == 1 || hdr.esun.ecn == 2)"
           },
@@ -2026,7 +2727,7 @@
             }
           },
           "false_next" : null,
-          "true_next" : "tbl_esun_switch178"
+          "true_next" : "tbl_esun_switch189"
         }
       ]
     }

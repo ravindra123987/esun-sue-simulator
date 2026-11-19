@@ -9,7 +9,8 @@ const WHERE = {A:["XPU A", "dev-a"], S1:["Switch · port 1", "dev-s"], S7:["Swit
   h1:["Hop 1 cable", "muted"], h2:["Hop 2 cable", "muted"], cmd:["You", "accent"],
   // M5: the designs and the fabric
   "sue-t":["SUE-T 1.0", "dev-a"], "sue-t+fo":["SUE-T + failover", "init"], metaroce:["MetaRoCE-style", "ok"], mrc:["MRC-style", "accent"],
-  "mrc+llr":["MRC + LLR", "dev-b"], "rodl-spray":["spray, in order", "dev-a"], "rud-spray":["spray, SACK", "ok"], fab:["Fabric", "muted"]};
+  "mrc+llr":["MRC + LLR", "dev-b"], "rodl-spray":["spray, in order", "dev-a"], "rud-spray":["spray, SACK", "ok"], fab:["Fabric", "muted"],
+  p4:["P4 switch", "dev-s"]};
 const PROB = new Set(["bad", "nack", "ooo", "timer", "flush", "overflow", "stall", "down", "cc", "fill", "gap", "goback", "fatal", "fail", "rnack", "rtimer", "drop"]);
 
 const lastAt = (arr, t) => { let lo = 0, hi = arr.length - 1, r = -1; while (lo <= hi){ const m = (lo + hi) >> 1; if (arr[m].t <= t){ r = m; lo = m + 1; } else hi = m - 1; } return r; };

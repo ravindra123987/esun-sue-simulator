@@ -8,6 +8,7 @@ from sue import consts as C
 from sue.layers import ESUN, UFH16RODL
 
 ROOT = Path(__file__).resolve().parent.parent
+RESULTS = ROOT / "docs" / "experiments" / "p4-results.json"
 PROG = json.loads((ROOT / "p4" / "build" / "esun_switch.json").read_text())
 
 
@@ -65,3 +66,63 @@ def test_recorded_bmv2_run_passed():
     assert not t["4-plane-pinned-plane-kill"]["completed"]
     q = t["4-plane-spray"]["bmv2"]["0"]["tc_packets"]
     assert q[0] > 0 and q[1] > 0 and sum(q[2:]) == 0                  # requests on queue 0, ACKs on queue 1
+
+
+LOG = """\
+[05:14:00.623] [bmv2] [D] [thread 7] [0.0] [cxt 0] Processing packet received on port 1
+[05:14:00.623] [bmv2] [D] [thread 7] [0.0] [cxt 0] Parser 'parser' entering state 'start'
+[05:14:00.624] [bmv2] [D] [thread 7] [0.0] [cxt 0] Parser 'parser' entering state 'parse_eth'
+[05:14:00.624] [bmv2] [D] [thread 7] [0.0] [cxt 0] Extracting header 'eth'
+[05:14:00.624] [bmv2] [D] [thread 7] [0.0] [cxt 0] Parser 'parser' entering state 'parse_esun'
+[05:14:00.624] [bmv2] [D] [thread 7] [0.0] [cxt 0] Extracting header 'esun'
+[05:14:00.625] [bmv2] [I] [thread 7] esun ttl decremented to 14
+[05:14:00.625] [bmv2] [D] [thread 7] [0.0] [cxt 0] Looking up key:
+* hdr.eth.dst         : 02a000000003
+
+[05:14:00.625] [bmv2] [D] [thread 7] [0.0] [cxt 0] Table 'SwIngress.l2_fwd': hit with handle 3
+[05:14:00.625] [bmv2] [D] [thread 7] [0.0] [cxt 0] Action entry is SwIngress.set_port - 3,
+[05:14:00.625] [bmv2] [D] [thread 7] [0.0] [cxt 0] Looking up key:
+
+[05:14:00.625] [bmv2] [D] [thread 7] [0.0] [cxt 0] Table 'tbl_act': miss
+[05:14:00.625] [bmv2] [D] [thread 7] [0.0] [cxt 0] Action entry is act - 
+[05:14:00.626] [bmv2] [D] [thread 7] [0.0] [cxt 0] Egress port is 3
+[05:14:00.626] [bmv2] [D] [thread 7] [1.0] [cxt 0] Processing packet received on port 0
+[05:14:00.626] [bmv2] [D] [thread 7] [1.0] [cxt 0] Looking up key:
+* hdr.ufh.dst         : 0009
+
+[05:14:00.626] [bmv2] [D] [thread 7] [1.0] [cxt 0] Table 'SwIngress.ufh_fwd': miss
+[05:14:00.626] [bmv2] [D] [thread 7] [1.0] [cxt 0] Action entry is SwIngress.drop - 0,
+[05:14:00.626] [bmv2] [D] [thread 7] [1.0] [cxt 0] Egress port is 511
+[05:14:00.626] [bmv2] [D] [thread 7] [1.0] [cxt 0] Dropping packet at the end of ingress
+[05:14:00.627] [bmv2] [D] [thread 9] [0.0] [cxt 0] Deparsing header 'eth'
+[05:14:00.627] [bmv2] [D] [thread 9] [0.0] [cxt 0] Deparsing header 'esun'
+[05:14:00.627] [bmv2] [D] [thread 9] [0.0] [cxt 0] Transmitting packet of size 302 out of port 3
+"""
+
+
+def test_bmv2_log_parser_keeps_packets_apart():
+    """Two packets interleaved on one thread, and the first one's egress on another: each line goes to its packet,
+    the compiler's own tables (tbl_*) are left out, an [I] log_msg line belongs to the thread's current packet."""
+    from emu.p4check import parse_bmv2_log
+    a, b = parse_bmv2_log(LOG)
+    assert a["port_in"] == 1 and a["states"] == ["start", "parse_eth", "parse_esun"] and a["headers"] == ["eth", "esun"]
+    assert a["tables"] == [{"key": {"hdr.eth.dst": "02a000000003"}, "table": "SwIngress.l2_fwd", "hit": True,
+                            "action": "SwIngress.set_port", "params": ["3"]}]
+    assert a["msgs"] == ["esun ttl decremented to 14"]
+    assert (a["egress_port"], a["tx_port"], a["dropped"], a["deparsed"]) == (3, 3, False, ["eth", "esun"])
+    assert b["tables"][0]["hit"] is False and b["tables"][0]["action"] == "SwIngress.drop"
+    assert (b["egress_port"], b["tx_port"], b["dropped"]) == (511, None, True)
+
+
+def test_recorded_packets_pair_with_bmv2s_log():
+    """Every frame the checks sent has its own bmv2 record; what bmv2 decided matches what the XPUs received."""
+    r = json.loads(RESULTS.read_text())
+    assert r["pairing"]["sent"] == r["pairing"]["bmv2_packets"] == len(r["packets"]) > 0
+    for p in r["packets"]:
+        b = p["bmv2"]
+        assert b["dropped"] == (not p["out"]), p["check"]
+        if not b["dropped"]:
+            assert list(p["out"]) == [str(b["tx_port"])], p["check"]
+    unk = next(p for p in r["packets"] if p["check"] == "unknown DA not flooded")
+    assert unk["in"]["ttl"] > 1, "the unknown-DA frame must get past the TTL check to test the DA table"
+    assert [t["hit"] for t in unk["bmv2"]["tables"] if t["table"].endswith("l2_fwd")] == [False]

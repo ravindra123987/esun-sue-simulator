@@ -46,7 +46,7 @@ def test_outage_capture_shows_flush_reinit_and_rodl_retransmissions():
 def test_dissector_decodes_the_shim_and_the_frames_inside():
     cmd = [TSHARK, "-X", f"lua_script:{LUA}", "-r", str(EMU / "ber-llr-link1.pcap"), "-T", "fields",
            "-e", "_ws.col.Protocol", "-e", "sue.llr.type", "-e", "sue.llr.crc.status", "-e", "sue.crc.status",
-           "-e", "sue.pds.psn", "-e", "sue.cbfc.cf1", "-e", "sue.cbfc.cc", "-e", "sue.llr.ack_nack_seq"]
+           "-e", "sue.pds.psn", "-e", "sue.cbfc.cf1", "-e", "sue.cbfc.cc", "-e", "sue.llr.ack_nack_seq", "-e", "sue.pds.cack_psn"]
     out = subprocess.run(cmd, capture_output=True, text=True, check=True)
     assert "Lua" not in out.stderr and "error" not in out.stderr.lower(), out.stderr
     rows = [line.split("\t") for line in out.stdout.splitlines()]
@@ -55,7 +55,7 @@ def test_dissector_decodes_the_shim_and_the_frames_inside():
     assert kinds[("SUE/UFH16", "0x00")] > 0                                # frames: shim + the UFH_16 dissector
     assert any(r[2] == "1" for r in rows)                                  # corrupted frames flagged by the shim CRC
     good = [r for r in rows if r[0] == "SUE/UFH16" and r[3] == "0"]
-    assert good and all(r[4] for r in good)                                # UET CRC Good with a PSN recovered for each
+    assert good and all(r[4] or r[8] for r in good)                        # CRC Good: a request with its PSN recovered, or an ACK
     assert any(r[5] for r in rows) and any(r[6] for r in rows)             # CF_Update counts and CC_Update counters decoded
     assert any(r[7] for r in rows if r[1] == "0x02")                       # the NACK carries ack_nack_seq
 

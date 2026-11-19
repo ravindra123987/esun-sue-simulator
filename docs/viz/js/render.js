@@ -104,12 +104,16 @@ const R = {
   p1:[528, 96, 100, 204], c1:[528, 312, 100, 200], sbuf:[638, 96, 126, 416], p7:[774, 96, 138, 204], rb7:[774, 312, 138, 200],
   nicB:[1132, 74, 202, 446], rxB:[1140, 96, 90, 204], cB:[1140, 312, 90, 200], bufB:[1236, 96, 90, 416], hbmB:[1338, 96, 74, 416],
   h1:[316, LT - 56, 200, LR - LT + 116], h2:[924, LT - 56, 200, LR - LT + 116],
+  capAtx:[30, 96, 272, 204], capArx:[30, 312, 272, 200], epB:[1236, 96, 176, 416],          // captured runs (M4)
 };
 const BLOCK_NAMES = {hbmA:"XPU A · HBM send queue", cred:"XPU A · credit gate", llrA:"XPU A · LLR transmit", rbA:"XPU A · replay buffer",
   p1:"Switch · port 1 RX", c1:"Switch · port 1 control TX", sbuf:"Switch · ingress buffer", p7:"Switch · port 7 TX", rb7:"Switch · port 7 replay buffer",
   rxB:"XPU B · port RX", cB:"XPU B · control TX", bufB:"XPU B · RX buffer", hbmB:"XPU B · HBM", h1:"Hop 1 cable", h2:"Hop 2 cable"};
 const EP_NAMES = {hbmA:"XPU A · SUE-T transmit queue", hbmB:"XPU B · SUE-T receive", sbuf:"Switch · ingress buffers"};
-const blockName = (d, key) => (d.kind === "endpoint" && EP_NAMES[key]) || BLOCK_NAMES[key] || key;
+const CAP_NAMES = {capAtx:"XPU A · what its port sent (hop 1 →)", capArx:"XPU A · what reached its port (hop 1 ←)", p1:"Switch · port 1: frames arriving from XPU A",
+  c1:"Switch · port 1: what it sent back", sbuf:"Switch · internals (not on the wire)", p7:"Switch · port 7: what it sent (hop 2 →)", rb7:"Switch · port 7: frames arriving from XPU B",
+  rxB:"XPU B · frames arriving at its port", cB:"XPU B · what its port sent back", epB:"XPU B · SUE-T, as the packets show it", h1:"Hop 1 cable (captured)", h2:"Hop 2 cable (captured)"};
+const blockName = (d, key) => (d.kind === "endpoint" && EP_NAMES[key]) || (d.kind === "captured" && CAP_NAMES[key]) || BLOCK_NAMES[key] || key;
 const STATE_COL = s => ({ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[s] || C.muted);
 const STATE_TXT = {ADVANCE:"normal", REPLAY:"replaying", INIT:"re-syncing", FLUSH:"gave up"};
 const stateTxt = (s, det) => det ? s : (STATE_TXT[s] || s);
@@ -149,6 +153,84 @@ function drawPath(cv, d, t, opts){
   drawCable(g, d, t, v, 1, 924, 1124, det);
   drawPulse(g, d, t);
   return v;
+}
+
+// ---------------------------------------------------------------- captured runs (M4): only what crossed the wire
+function rows(g, x, y, w, list, size = 11.5){
+  list.forEach(([k, val, bad], i) => {
+    T(g, k, x, y + i * 17, {s:size, c:C.muted});
+    T(g, String(val), x + w, y + i * 17, {s:size, w:700, a:"right", m:true, c:bad ? C.bad : C.fg});
+  });
+}
+function verdict(g, x, y, w, rx, t, unit){
+  if (!rx){ T(g, "listening", x + w/2, y + 4, {s:11, a:"center", c:C.muted}); return; }
+  const vc = {accept:C.ok, bad:C.bad, ooo:C.ack, dup:C.muted}[rx.res];
+  const op = Math.max(.35, 1 - (t - rx.t) / (unit === "ms" ? 2 : 14));
+  g.globalAlpha = op;
+  g.beginPath(); g.arc(x + w/2, y, 14, 0, 7); g.fillStyle = alpha(vc, .16); g.fill(); g.strokeStyle = vc; g.lineWidth = 1.6; g.stroke();
+  T(g, rx.res === "accept" ? "✓" : "✕", x + w/2, y + 1, {s:16, w:700, a:"center", b:"middle", c:vc});
+  T(g, {accept:"accepted", bad:"CRC bad", ooo:"out of order", dup:"duplicate"}[rx.res], x + w/2, y + 30, {s:11, w:700, a:"center", c:vc});
+  g.globalAlpha = 1;
+}
+function drawCaptured(g, d, t, v, det){
+  const llr = d.cfg.llr.enabled, c = v.cap, u = d.unit;
+  chassis(g, CH.A, "XPU A", "emulated · seen at the switch side of its cable", C["dev-a"]);
+  chassis(g, CH.S, "Switch", "emulated · what its ports sent and received", C["dev-s"]);
+  chassis(g, CH.B, "XPU B", "emulated · seen at the switch side of its cable", C["dev-b"]);
+  for (const k of ["h1", "h2"]){ const [x, y, w, h] = R[k]; HIT.blocks.push({key:k, x, y, w, h}); }
+  const lastLab = e => e ? (e.kind === "cc_update" ? "CC_Update" : fl(d, e.fid, true)) + (e.seq != null ? ` · seq ${e.seq}` : "") : "–";
+  // XPU A
+  { const [x, y, w] = R.capAtx, a = c.a2s, e = v.ep.A;
+    stage(g, "capAtx", "Port sends → hop 1", llr ? "frames carry an LLR seq in the shim" : "LLR off: plain frames", {hot:a.last && t - a.last.t0 < 1 && a.last.replay ? C.ack : null});
+    rows(g, x + 12, y + 60, w - 24, [["data frames", a.frames], ["replayed (LLR)", a.replay, a.replay > 0], ["CC_Updates", a.cc], ["SUE-T packets (PSN)", e.sent],
+      ["RODL resends", e.retx, e.retx > 0], ["last", lastLab(a.last)]]); }
+  { const [x, y, w] = R.capArx, b = c.s2a;
+    stage(g, "capArx", "Port receives ← hop 1", "what port 1 sent back");
+    rows(g, x + 12, y + 56, w - 24, [["LLR ACKs", b.LLR_ACK], ["LLR NACKs", b.LLR_NACK, b.LLR_NACK > 0], ["CF_Updates (credits)", b.CF_UPDATE],
+      ["INIT / ECHO", `${b.LLR_INIT} / ${b.LLR_INIT_ECHO}`], ["ACK packets (RODL)", b.frames], ["CRC bad", b.bad, b.bad > 0]]);
+    verdict(g, x + w - 70, y + 170, 60, v.rx.A, t, u); }
+  // switch
+  { const [x, y, w] = R.p1; stage(g, "p1", "Port 1 RX", "from XPU A", {hot:v.rx.S1 && v.rx.S1.res !== "accept" ? C.bad : null}); verdict(g, x, LT, w, v.rx.S1, t, u);
+    rows(g, x + 8, y + 150, w - 16, [["bad", c.a2s.bad, c.a2s.bad > 0]], 10.5); }
+  { const [x, y, w] = R.c1; stage(g, "c1", "Port 1 TX", "back to XPU A");
+    rows(g, x + 8, y + 56, w - 16, [["ACK", c.s2a.LLR_ACK], ["NACK", c.s2a.LLR_NACK, c.s2a.LLR_NACK > 0], ["CF", c.s2a.CF_UPDATE], ["pkts", c.s2a.frames]], 10.5); }
+  { const [x, y, w, h] = R.sbuf; stage(g, "sbuf", "Not on the wire", "buffers, lookup, credits", {dim:true});
+    ["The capture sees what", "each port sent and", "received. What the", "switch held inside,", "and when it forwarded,", "is not visible."].forEach((s, i) => T(g, s, x + w/2, y + 80 + i * 16, {s:10.5, a:"center", c:C.muted})); }
+  { const [x, y, w] = R.p7; const a = c.s2b; stage(g, "p7", "Port 7 TX", "to XPU B", {hot:a.last && t - a.last.t0 < 1 && a.last.replay ? C.ack : null});
+    rows(g, x + 10, y + 56, w - 20, [["frames", a.frames], ["replayed", a.replay, a.replay > 0], ["CC_Updates", a.cc]], 11);
+    T(g, lastLab(a.last), x + w/2, y + 128, {s:10.5, w:600, a:"center", m:true, c:C.muted}); }
+  { const [x, y, w] = R.rb7; stage(g, "rb7", "Port 7 RX", "from XPU B", {hot:v.rx.S7 && v.rx.S7.res !== "accept" ? C.bad : null}); verdict(g, x, y + 80, w, v.rx.S7, t, u);
+    rows(g, x + 10, y + 140, w - 20, [["ACK", c.b2s.LLR_ACK], ["NACK", c.b2s.LLR_NACK, c.b2s.LLR_NACK > 0], ["bad", c.b2s.bad, c.b2s.bad > 0]], 10.5); }
+  // XPU B
+  { const [x, y, w] = R.rxB; stage(g, "rxB", "Port RX", "from port 7", {hot:v.rx.B && v.rx.B.res !== "accept" ? C.bad : null}); verdict(g, x, LT, w, v.rx.B, t, u);
+    rows(g, x + 8, y + 150, w - 16, [["bad", c.s2b.bad, c.s2b.bad > 0]], 10.5); }
+  { const [x, y, w] = R.cB; stage(g, "cB", "Port TX", "back to port 7");
+    rows(g, x + 8, y + 56, w - 16, [["ACK", c.b2s.LLR_ACK], ["NACK", c.b2s.LLR_NACK, c.b2s.LLR_NACK > 0], ["CF", c.b2s.CF_UPDATE], ["pkts", c.b2s.frames]], 10.5); }
+  { const [x, y, w, h] = R.epB, e = v.ep.B;
+    let gaps = 0, dups = 0; for (const r of d.pktRx){ if (r.t > t) break; if (r.xpu === "B"){ if (r.res === "gap") gaps++; if (r.res === "dup") dups++; } }
+    stage(g, "epB", "SUE-T (RODL)", "inferred from the PSNs", {fill:alpha(C.mem, .05), hot:gaps && e.lastRx && e.lastRx.res === "gap" && t - e.lastRx.t < 2 ? C.bad : null});
+    rows(g, x + 12, y + 60, w - 24, [["expects PSN", e.expect], ["packets accepted", e.accepted], ["stores received", e.received], ["gaps (dropped)", gaps, gaps > 0],
+      ["duplicates", dups], ["ACK packets sent", c.b2s.frames]], 11);
+    const acc = [];
+    for (let i = d.pktRx.length - 1; i >= 0 && acc.length < 8; i--){ const r = d.pktRx[i]; if (r.t <= t && r.xpu === "B" && r.res === "accept") acc.push(r); }
+    acc.forEach((r, i) => { const p = d.pk.get(r.fid); pkt(g, x + 12, y + 172 + i * 26, w - 24, 22, C.mem, p ? `PSN ${p.psn} ×${p.n}` : "#" + r.fid, {op:i === 0 ? .4 : .14, fs:10.5, fid:r.fid}); });
+  }
+  drawCable(g, d, t, v, 0, 316, 516, det);
+  drawCable(g, d, t, v, 1, 924, 1124, det);
+  drawPulse(g, d, t);
+  return v;
+}
+
+function draw(cv, d, t, opts){
+  if (d.kind === "captured"){
+    cur = opts; HIT.blocks.length = 0; HIT.frames.length = 0; HIT.txns.length = 0;
+    const [g] = fit(cv, W, H);
+    g.fillStyle = C.canvas; g.fillRect(0, 0, W, H);
+    g.fillStyle = C.grid; for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) g.fillRect(x, y, 1.3, 1.3);
+    return drawCaptured(g, d, t, view(d, t), opts.mode === "detail");
+  }
+  if (SUE.planes && SUE.planes.handles(d)) return SUE.planes.draw(cv, d, t, opts, {fit, T, pill, rr, alpha, C, HIT, setCur:o => { cur = o; }});
+  return drawPath(cv, d, t, opts);
 }
 
 function drawHbmA(g, d, v){
@@ -363,11 +445,11 @@ function drawCable(g, d, t, v, h, xa, xb, det){
   }
   const cx = (xa + xb) / 2;
   T(g, `Hop ${h + 1}`, cx, LT - 40, {s:12.5, w:700, a:"center", c:down ? C.bad : C.fg});
-  T(g, `${hc.cable_m} m · ${d.cfg.rate_gbps}G · ${prop.toFixed(0)} ns`, cx, LT - 25, {s:10.5, a:"center", c:C.muted});
+  T(g, d.kind === "captured" ? `captured · drawn crossing in ${prop} ${d.unit}` : `${hc.cable_m} m · ${d.cfg.rate_gbps}G · ${prop.toFixed(0)} ns`, cx, LT - 25, {s:10.5, a:"center", c:C.muted});
   g.lineWidth = 2; g.strokeStyle = down ? alpha(C.bad, .7) : alpha(C["chassis-line"], .9); g.setLineDash(down ? [6, 5] : []);
   for (const y of [LT, LR]){ g.beginPath(); g.moveTo(xa + 8, y); g.lineTo(xb - 8, y); g.stroke(); }
   g.setLineDash([]);
-  const ep = d.kind === "endpoint", yc = ep ? LR + 26 : LR;        // where the control blocks travel
+  const ep = d.kind === "endpoint" || d.kind === "captured", yc = ep ? LR + 26 : LR;        // where the control blocks travel
   if (!down) T(g, ep ? "packets →" : "data →", xa + 14, LT + 46, {s:10.5, c:C.muted});
   if (ep){ T(g, "← ACKs · responses", xb - 14, LR - 18, {s:10.5, a:"right", c:C.muted}); line(g, xa + 8, yc, xb - 8, yc, alpha(C["chassis-line"], .5), 1, [2, 4]); }
   T(g, det ? "← ACK · NACK · CF (faded: repeats)" : "← ACK · NACK · CF (new info only)", xb - 14, yc + 30, {s:10.5, a:"right", c:C.muted});
@@ -416,12 +498,15 @@ function drawCable(g, d, t, v, h, xa, xb, det){
 const PULSE = {A:{stall:"cred", _:"llrA", flush:"rbA"}, S1:{nack:"c1", init:"c1", fill:"sbuf", fwd:"sbuf", _:"p1"}, S7:{flush:"rb7", _:"p7"},
   B:{nack:"cB", init:"cB", fill:"bufB", deliver:"hbmB", _:"rxB"}, h1:{_:"h1"}, h2:{_:"h2"}};
 const EP_KINDS = new Set(["issue", "pack", "retx", "ack", "rnack", "gap", "rdup", "goback", "fatal", "done", "fail", "accept", "rtimer"]), EP_BLOCK = {A:"hbmA", B:"hbmB"};
+const CAP_PULSE = {A:{_:"capAtx", nack:"capArx"}, S1:{_:"p1", nack:"c1", init:"c1", cc:"c1"}, S7:{_:"p7", bad:"rb7"}, B:{_:"rxB", nack:"cB", init:"cB", cc:"cB", gap:"epB", rnack:"cB"},
+  h1:{_:"h1"}, h2:{_:"h2"}};
 function drawPulse(g, d, t){
   const i = noteIdx(d, t); if (i < 0) return;
-  const n = d.notes[i], age = t - n.t; if (age > 25) return;
-  const m = PULSE[n.at]; if (!m) return;
+  const life = d.unit === "ms" ? 3 : 25;
+  const n = d.notes[i], age = t - n.t; if (age > life) return;
+  const m = (d.kind === "captured" ? CAP_PULSE : PULSE)[n.at]; if (!m) return;
   const r = R[(d.kind === "endpoint" && EP_KINDS.has(n.kind) && EP_BLOCK[n.at]) || m[n.kind] || m._]; if (!r) return;
-  const k = PROB.has(n.kind) ? C.bad : C.accent, a = 1 - age / 25;
+  const k = PROB.has(n.kind) ? C.bad : C.accent, a = 1 - age / life;
   g.save(); g.globalAlpha = a;
   rr(g, r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8, 11); g.strokeStyle = k; g.lineWidth = 2.5; g.stroke();
   rr(g, r[0] - 9, r[1] - 9, r[2] + 18, r[3] + 18, 15); g.strokeStyle = alpha(k, .25); g.lineWidth = 5; g.stroke();
@@ -444,11 +529,12 @@ function drawLadder(cv, d, t, span){
   const top = 34, bot = Hd - 16, m = 96, inner = Wd - 2 * m;
   const X = {A:m, S1:m + inner * .42, S7:m + inner * .58, B:Wd - m};
   const t0 = t - span, y = tt => top + (tt - t0) / span * (bot - top);
+  if (!d.cfg.hops) return;
   T(g, "XPU A", X.A, 16, {s:12, w:700, a:"center"}); T(g, "NIC", X.A, 29, {s:10.5, a:"center", c:C.muted});
   T(g, "Switch", (X.S1 + X.S7)/2, 16, {s:12, w:700, a:"center"}); T(g, "port 1", X.S1, 29, {s:10.5, a:"center", c:C.muted}); T(g, "port 7", X.S7, 29, {s:10.5, a:"center", c:C.muted});
   T(g, "XPU B", X.B, 16, {s:12, w:700, a:"center"}); T(g, "NIC", X.B, 29, {s:10.5, a:"center", c:C.muted});
-  const step = span <= 150 ? 25 : span <= 300 ? 50 : span <= 600 ? 100 : 200;
-  for (let k = Math.ceil(Math.max(0, t0) / step) * step; k <= t; k += step){ const yy = y(k); line(g, X.A, yy, X.B, yy, alpha(C.muted, .14)); T(g, k + " ns", X.A - 14, yy + 4, {s:10.5, a:"right", c:C.muted, m:true}); }
+  const step = [.25, .5, 1, 2.5, 5, 10, 25, 50, 100, 200, 500].find(s => span / s <= 8) || 1000;
+  for (let k = Math.ceil(Math.max(0, t0) / step) * step; k <= t; k += step){ const yy = y(k); line(g, X.A, yy, X.B, yy, alpha(C.muted, .14)); T(g, `${+k.toFixed(3)} ${d.unit}`, X.A - 14, yy + 4, {s:10.5, a:"right", c:C.muted, m:true}); }
   d.cfg.hops.forEach((hc, h) => { const [xa, xb] = h ? [X.S7, X.B] : [X.A, X.S1];
     for (const [a, b] of hc.down){ if (b < t0 || a > t) continue; g.fillStyle = alpha(C.bad, .08); g.fillRect(xa, y(Math.max(a, t0)), xb - xa, y(Math.min(b, t)) - y(Math.max(a, t0))); } });
   g.fillStyle = alpha(C["dev-s"], .06); g.fillRect(X.S1, top, X.S7 - X.S1, bot - top);
@@ -509,5 +595,5 @@ function drawMarks(cv, d){
   }
 }
 
-return {readTheme, drawPath, drawLadder, drawMarks, hitTest, BLOCK_NAMES, blockName, W, H, color:() => C};
+return {readTheme, draw, drawPath, drawLadder, drawMarks, hitTest, BLOCK_NAMES, blockName, W, H, color:() => C};
 })();

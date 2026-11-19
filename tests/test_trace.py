@@ -40,8 +40,13 @@ def test_frames_take_serialisation_time_and_propagation(traces):
         assert f["arrive"] - f["t1"] == pytest.approx(t["cfg"]["hops"][h]["prop_ns"], abs=0.01)
 
 
+def simulated(traces):
+    """Runs from the simulator (captured runs have no internal events, and their crossings are drawn, not timed)."""
+    return [t for t in traces.values() if t["cfg"]["kind"] in ("link", "endpoint")]
+
+
 def test_port_7_starts_sending_exactly_when_it_takes_the_frame_from_the_buffer(traces):
-    for t in traces.values():
+    for t in simulated(traces):
         fwd = {e["fid"]: e["t"] for e in t["events"] if e["ev"] == "fwd"}
         for e in t["events"]:
             if e["ev"] == "frame" and e["dir"] == "s2b" and e["kind"] == "data" and not e["replay"]:
@@ -49,7 +54,7 @@ def test_port_7_starts_sending_exactly_when_it_takes_the_frame_from_the_buffer(t
 
 
 def test_a_frame_leaves_the_switch_only_after_port_1_accepted_it(traces):
-    for t in traces.values():
+    for t in simulated(traces):
         acc = {e["fid"]: e["t"] for e in t["events"] if e["ev"] == "rx" and e["mac"] == "S1" and e["res"] == "accept"
                and e["kind"] == "data"}                                   # CC_Updates number their own fids
         for e in t["events"]:
@@ -75,7 +80,7 @@ def test_scenarios_show_what_their_titles_promise(traces):
     assert traces["outage-flush"]["result"]["lost"] > 0
     nl = traces["no-llr"]
     assert nl["result"]["lost"] == 1 and nl["result"]["replayed"] == 0 and "cc" in kinds(nl)
-    for t in traces.values():
+    for t in simulated(traces):
         assert t["result"]["in_order"]
         assert "overflow" not in kinds(t)
         assert all(n["at"] in ("A", "S1", "S7", "B", "h1", "h2") for n in t["notes"])

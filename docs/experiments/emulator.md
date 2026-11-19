@@ -46,39 +46,39 @@ Four XPUs, all-to-all, 32 KB to each peer as 256 B stores (eight runs; 256 KB pe
 
 | Scenario | Stores done / failed | Completion | LLR: bad / NACK / replayed / timer / FLUSH | RODL: gaps / NACK / retx / RTO / PDCs closed | CBFC: stalls / overflow / CF lost / CC reclaimed |
 |---|---|---|---|---|---|
-| clean | 1536 / 0 | 0.07 s | 0 / 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 | 4 / 0 / 0 / 0 |
-| ber-llr: BER 1e-5 on link 1 | 1536 / 0 | 0.20 s | 58 / 16 / 428 / 4 / 0 | 0 / 0 / 0 / 0 / 0 | 20 / 0 / 0 / 0 |
-| ber-nollr: the same, LLR off | 1536 / 0 | 4.13 s | 0 / 0 / 0 / 0 / 0 | 146 / 16 / 209 / 7 / 0 | 50 / 0 / 0 / 1700 |
-| ber-lite: LLR off, no retransmission | 632 / 904 | 1.02 s | 0 / 0 / 0 / 0 / 0 | 52 / 5 / 0 / 3 / 8 | 32 / 0 / 0 / 986 |
-| lost-cf: 70 % of CF_Updates lost on links 1, 2 | 1536 / 0 | 0.07 s | 0 / 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 | 16 / 0 / 231 / 0 |
-| stuck-rx: XPU 1 stops receiving for 0.5 s | 12288 / 0 | 1.21 s | 0 / 0 / 23 / 3 / 0 | 0 / 0 / 0 / 0 / 0 | 1453 / 0 / 0 / 0 |
-| link-flap: link 1 down 0.2 s | 12288 / 0 | 1.03 s | 0 / 2 / 302 / 7 / 0 | 0 / 0 / 0 / 0 / 0 | 1597 / 0 / 0 / 0 |
-| link-outage: link 1 down 1.0 s | 12288 / 0 | 1.82 s | 0 / 0 / 712 / 19 / 2 | 167 / 4 / 208 / 3 / 0 | 1655 / 0 / 0 / 1022 |
+| clean | 1536 / 0 | 0.06 s | 0 / 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 | 68 / 0 / 0 / 0 |
+| ber-llr: BER 1e-5 on link 1 | 1536 / 0 | 0.14 s | 41 / 12 / 273 / 2 / 0 | 0 / 0 / 0 / 0 / 0 | 47 / 0 / 0 / 0 |
+| ber-nollr: the same, LLR off | 1536 / 0 | 1.07 s | 0 / 0 / 0 / 0 / 0 | 107 / 10 / 138 / 4 / 0 | 49 / 0 / 0 / 1054 |
+| ber-lite: LLR off, no retransmission | 1016 / 520 | 0.09 s | 0 / 0 / 0 / 0 / 0 | 52 / 6 / 0 / 0 / 6 | 42 / 0 / 0 / 442 |
+| lost-cf: 70 % of CF_Updates lost on links 1, 2 | 1536 / 0 | 0.06 s | 0 / 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 | 47 / 0 / 365 / 0 |
+| stuck-rx: XPU 1 stops receiving for 0.5 s | 12288 / 0 | 1.39 s | 0 / 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 | 1666 / 0 / 0 / 0 |
+| link-flap: link 1 down 0.2 s | 12288 / 0 | 1.25 s | 0 / 1 / 313 / 6 / 0 | 0 / 0 / 0 / 0 / 0 | 1851 / 0 / 0 / 0 |
+| link-outage: link 1 down 1.0 s | 12288 / 0 | 2.02 s | 0 / 0 / 797 / 16 / 2 | 154 / 4 / 184 / 0 / 0 | 1962 / 0 / 0 / 1022 |
 
 Counts are summed over all ports and endpoints. "Stalls" counts the times a sender waited for credits. Full per-link capture counts are in the JSON; the faulted link reads:
 
 | Scenario, link 1 | Frames XPU→sw / sw→XPU | Bad CRC | Replayed | LLR ACK / NACK / INIT+ECHO | CF_Update | CC_Update | RODL requests (syn, retx flag) | ACK / NACK packets |
 |---|---|---|---|---|---|---|---|---|
-| clean | 52 / 54 | 0 | 0 | 78 / 0 / 37 | 58 | 4 | 96 (6, 0) | 6 / 0 |
-| ber-llr | 157 / 408 | 58 | 428 | 239 / 16 / 36 | 110 | 84 | 369 (10, 0) | 54 / 0 |
-| ber-nollr | 354 / 398 | 52 | 750 | 0 / 0 / 0 | 1444 | 416 | 255 (6, 174) | 15 / 16 |
-| ber-lite | 102 / 122 | 17 | 222 | 0 / 0 / 0 | 431 | 121 | 80 (6, 0) | 2 / 5 |
-| lost-cf | 53 / 53 | 0 | 0 | 85 / 0 / 36 | 56 | 4 | 96 (6, 0) | 6 / 0 |
-| stuck-rx | 493 / 482 | 0 | 23 | 1432 / 0 / 37 | 746 | 109 | 765 (6, 0) | 101 / 0 |
-| link-flap | 437 / 468 | 0 | 22 | 1348 / 2 / 37 | 598 | 89 | 786 (6, 0) | 30 / 0 |
-| link-outage | 514 / 465 | 0 | 19 | 908 / 0 / 38 | 604 / 61 | 903 (6, 208) | 11 / 4 |
+| clean | 86 / 89 | 0 | 0 | 799 / 0 / 50 | 261 | 59 | 96 (6, 0) | 20 / 0 |
+| ber-llr | 215 / 238 | 41 | 269 | 766 / 11 / 49 | 241 | 90 | 253 (7, 0) | 69 / 0 |
+| ber-nollr | 238 / 192 | 31 | 428 | 0 / 0 / 0 | 655 | 177 | 203 (6, 120) | 9 / 10 |
+| ber-lite | 82 / 100 | 14 | 180 | 0 / 0 / 0 | 280 | 76 | 83 (6, 0) | 4 / 6 |
+| lost-cf | 85 / 88 | 0 | 0 | 797 / 0 / 48 | 256 | 59 | 96 (6, 0) | 18 / 0 |
+| stuck-rx | 598 / 544 | 0 | 0 | 2335 / 0 / 48 | 1013 | 179 | 768 (6, 0) | 195 / 0 |
+| link-flap | 528 / 570 | 0 | 35 | 1836 / 1 / 50 | 781 | 155 | 798 (6, 0) | 145 / 0 |
+| link-outage | 626 / 613 | 0 | 0 | 1883 / 0 / 54 | 915 | 144 | 922 (6, 184) | 169 / 4 |
 
 ("Replayed" in a capture with LLR off counts frames whose shim sequence number repeats, which is every frame: without LLR the shim carries 0, so read that column only for the LLR-on runs. With LLR off, the 52 bad frames on link 1 are the ones RODL had to recover.)
 
 **What each run shows.**
 
-- **ber-llr**: 58 corrupted frames on link 1 cost 16 LLR NACKs and 428 replayed frames (a replay resends the whole buffer, about 14 frames per error, as M2 E3 measured), 4 timer replays where the NACK or the replay's first frame was itself hit, and **nothing at the transport**: no gap, no NACK, no retransmission, every store done. Completion 0.20 s against 0.07 s clean.
-- **ber-nollr**: the same errors become RODL gaps (146), NACKs (16), Go-Back-N retransmissions (209) and, where no later packet was there to trigger a NACK, RTOs (7 × 1 s). Completion 4.1 s. And 1700 credits reclaimed by CC_Update: every corrupted frame had consumed credits at the sender that the receiver never counted, which is exactly the leak §5.2.5.4 gives CC_Update to repair.
-- **ber-lite**: with no retransmission a loss closes the PDC; 904 of 1536 stores failed and 8 PDCs were re-established with `syn`. The survivors kept the clean latency.
-- **lost-cf**: 231 CF_Updates dropped, no visible effect: CF_Update is cumulative and CF_max (5 ms here) resends it. Stalls 16 vs 4.
-- **stuck-rx**: XPU 1's buffer stops draining, so its CF_Updates stop, switch port 1 runs out of credits toward it, its ingress buffers fill, and the three senders stall (1453 credit stalls) until the XPU resumes. **Zero overflows, zero drops**: CBFC did its job. The 23 LLR replays are the NIC's LLR acknowledgements being slow while it is stuck.
-- **link-flap** (0.2 s): the switch's sends fail while the link is down (357 send errors on port 1), the replay timer fires until the link is back (7 timer replays, 302 frames), and LLR delivers everything in order: **no transport retransmission**. The sim's `outage-short` scenario, in real packets.
-- **link-outage** (1.0 s): 8 replays without progress and port 1 flushes (so does XPU 1's NIC), re-initialises, and the frames in the buffers are lost: RODL sees 167 gaps, NACKs, retransmits 208 packets, 3 RTOs; CC_Update reclaims 1022 credits for the flushed frames. Completion 1.8 s. The sim's `outage-flush`.
+- **ber-llr**: 41 corrupted frames on link 1 cost 12 LLR NACKs and 273 replayed frames (a replay resends the whole buffer, so several frames per error, as M2 E3 measured), 2 timer replays where the NACK or the replay's first frame was itself hit, and **nothing at the transport**: no gap, no NACK, no retransmission, every store done. Completion 0.14 s against 0.06 s clean.
+- **ber-nollr**: the same errors become RODL gaps (107), NACKs (10), Go-Back-N retransmissions (138) and, where no later packet was there to trigger a NACK, RTOs (4 × 1 s). Completion 1.07 s. And 1054 credits reclaimed by CC_Update: every corrupted frame had consumed credits at the sender that the receiver never counted, which is exactly the leak §5.2.5.4 gives CC_Update to repair.
+- **ber-lite**: with no retransmission a loss closes the PDC; 520 of 1536 stores failed and 6 PDCs were re-established with `syn`. The survivors kept the clean latency.
+- **lost-cf**: 365 CF_Updates dropped, no visible effect: CF_Update is cumulative and CF_max (5 ms here) resends it. Completion and stalls are those of the clean run.
+- **stuck-rx**: XPU 1's buffer stops draining, so its CF_Updates stop, switch port 1 runs out of credits toward it, its ingress buffers fill, and the three senders stall (1666 credit stalls) until the XPU resumes. **Zero overflows, zero drops**: CBFC did its job.
+- **link-flap** (0.2 s): the switch's sends fail while the link is down (364 send errors on port 1), the replay timer fires until the link is back (6 timer replays, 313 frames), and LLR delivers everything in order: **no transport retransmission**. The sim's `outage-short` scenario, in real packets.
+- **link-outage** (1.0 s): 8 replays without progress and port 1 flushes (so does XPU 1's NIC), re-initialises, and the frames in the buffers are lost: RODL sees 154 gaps, NACKs 4 times and retransmits 184 packets; CC_Update reclaims 1022 credits for the flushed frames. Completion 2.0 s. The sim's `outage-flush`.
 
 ### Packets per second (the AF_PACKET question)
 
@@ -104,14 +104,14 @@ The point of M4 was to check that the emulator reproduces the simulator's failur
 
 | Fault | Simulator (M2 / M3) | Emulator | Same shape? |
 |---|---|---|---|
-| Bit errors, LLR on | E3, T4: loss repaired in one link round trip, the transport sees nothing; ~14 frames replayed per error | ber-llr: 0 RODL events, 428 replays for 58 errors (7.4 per error on average, 14 for a full buffer) | yes |
-| Bit errors, LLR off | T4: RODL NACK + Go-Back-N, the tail is the RTO | ber-nollr: 209 retransmissions, 7 RTOs, completion set by the 1 s RTO | yes |
-| Bit errors, SUE-lite | T4: survivors keep clean latency, the rest fail | ber-lite: 904 failed, PDCs re-established | yes |
+| Bit errors, LLR on | E3, T4: loss repaired in one link round trip, the transport sees nothing; ~14 frames replayed per error | ber-llr: 0 RODL events, 273 replays for 41 errors | yes |
+| Bit errors, LLR off | T4: RODL NACK + Go-Back-N, the tail is the RTO | ber-nollr: 138 retransmissions, 4 RTOs, completion set by the 1 s RTO | yes |
+| Bit errors, SUE-lite | T4: survivors keep clean latency, the rest fail | ber-lite: 520 failed, PDCs re-established | yes |
 | Lost credit messages | E4 (rule 4 / CF_max) | lost-cf: no effect at 70 % loss | yes |
-| Slow or stuck receiver | backpressure / small-pool viewer scenarios: stalls move back hop by hop, no drops | stuck-rx: 1453 stalls, 0 overflows | yes |
-| Short outage | outage-short: LLR absorbs it | link-flap: 7 timer replays, 0 RODL events | yes |
-| Long outage | outage-flush: FLUSH, INIT, transport recovers what was flushed; CC_Update reclaims | link-outage: 2 flushes, 208 RODL retransmissions, 1022 credits reclaimed | yes |
-| Credit leak repair | E4 rule 1–3: CC_Update reclaims credits of frames the receiver never counted | ber-nollr 1700, ber-lite 986, link-outage 1022 credits reclaimed | yes |
+| Slow or stuck receiver | backpressure / small-pool viewer scenarios: stalls move back hop by hop, no drops | stuck-rx: 1666 stalls, 0 overflows | yes |
+| Short outage | outage-short: LLR absorbs it | link-flap: 6 timer replays, 0 RODL events | yes |
+| Long outage | outage-flush: FLUSH, INIT, transport recovers what was flushed; CC_Update reclaims | link-outage: 2 flushes, 184 RODL retransmissions, 1022 credits reclaimed | yes |
+| Credit leak repair | E4 rule 1–3: CC_Update reclaims credits of frames the receiver never counted | ber-nollr 1054, ber-lite 442, link-outage 1022 credits reclaimed | yes |
 
 One thing the emulator shows that the simulator does not: what the state machines do when the *implementation* is slow. Every timer in UEC §5.1 is a guess about the peer's speed, and a peer that answers late is indistinguishable from a lost ACK.
 
@@ -144,7 +144,7 @@ limactl copy -r clab:~/emu-out /tmp/emu-out
 
 A single run: `sudo ... python -m emu.lab --n 4 --out ~/emu-out/x --endpoint-args "--bytes-per-peer 65536 --no-llr"`. `tests/test_emu.py` exercises the link layer and the endpoint over an in-memory wire without namespaces; `tests/test_emu_pcap.py` runs the dissector over the sample captures.
 
-*Rechecked 2026-11-19 after the four-plane changes to the lab (start barrier E11, 32 frames per socket per pass): every scenario shows the same behaviour as in the table (LLR hides bit errors from RODL, no transport event on a short flap, FLUSH and RODL recovery on the long outage, zero overflows on the stuck receiver), with counts that differ by about as much as one run differs from the next.*
+*Regenerated 2026-11-20. The first captures of this milestone were taken with tcpdump buffering whole blocks of the kernel's capture ring, so a short run could end before its last block reached the file: the clean run's link-1 capture held 52 of the 70 frames the switch sent. `emu/lab.py` now captures in immediate mode; the tables above, the samples in `pcaps/emu/` and [emulator-results.json](emulator-results.json) come from a run with that fix and with the four-plane changes to the lab (start barrier E11, 32 frames per socket per pass). The behaviour in every row is unchanged; the counts differ by about as much as one run differs from the next.*
 
 ## Four planes (M5b)
 

@@ -10,7 +10,9 @@ if (!TR || !TR.length){
   return;
 }
 const store = {get(k, dflt){ try { const v = localStorage.getItem(k); return v == null ? dflt : v; } catch (e){ return dflt; } }, set(k, v){ try { localStorage.setItem(k, v); } catch (e) {} }};
-const KIND_TAG = {clean:"baseline", "bit-error":"hop 1 · error", "bit-error-2":"hop 2 · error", "lost-nack":"hop 1 · timer", backpressure:"flow control",
+const GROUPS = {link:"Link layer (M2)", endpoint:"SUE-T endpoint (M3)", captured:"Captured on the wire (M4)", planes:"Planes and recovery (M5)",
+  compare:"Five designs, one fault (M5)", p4:"P4 switch in bmv2 (M6)"};
+const KIND_TAG = {"cap-clean":"capture", "cap-ber-hop2":"capture · LLR", "cap-outage-hop1":"capture · FLUSH", "cap-no-llr":"capture · RODL",clean:"baseline", "bit-error":"hop 1 · error", "bit-error-2":"hop 2 · error", "lost-nack":"hop 1 · timer", backpressure:"flow control",
   "small-pool":"flow control", "outage-short":"hop 1 · outage", "outage-flush":"hop 1 · FLUSH", "no-llr":"LLR off",
   "suet-stores":"packing", "suet-delivery":"delivery ACK", "suet-loads":"loads", "suet-bidir":"both ways", "suet-gbn":"Go-Back-N", "suet-lite":"SUE-lite", "suet-slow-xpu":"no packing"};
 
@@ -22,7 +24,10 @@ let sel = null, hover = null, tab = "events", filter = "all";
 const LIVE = {avail:false, on:false, id:null, busy:false, simT:0, metas:[], waiting:false, gen:0, over:null};
 const LOOK = 40;                 // ns the simulator stays ahead of the picture (a frame is logged when its last bit leaves)
 const cv = $("cNet");
-const ready = () => d.snaps.A.length && d.snaps.B.length && d.snaps.S7.length;
+const ready = () => (d.kind !== "link" && d.kind !== "endpoint") || (d.snaps.A.length && d.snaps.B.length && d.snaps.S7.length);
+// times in the scenario's own unit: ns (simulator), µs (planes), ms (emulator captures)
+const DEC = {ns:1, "µs":2, ms:2};
+const fmtT = x => `${(+x).toFixed(DEC[d.unit] != null ? DEC[d.unit] : 1)} ${d.unit}`;
 
 // ---------------------------------------------------------------- theme
 RD.readTheme();
@@ -77,7 +82,7 @@ function buildList(){
   const L = $("sclist"); L.textContent = "";
   let grp = null;
   for (const x of D){
-    const gname = x.kind === "endpoint" ? "SUE-T endpoint (M3)" : "Link layer (M2)";
+    const gname = GROUPS[x.kind] || x.kind;
     if (gname !== grp){ grp = gname; const h = document.createElement("div"); h.className = "grp-title"; h.textContent = gname; L.appendChild(h); }
     const b = document.createElement("button"); b.className = "sc"; b.setAttribute("role", "option"); b.dataset.id = x.id;
     const s = document.createElement("span"); s.textContent = x.title; const tg = document.createElement("span"); tg.className = "tag"; tg.textContent = KIND_TAG[x.id] || "";
@@ -91,9 +96,11 @@ function showScenario(){
   $("sTitle").textContent = d.title; $("sSum").textContent = d.summary;
   $("sWatch").innerHTML = "<b>What to watch.</b> "; $("sWatch").append(LIVE.on ? "Use the fault-injection buttons: every reaction you see is the simulator's." : d.watch);
   const c = d.cfg, r = d.result, kb = n => `${(n * c.credit_size / 1024).toFixed(0)} KB`;
-  const downs = c.hops.flatMap((h, i) => h.down.map(([a, b]) => `hop ${i + 1} down ${a}–${b} ns`));
+  const downs = c.hops.flatMap((h, i) => h.down.map(([a, b]) => `hop ${i + 1} down ${a}–${b} ${d.unit}`));
   const su = c.suet || {}, wl = c.wl || {};
-  const bits = d.kind === "endpoint" ? [`${c.hops[0].cable_m} m + ${c.hops[1].cable_m} m · ${c.rate_gbps}G`, `${su.ack_mode} ACK`,
+  const bits = d.kind === "captured" ? ["emulator capture (pcaps/emu/path)", c.llr.enabled ? "LLR on" : "LLR off", "times: ms from the first unit",
+    `frames ${r.frames} · bad ${r.bad} · replayed ${r.replayed}`, `LLR NACKs ${r.llr_nacks} · RODL resends ${r.rodl_retx} · RODL NACKs ${r.rodl_nacks}`,
+    ...downs.map(x => x + " (inferred)")] : d.extra && d.extra.chips ? d.extra.chips : d.kind === "endpoint" ? [`${c.hops[0].cable_m} m + ${c.hops[1].cable_m} m · ${c.rate_gbps}G`, `${su.ack_mode} ACK`,
     su.retx ? "RODL Go-Back-N" : "no retransmission (SUE-lite)", `${su.stack === "ufh16" ? "UFH_16" : su.stack} headers`, `XPU ${su.xpu_gbps} Gb/s`,
     `pack ≤ ${su.max_pack} · ${su.max_payload / 1024} KB`, c.llr.enabled ? "LLR on" : "LLR off", `${wl.op}s of ${wl.size} B from ${(wl.senders || []).join(" and ")}`,
     r ? `result: ${r.done} of ${r.total} done · ${r.failed} failed · ${r.retx} resent · ${(100 * r.eff).toFixed(0)}% efficient` : null]
@@ -126,7 +133,7 @@ function buildLog(){
   d.notes.forEach((n, i) => {
     const b = document.createElement("button"); b.dataset.i = i;
     if (PROB.has(n.kind)) b.classList.add("prob");
-    const tt = document.createElement("span"); tt.className = "t"; tt.textContent = n.t.toFixed(1) + " ns";
+    const tt = document.createElement("span"); tt.className = "t"; tt.textContent = fmtT(n.t);
     const x = document.createElement("span"); x.className = "x"; x.appendChild(richText(n.text));
     const c = document.createElement("span"); c.appendChild(chip(n.at));
     b.append(tt, c, x); b.hidden = !passes(n);
@@ -141,16 +148,19 @@ function drawNotes(){
   if (i === lastNote) return; lastNote = i;
   $("nowAt").textContent = ""; $("nowTxt").textContent = "";
   const nx = pausedHere ? d.notes.find(n => n.t > t + 1e-6) : null;
-  $("pausedTag").hidden = !pausedHere; $("pausedTag").textContent = nx ? `paused · Continue runs to ${nx.t.toFixed(1)} ns` : "paused at the last event";
-  if (i < 0){ $("nowTxt").textContent = (playing ? "" : "Press Play. ") + (d.kind === "endpoint" ? "Transactions queue in XPU A's SUE-T, get packed into PSN-numbered packets, cross both hops to XPU B and are acknowledged back the other way."
+  $("pausedTag").hidden = !pausedHere; $("pausedTag").textContent = nx ? `paused · Continue runs to ${fmtT(nx.t)}` : "paused at the last event";
+  if (i < 0){ $("nowTxt").textContent = (playing ? "" : "Press Play. ") + (d.extra && d.extra.intro ? d.extra.intro : d.kind === "captured" ?
+    "Real frames from the emulator: every unit drawn here was in the capture. Nothing inside the devices is visible, only what each port sent and received." : d.kind === "endpoint" ? "Transactions queue in XPU A's SUE-T, get packed into PSN-numbered packets, cross both hops to XPU B and are acknowledged back the other way."
     : "Frames leave XPU A's HBM, pass the NIC's credit gate and LLR, cross hop 1, wait in the switch, cross hop 2 and land in XPU B's HBM."); $("nowT").textContent = ""; }
-  else { const n = d.notes[i]; $("nowAt").appendChild(chip(n.at)); $("nowTxt").appendChild(richText(n.text)); $("nowT").textContent = `${n.t.toFixed(1)} ns`; }
+  else { const n = d.notes[i]; $("nowAt").appendChild(chip(n.at)); $("nowTxt").appendChild(richText(n.text)); $("nowT").textContent = fmtT(n.t); }
   [...$("log").children].forEach((b, k) => { b.classList.toggle("cur", k === i); b.classList.toggle("future", k > i); });
   const cur = $("log").children[i];
   if (cur && playing && !cur.hidden && tab === "events"){ const L = $("pEvents"), top = cur.offsetTop; if (top < L.scrollTop + 30 || top > L.scrollTop + L.clientHeight - 40) L.scrollTop = top - 60; }
 }
 let lastStats = "";
 function drawStats(v){
+  if (d.kind === "captured") return drawStatsCaptured(v);
+  if (v && v.stats) return drawGroups(v.stats);
   const last = v.li >= 0 ? d.lat[v.li].lat.toFixed(0) + " ns" : "–";
   const epg = x => { const e = v.ep[x]; return [`SUE-T · XPU ${x}`, [["waiting in queue", e.queued.length], ["packets sent", `${e.sent} + ${e.acksTx} ACK`], ["transactions per packet", e.packAvg.toFixed(2)],
     ["wire efficiency so far", `${(100 * e.eff).toFixed(1)}%`], ["next PSN / unacked", `${e.nextPsn} / ${e.unacked}`], ["expects PSN", e.expect], ["resent packets", e.retx, e.retx > 0],
@@ -158,6 +168,17 @@ function drawStats(v){
   const groups = [...(v.ep ? [epg("A"), epg("B")] : [["End to end", [["delivered to XPU B", v.deliv], ["last latency", last], ["in the switch buffer", v.swq.length], ["in XPU B's buffer", v.nq.length + (v.wr ? 1 : 0)]]]]),
     ["Hop 1 · XPU A → port 1", [["frames replayed", v.rep.A], ["FCS drops", v.drop.S1, v.drop.S1 > 0], ["XPU A credits in use", `${v.A.cr_used} / ${v.A.cl}`, v.A.stalled], ["LLR state", v.A.llr]]],
     ["Hop 2 · port 7 → XPU B", [["frames replayed", v.rep.S7], ["FCS drops", v.drop.B, v.drop.B > 0], ["port 7 credits in use", `${v.S7.cr_used} / ${v.S7.cl}`, v.S7.stalled], ["LLR state", v.S7.llr]]]];
+  drawGroups(groups);
+}
+function drawStatsCaptured(v){
+  const c = v.cap, hop = (h, f, r) => [`Hop ${h} · ${f} → ${r}`, []];
+  const dirRows = (x, back) => [["data frames", x.frames], ["replayed by LLR", x.replay, x.replay > 0], ["CRC bad", x.bad, x.bad > 0], ["CC_Updates", x.cc],
+    ["LLR ACK / NACK coming back", `${back.LLR_ACK} / ${back.LLR_NACK}`, back.LLR_NACK > 0], ["CF_Updates coming back", back.CF_UPDATE]];
+  drawGroups([["Hop 1 · XPU A → switch port 1", dirRows(c.a2s, c.s2a)], ["Hop 2 · switch port 7 → XPU B", dirRows(c.s2b, c.b2s)],
+    ["SUE-T (decoded from the frames)", [["requests sent by XPU A", v.ep.A.sent], ["RODL resends", v.ep.A.retx, v.ep.A.retx > 0], ["accepted at XPU B", v.ep.B.accepted],
+      ["XPU B expects PSN", v.ep.B.expect], ["ACK packets from XPU B", v.ep.B.acksTx], ["RODL NACKs", v.ep.B.nacksTx, v.ep.B.nacksTx > 0]]]]);
+}
+function drawGroups(groups){
   const key = JSON.stringify(groups); if (key === lastStats) return; lastStats = key;
   const P = $("pCounters"); P.textContent = "";
   for (const [title, rows] of groups){
@@ -181,15 +202,17 @@ function blockRows(key, v){
     ["credits in use", `${a.cr_used} of ${a.cl} (${(a.cl * c.credit_size / 1024).toFixed(0)} KB at ${rx})`], ["credit gate", a.stalled ? "STOP: out of credits" : "GO"]];
   const receiver = (b, k) => [["expects seq", llrOn ? b.next_rx : "LLR off"], ["ACK state", llrOn ? b.ack_state : "–"], ["FCS drops so far", v.drop[k]],
     ["last verdict", v.rx[k] ? `${v.rx[k].res} ${v.rx[k].kind === "data" ? "#" + v.rx[k].fid : "CC"}` : "–"]];
-  const ctl = k => { const x = v.last[k]; return x ? [["last block sent", `${x.kind} ${x.kind === "CF_UPDATE" ? x.cf : (x.seq === ALL1 ? "–" : x.seq)} at ${x.t1.toFixed(1)} ns`], ["carried news", x.news ? "yes" : "no: a periodic repeat"], ["fate", x.fate]] : [["last block sent", "none yet"]]; };
+  const ctl = k => { const x = v.last[k]; return x ? [["last block sent", `${x.kind} ${x.kind === "CF_UPDATE" ? x.cf : (x.seq === ALL1 ? "–" : x.seq)} at ${fmtT(x.t1)}`], ["carried news", x.news ? "yes" : "no: a periodic repeat"], ["fate", x.fate]] : [["last block sent", "none yet"]]; };
   const cable = h => { const hc = c.hops[h], dir = h ? "s2b" : "a2s"; return [["status", v.down[h] ? "DOWN" : "up"], ["length", `${hc.cable_m} m`], ["one-way delay", `${hc.prop_ns.toFixed(1)} ns (cable + MAC/PHY)`], ["rate", `${c.rate_gbps} Gb/s`],
-    ["frames in flight", fidList(inFlight(dir, t))], ["outages", hc.down.length ? hc.down.map(([a, b]) => `${a}–${b} ns`).join(", ") : "none"]]; };
+    ["frames in flight", fidList(inFlight(dir, t))], ["outages", hc.down.length ? hc.down.map(([a, b]) => `${a}–${b} ${d.unit}`).join(", ") : "none"]]; };
   const rb = (a, dir) => { const fids = []; for (let i = 0; i < a.nbuf && i < 200; i++){ const f = d.seqFid[dir].get((a.buf0 + i) & ALL1); if (typeof f === "number") fids.push(f); }
     return [["frames held", a.nbuf], ["about", `${a.nbuf} KB of 64 KB`], ["first LLR seq", a.nbuf ? a.buf0 : "–"], ["frames", fidList(fids)]]; };
   const ep = x => { const e = v.ep[x], su = c.suet; return [["waiting in the queue", idList(e.queued)], ["next PSN", e.nextPsn], ["packets unacknowledged", `${e.unacked} of a window of ${su.window}`],
     ["acknowledged up to", e.acked < 0 ? "– (nothing yet)" : `PSN ${e.acked}`], ["expects from the peer", `PSN ${e.expect}`], ["ACK mode", su.ack_mode], ["retransmission", su.retx ? `Go-Back-N, timer ${su.rto_ns / 1000} µs` : "none (SUE-lite)"],
     ["packing", `≤ ${su.max_pack} transactions, ≤ ${su.max_payload / 1024} KB payload`], ["XPU interface", `${su.xpu_gbps} Gb/s into a ${su.tx_buf / 1024} KB buffer`], ["completed / failed", `${e.done} / ${e.failed}`],
     ["wire so far", `${(100 * e.eff).toFixed(1)}% data, ${e.packAvg.toFixed(2)} transactions per packet`]]; };
+  if (d.kind === "captured") return capRows(key, v);
+  if (v.blocks) return v.blocks(key) || [];
   if (v.ep && (key === "hbmA" || key === "hbmB")) return ep(key === "hbmA" ? "A" : "B");
   switch (key){
     case "hbmA": return [["next frame to send", "#" + v.next], ["source", "always full (backlog)"]];
@@ -210,6 +233,31 @@ function blockRows(key, v){
   }
   return [];
 }
+function capRows(key, v){
+  const c = v.cap, ctl = x => [["LLR ACKs", x.LLR_ACK], ["LLR NACKs", x.LLR_NACK], ["CF_Updates", x.CF_UPDATE], ["LLR_INIT / ECHO", `${x.LLR_INIT} / ${x.LLR_INIT_ECHO}`]];
+  const tx = (x, dir) => [["data frames sent", x.frames], ["of which LLR replays", x.replay], ["CC_Updates", x.cc], ["corrupted on the way (CRC bad)", x.bad],
+    ["last", x.last ? `${x.last.kind === "cc_update" ? "CC_Update" : (pktLabel(pktOf(d, x.last.fid), true) || "#" + x.last.fid)}${x.last.seq != null ? " · LLR seq " + x.last.seq : ""} at ${fmtT(x.last.t0)}` : "–"],
+    ["frames on the cable now", fidList(inFlight(dir, t))]];
+  const rx = (mac, dir) => [["last verdict (inferred)", v.rx[mac] ? `${v.rx[mac].res} ${v.rx[mac].kind === "data" ? "#" + v.rx[mac].fid : "CC"}` : "–"],
+    ["CRC bad so far", c[dir].bad], ["how it is known", "the shim's CRC-32 for bad frames; LLR sequence numbers for duplicates and out-of-order frames"]];
+  switch (key){
+    case "capAtx": return tx(c.a2s, "a2s").concat([["SUE-T requests (PSN)", v.ep.A.sent], ["RODL resends", v.ep.A.retx]]);
+    case "capArx": return ctl(c.s2a).concat([["ACK packets (RODL)", c.s2a.frames], ["CRC bad", c.s2a.bad]]);
+    case "p1": return rx("S1", "a2s");
+    case "c1": return ctl(c.s2a);
+    case "p7": return tx(c.s2b, "s2b");
+    case "rb7": return rx("S7", "b2s").concat(ctl(c.b2s));
+    case "rxB": return rx("B", "s2b");
+    case "cB": return ctl(c.b2s).concat([["ACK packets (RODL)", c.b2s.frames]]);
+    case "epB": { const e = v.ep.B; return [["expects PSN", e.expect], ["packets accepted", e.accepted], ["stores received", e.received], ["ACK packets sent", e.acksTx],
+      ["how it is known", "PSNs decoded from the frames (syn packets carry them; others are recovered from the UET CRC); RODL's verdicts follow from them"]]; }
+    case "sbuf": return [["visible?", "no: a capture shows only what crossed the wire"], ["what it would show", "the ingress buffer, the lookup, credits held"]];
+    case "h1": case "h2": { const h = key === "h1" ? 0 : 1, hc = d.cfg.hops[h];
+      return [["captured at", `the switch side of ${h ? "XPU B" : "XPU A"}'s veth (both directions)`], ["drawn crossing in", `${hc.prop_ns} ${d.unit} (the real crossing is not in the capture)`],
+        ["outages (inferred)", hc.down.length ? hc.down.map(([a, b]) => `${a}–${b} ${d.unit}`).join(", ") : "none"], ["frames on it now", fidList(inFlight(h ? "s2b" : "a2s", t).concat(inFlight(h ? "b2s" : "s2a", t)))]]; }
+  }
+  return [];
+}
 let lastInsp = "";
 function drawInspector(v){
   const key = JSON.stringify([sel, Math.round(t * 2), v.deliv, v.fwd, d.notes.length]); if (key === lastInsp) return; lastInsp = key;
@@ -218,7 +266,7 @@ function drawInspector(v){
   const head = el("h3"); const clear = el("button", "btn ghost", "Clear"); clear.style.marginLeft = "auto"; clear.onclick = () => select(null);
   if (sel.kind === "block"){
     head.append(RD.blockName(d, sel.key), clear); P.append(head, rowsDl(blockRows(sel.key, v)));
-    P.append(el("p", "hint", `State at t = ${t.toFixed(1)} ns. It updates as time moves.`));
+    P.append(el("p", "hint", `State at t = ${fmtT(t)}. It updates as time moves.`));
     return;
   }
   const isTx = sel.kind === "txn", pk = isTx ? null : pktOf(d, sel.fid);
@@ -226,11 +274,11 @@ function drawInspector(v){
   const steps = isTx ? txnHistory(d, sel.id) : frameHistory(d, sel.fid);
   if (!steps.length){ P.append(el("p", "hint", isTx ? "No record of this transaction in the loaded data." : (d.kind !== "endpoint" && v.next <= sel.fid ? "Not sent yet: it is still in XPU A's send queue." : "No record of this frame in the loaded data."))); return; }
   let now = -1; steps.forEach((s, i) => { if (s.t <= t + 1e-6) now = i; });
-  P.append(el("p", "hint", now < 0 ? "Not sent yet at this time." : `Now: ${steps[now].text} (${steps[now].t.toFixed(1)} ns).`));
+  P.append(el("p", "hint", now < 0 ? "Not sent yet at this time." : `Now: ${steps[now].text} (${fmtT(steps[now].t)}).`));
   const box = el("div", "steps");
   steps.forEach((s, i) => {
     const row = el("div", "step" + (i > now ? " future" : "") + (i === now ? " now" : "") + (s.kind === "bad" ? " bad" : ""));
-    row.append(el("span", "t", s.t.toFixed(1) + " ns"), chip(s.at), el("span", "x", s.text));
+    row.append(el("span", "t", fmtT(s.t)), chip(s.at), el("span", "x", s.text));
     row.style.cursor = "pointer"; row.onclick = () => { stop(); setT(s.t); }; box.appendChild(row);
   });
   P.append(box);
@@ -239,10 +287,10 @@ function drawInspector(v){
 // ---------------------------------------------------------------- main loop
 function drawAll(force){
   if (!ready()) return;
-  $("clock").innerHTML = ""; $("clock").append(`t = ${t.toFixed(1)} ns`); if (LIVE.on && LIVE.waiting){ const s = el("small", null, "waiting for the simulator"); $("clock").appendChild(s); }
+  $("clock").innerHTML = ""; $("clock").append(`t = ${fmtT(t)}`); if (LIVE.on && LIVE.waiting){ const s = el("small", null, "waiting for the simulator"); $("clock").appendChild(s); }
   if (!LIVE.on) $("scrub").value = t;
   cv.classList.toggle("hit", !!hover);
-  const v = RD.drawPath(cv, d, t, {mode, sel, hover});
+  const v = RD.draw(cv, d, t, {mode, sel, hover});
   if (tab === "flow") RD.drawLadder($("cLadder"), d, t, +$("span").value);
   drawNotes();
   if (tab === "counters") drawStats(v);
@@ -290,7 +338,7 @@ async function startLive(id, over){
   try {
     const r = await api("/live/new", {scenario:meta.id, cfg:LIVE.over});
     LIVE.id = r.id; LIVE.simT = 0;
-    d = newData(meta, r.cfg); t = 0; sel = null; lastInsp = ""; lastStats = "";
+    d = newData(meta, r.cfg); t = 0; sel = null; lastInsp = ""; lastStats = ""; unitControls();
     const first = await api("/live/step", {id:LIVE.id, until:LOOK + 60});
     ingest(d, first.events); LIVE.simT = first.t; addNotes(d, first.notes);
     showScenario(); buildLog(); drawAll(true);
@@ -331,10 +379,21 @@ $("custom").onsubmit = e => {
 $("bRestart").onclick = () => startLive(d.id, LIVE.over);
 
 // ---------------------------------------------------------------- scenario + mode switching
+// the transport's speed and the flow graph's window are in the scenario's unit, scaled to its time scale
+const SPEEDS = [2, 5, 10, 25, 60, 150], SPANS = [150, 300, 600, 1200];
+function unitControls(){
+  const sm = d.cfg.speed_mult || 1, wm = d.cfg.span_mult || 1;
+  [...$("speed").options].forEach((o, i) => { o.value = SPEEDS[i] * sm; o.textContent = `${+(SPEEDS[i] * sm).toPrecision(3)} ${d.unit}/s`; });
+  $("speed").selectedIndex = d.cfg.speed_default != null ? d.cfg.speed_default : 2;
+  [...$("span").options].forEach((o, i) => { o.value = SPANS[i] * wm; o.textContent = `${+(SPANS[i] * wm).toPrecision(3)} ${d.unit}`; });
+  $("span").selectedIndex = 1;
+  const flow = document.querySelector('.dtabs [data-tab=flow]'); flow.disabled = !!d.cfg.no_flow; if (flow.disabled && tab === "flow") setTab("events");
+}
 function pick(id){
   if (LIVE.on){ startLive(id); return; }
   stop();
   d = D.find(x => x.id === id) || D[0]; t = 0; sel = null; lastInsp = ""; lastStats = "";
+  unitControls();
   showScenario();
   $("scrub").max = d.dur;
   buildLog(); RD.drawMarks($("cMarks"), d); drawAll(true);

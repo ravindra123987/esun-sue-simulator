@@ -41,7 +41,7 @@ emu/            netns emulator: shim.py (what the link layer looks like on a vet
                 switch.py (user-space switch, VOQ), endpoint.py (SUE-T endpoint process), lab.py (namespaces, veths, tcpdump,
                 faults, a bmv2 switch mode), analyze.py (pcap counts), p4check.py (frame checks of the P4 switch)
 tools/          make_golden.py, run_m2.py / run_m3.py (experiments + plots), run_m4.py (emulator scenarios, run in the VM / report
-                on the Mac), run_m5.py (plane faults x recovery designs, bit-error sweep, lossy fabric), run_m6.py (P4 switch in bmv2, VM), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
+                on the Mac; --viewer records path captures), pcap2trace.py (captures -> viewer events), run_m5.py (plane faults x recovery designs, bit-error sweep, lossy fabric), run_m6.py (P4 switch in bmv2, VM), make_traces.py (viewer scenarios), live.py (live viewer server), fetch_vectors.sh (third-party test vectors, not committed)
 tests/          layer/CRC tests, tshark-based dissector tests, simulator tests, emulator tests over an in-memory wire
 ```
 
@@ -81,6 +81,8 @@ python3 tools/live.py      # then open http://127.0.0.1:8765/  (--port N to chan
 In live mode the page asks the simulator to advance a few nanoseconds ahead of what it shows and draws the events it gets back. The sidebar gains fault injection per hop (corrupt the next frame, lose the next NACK, cut the cable), XPU B's HBM write rate, and a custom-run form (BER and cable length per hop, both buffers, HBM rate, LLR timer and retries, LLR on/off), which the server validates and clamps. Live mode is local only (it listens on 127.0.0.1); the published page offers Recorded.
 
 The **SUE-T endpoint** group (M3) runs two SUE-T instances (`sim/suet.py`, `sim/fabric.py`) on the same picture: XPU A's HBM block becomes the transmit queue, packets are labelled by PSN and how many transactions they pack (`PSN 7 ×8`), ACK packets and delivery-mode response commands travel back on each cable's lower lane, and a click on a `#transaction` follows it from the queue into a packet, across the fabric and back as an ACK. Seven scenarios: packed stores with operational ACKs, the same with delivery ACKs, loads with the data in the ACK, traffic both ways (ACKs ride for free), RODL Go-Back-N with LLR off, SUE-lite closing the PDC, and a slow XPU that never packs. The Counters tab shows packets, transactions per packet and wire efficiency so far. Live mode runs them too, with XPU A's issue rate and SUE-lite as extra controls; [docs/viz/ROADMAP.md](docs/viz/ROADMAP.md) tracks what each milestone adds.
+
+The **Captured on the wire** group (M4) replays real frames from the emulator on the same picture: `tools/pcap2trace.py` turns two-link captures from the lab (`pcaps/emu/path/`) into viewer events, with times in milliseconds and each block showing only what crossed the wire.
 
 To add a scenario, add an entry to `SCENARIOS` in `tools/make_traces.py` (per-hop cable settings, LLR, switch and XPU B buffers, plus optional corruption hooks per wire) and rerun it. `tests/test_trace.py` fails if `traces.js` is out of date.
 

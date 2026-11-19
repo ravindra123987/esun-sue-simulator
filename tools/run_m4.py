@@ -130,6 +130,33 @@ def report_planes(outdir):
     return rows
 
 
+# ---------------------------------------------------------------------------------------------------------
+# Captures for the packet viewer (docs/viz, M4): two XPUs, XPU 0 -> XPU 1 only, so the path is
+# XPU A -> switch -> XPU B and both links of one run are captured (tools/pcap2trace.py reads them).
+VIEW = {
+    "cap-clean": dict(ep=["--bytes-per-peer", "65536", "--senders", "0"]),
+    "cap-ber-hop2": dict(sw=["--ber", "p1=2e-5"], ep=["--bytes-per-peer", "65536", "--senders", "0"], per={1: ["--ber", "2e-5"]}),
+    "cap-outage-hop1": dict(ep=["--bytes-per-peer", "524288", "--senders", "0"],
+                            faults=[(0.15, lambda lab: lab.link(0, False)), (0.85, lambda lab: lab.link(0, True))]),
+    "cap-no-llr": dict(sw=["--ber", "p0=2e-5", "--no-llr"], ep=["--bytes-per-peer", "65536", "--senders", "0", "--no-llr", "--rto", "0.3"],
+                       per={0: ["--ber", "2e-5"]}),
+}
+
+
+def run_viewer(outdir):
+    from emu.lab import run as lab_run
+    out = Path(outdir) / "viewer"
+    out.mkdir(parents=True, exist_ok=True)
+    for name, sc in VIEW.items():
+        d = out / name
+        if d.exists():
+            shutil.rmtree(d)
+        res = lab_run(2, d, sc.get("sw", []), sc.get("ep", []), sc.get("per"), sc.get("faults", ()), timeout=30)
+        x0 = res["xpus"]["0"]
+        print(f"{name:16s} done {x0['done']}/{x0['total']} failed {x0['failed']} retx {x0['retx_pkts']} rto {x0['rtos']} "
+              f"llr replays {x0['port']['replayed']} completed {res['completed']}", flush=True)
+
+
 def run(outdir, only=None):
     from emu.lab import run as lab_run
     out = Path(outdir)
@@ -220,12 +247,15 @@ def main(argv=None):
     r.add_argument("--only", default="")
     r.add_argument("--designs", default="", help="--planes only: comma list of designs")
     r.add_argument("--planes", action="store_true", help="the four-plane M5b scenarios instead of the M4 ones")
+    r.add_argument("--viewer", action="store_true", help="two-XPU path captures for the packet viewer")
     p = sub.add_parser("report")
     p.add_argument("outdir")
     p.add_argument("--planes", action="store_true")
     a = ap.parse_args(argv)
     only = [s for s in getattr(a, "only", "").split(",") if s] or None
-    if a.cmd == "run" and a.planes:
+    if a.cmd == "run" and getattr(a, "viewer", False):
+        run_viewer(a.out)
+    elif a.cmd == "run" and a.planes:
         run_planes(a.out, only, [d for d in a.designs.split(",") if d] or None)
     elif a.cmd == "run":
         run(a.out, only)

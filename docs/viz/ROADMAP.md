@@ -19,14 +19,16 @@ Seven SUE-T endpoint scenarios run on the path picture: XPU A's HBM block become
 - [x] Legend and Help: packets vs frames vs transactions, PSN vs LLR seq.
 - [x] Decided: no separate endpoint picture. The design sketch above drew one, but the path picture already has every block the endpoint needs, and keeping one picture lets the endpoint scenarios be compared with the link-layer ones block by block (the same bit error with LLR on, and with LLR off and RODL repairing it).
 
-## M4: emulator
+## M4: emulator (done)
 
-The emulator produces pcaps, not traces. Two options were on the table: (a) a `tools/pcap2trace.py` that turns a capture into viewer events, so a real run replays in the same viewer; (b) leave pcaps to Wireshark and keep the viewer for the simulator.
+Captured runs replay in the same viewer, under "Captured on the wire (M4)". `tools/run_m4.py run --viewer` records four two-XPU runs in the lab (clean; bit errors on hop 2 with LLR; a hop-1 outage long enough to FLUSH; bit errors with LLR off), both links captured; `tools/pcap2trace.py` turns them into viewer events and `tools/make_traces.py` builds them into `traces.js` from the committed captures in `pcaps/emu/path/`.
 
-- [x] Decided: (a), because the emulator's captures carry more than a real NIC's would. The link-layer shim (`emu/shim.py`, decision E1 in [docs/experiments/emulator.md](../experiments/emulator.md)) puts the LLR sequence number, LLR_ACK/NACK/INIT and CF_Update on the wire, and `emu/analyze.py` already walks a capture unit by unit; so a capture holds every frame and control block the M2 picture draws, with real timestamps.
-- [ ] `tools/pcap2trace.py`: one capture per link (both directions) → `frame` events with `t0 = t1 = timestamp` (no serialisation time), `ctlos` events from shim units, `rx` verdicts from the shim CRC and sequence (accept / dup / ooo / bad), `pkt_tx` / `pkt_rx` from the decoded UFH_16 frames. No internal state (no replay buffers, credits or timers): a "captured" picture mode that draws only what was on the wire and greys out the internal blocks.
-- [ ] Time axis in milliseconds for captured scenarios (the simulator's is nanoseconds).
-- [ ] Scenario entries for `pcaps/emu/*.pcap` under a "Captured (M4)" group in the sidebar.
+- [x] Decided (a): the emulator's link-layer shim (decision E1) puts LLR sequence numbers, LLR_ACK/NACK/INIT and CF_Update on the wire, so a capture holds every frame and control block the link-layer picture draws, with real timestamps.
+- [x] `tools/pcap2trace.py`: frames with their fate and replays, control units, receive verdicts inferred from the LLR rules, SUE-T packets with PSNs recovered from the UET CRC and RODL's verdicts inferred from them, outages inferred from silence, captions. A backward step of the VM's clock during a capture is undone.
+- [x] A "captured" picture: the same three devices and two cables, each block showing only what crossed the wire at that point (frames, replays, CRC failures, LLR units, verdicts, decoded PSNs); the switch's internals are drawn as not visible.
+- [x] Time in milliseconds for captured runs (every time label, the speed and the flow-graph window follow the scenario's unit); a frame is drawn crossing its cable in 0.6 ms, said on the cable.
+- [x] Scenario entries in the sidebar, Counters per hop, Inspector rows for every capture block.
+- Found on the way: tcpdump buffered whole blocks of the capture ring, so a short run could end before its frames reached the file. The lab now captures with `--immediate-mode`, and the M4 tables and samples were regenerated (docs/experiments/emulator.md).
 
 ## M5: planes and the comparison
 

@@ -79,8 +79,10 @@ class Lab:
         for pl in range(self.planes):
             for i in range(self.n):
                 name = f"link{i}.pcap" if self.planes == 1 else f"p{pl}-link{i}.pcap"
+                # --immediate-mode: no block buffering in the capture ring, or a short run's frames are still
+                # waiting there when tcpdump is stopped and never reach the file
                 p = subprocess.Popen(["ip", "netns", "exec", f"sw{pl}", "tcpdump", "-i", f"sw{pl}-p{i}", "-w", str(self.out / name),
-                                      "-U", "-s", "0", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                      "-U", "--immediate-mode", "-s", "0", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 self.dumps.append(p)
         time.sleep(0.5)                              # let tcpdump attach before the INIT handshake
 
@@ -173,7 +175,7 @@ class Lab:
         return False
 
     def stop(self):
-        time.sleep(0.3)                              # let the last ACKs and CtlOS land in the captures
+        time.sleep(0.5)                              # let the last ACKs and CtlOS land in the captures
         if self.switch == "bmv2":
             self.counters = {p: self.bmv2_counters(p) for p in range(self.planes)}
         for name, p in self.procs.items():

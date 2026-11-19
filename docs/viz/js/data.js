@@ -15,6 +15,9 @@ const isDown = (d, h, t) => d.cfg.hops[h].down.some(([a, b]) => a <= t && t < b)
 
 function newData(meta, cfg){
   return {id:meta.id, title:meta.title, summary:meta.summary, watch:meta.watch, result:meta.result || null, cfg, kind:cfg.kind || "link",
+    unit:cfg.time_unit || "ns", extra:meta.extra || null,
+    // captured runs (M4): what crossed each direction, as sorted times, for counts at any moment
+    cap:{a2s:capZero(), s2a:capZero(), s2b:capZero(), b2s:capZero()},
     frames:{a2s:[], s2b:[], s2a:[], b2s:[]}, ctl:[], snaps:{A:[], S1:[], S7:[], B:[]}, rx:{S1:[], B:[], S7:[], A:[]},
     swq:[], swqBy:new Map(), swq2:[], swq2By:new Map(), nq:[], nqBy:new Map(), seqFid:{a2s:new Map(), s2b:new Map(), s2a:new Map(), b2s:new Map()},
     firsts:[], deliv:[], lat:[], lastCtl:new Map(), replays:{A:[], S7:[], S1:[], B:[]}, drops:{S1:[], B:[], S7:[], A:[]}, fwdT:[], notes:[], dur:cfg.sim_ns || 0,
@@ -22,6 +25,7 @@ function newData(meta, cfg){
     pk:new Map(), pkts:[], pktRx:[], txns:new Map(), txnList:[], txnDone:[], rodl:[],
     epBase:{A:epZero(), B:epZero()}};          // live mode: totals of what prune() has forgotten
 }
+function capZero(){ return {frames:[], bad:[], replay:[], cc:[], LLR_ACK:[], LLR_NACK:[], LLR_INIT:[], LLR_INIT_ECHO:[], CF_UPDATE:[], last:[]}; }
 function epZero(){
   return {nextPsn:0, sent:0, acked:-1, expect:0, accepted:0, received:0, done:0, failed:0, retx:0, nacksTx:0, acksTx:0, acksData:0,
     lastDone:null, pay:0, wire:0, nreq:0, npdu:0, pkts:0};
@@ -34,12 +38,14 @@ function ingest(d, events){
         L.push(e);
         if (e.replay) d.replays[SENDER[e.dir]].push(e.t1);
         else { if (e.seq != null) d.seqFid[e.dir].set(e.seq, e.kind === "data" ? e.fid : "CC"); if (e.dir === "a2s" && e.kind === "data") d.firsts.push(e.t0); }
+        if (d.kind === "captured"){ const c = d.cap[e.dir]; if (e.kind === "cc_update") c.cc.push(e.t0); else { c.frames.push(e.t0); if (e.replay) c.replay.push(e.t0); } if (e.fate === "bad") c.bad.push(e.t0); c.last.push(e); }
         break; }
       case "ctlos": {
         // "news": an ACK that moves the acknowledged seq, a CF_Update that returns credits, any NACK/INIT/ECHO
         const k = e.dir + e.kind, prev = d.lastCtl.has(k) ? d.lastCtl.get(k) : (e.kind === "CF_UPDATE" ? 0 : ALL1), val = e.kind === "CF_UPDATE" ? e.cf : e.seq;
         e.news = !(e.kind === "LLR_ACK" || e.kind === "CF_UPDATE") || (val !== prev && !(e.kind === "LLR_ACK" && val === ALL1));
         if (e.fate === "ok") d.lastCtl.set(k, val);
+        if (d.kind === "captured" && d.cap[e.dir][e.kind]) d.cap[e.dir][e.kind].push(e.t1);
         d.ctl.push(e); break; }
       case "mac": if (d.snaps[e.mac]) d.snaps[e.mac].push(e); break;
       case "rx": {
@@ -150,6 +156,17 @@ function view(d, t){
   v.rep = {A:countLE(d.replays.A, t), S7:countLE(d.replays.S7, t), S1:countLE(d.replays.S1, t), B:countLE(d.replays.B, t)};
   v.drop = {S1:countLE(d.drops.S1, t), B:countLE(d.drops.B, t), S7:countLE(d.drops.S7, t), A:countLE(d.drops.A, t)};
   if (d.kind === "endpoint") v.ep = {A:epState(d, "A", t), B:epState(d, "B", t)};
+  if (d.kind === "captured"){
+    v.cap = {};
+    for (const dir in d.cap){
+      const c = d.cap[dir], o = {};
+      for (const k in c) if (k !== "last") o[k] = countLE(c[k], t);
+      o.last = null;
+      for (let i = c.last.length - 1; i >= 0; i--) if (c.last[i].t0 <= t){ o.last = c.last[i]; break; }
+      v.cap[dir] = o;
+    }
+    v.ep = {A:epState(d, "A", t), B:epState(d, "B", t)};
+  }
   return v;
 }
 function noteIdx(d, t){ let r = -1; for (let i = 0; i < d.notes.length; i++){ if (d.notes[i].t <= t + 1e-6) r = i; else break; } return r; }

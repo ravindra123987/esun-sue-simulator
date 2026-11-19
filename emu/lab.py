@@ -33,8 +33,8 @@ def ns(name, *args, check=True):
 
 
 class Lab:
-    def __init__(self, n, outdir, capture=True):
-        self.n, self.out, self.capture = n, Path(outdir), capture
+    def __init__(self, n, outdir, capture=True, planes=1):
+        self.n, self.out, self.capture, self.planes = n, Path(outdir), capture, planes
         self.out.mkdir(parents=True, exist_ok=True)
         self.procs, self.dumps = {}, []
         self.env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
@@ -43,48 +43,59 @@ class Lab:
     def build(self):
         self.destroy()
         sh("sysctl", "-q", "-w", "net.core.netdev_max_backlog=100000", check=False)   # veth bursts queue here
-        sh("ip", "netns", "add", "sw0")
         for i in range(self.n):
             sh("ip", "netns", "add", f"xpu{i}")
-            sh("ip", "link", "add", f"xpu{i}-eth0", "type", "veth", "peer", "name", f"sw0-p{i}")
-            sh("ip", "link", "set", f"xpu{i}-eth0", "netns", f"xpu{i}")
-            sh("ip", "link", "set", f"sw0-p{i}", "netns", "sw0")
-            ns(f"xpu{i}", "ip", "link", "set", "dev", f"xpu{i}-eth0", "name", "eth0")
-            ns(f"xpu{i}", "sysctl", "-q", "-w", "net.ipv6.conf.eth0.disable_ipv6=1")
-            ns("sw0", "sysctl", "-q", "-w", f"net.ipv6.conf.sw0-p{i}.disable_ipv6=1")
-            ns(f"xpu{i}", "ip", "link", "set", "dev", "eth0", "address", f"02:a0:00:00:00:{i:02x}", "mtu", "9000", "up")
-            ns("sw0", "ip", "link", "set", "dev", f"sw0-p{i}", "address", f"02:5f:00:00:00:{i:02x}", "mtu", "9000", "up")
+        for p in range(self.planes):                     # one switch per plane; XPU i's port p -> switch p's port i
+            sw = f"sw{p}"
+            sh("ip", "netns", "add", sw)
+            for i in range(self.n):
+                sh("ip", "link", "add", f"x{i}e{p}", "type", "veth", "peer", "name", f"{sw}-p{i}")
+                sh("ip", "link", "set", f"x{i}e{p}", "netns", f"xpu{i}")
+                sh("ip", "link", "set", f"{sw}-p{i}", "netns", sw)
+                ns(f"xpu{i}", "ip", "link", "set", "dev", f"x{i}e{p}", "name", f"eth{p}")
+                ns(f"xpu{i}", "sysctl", "-q", "-w", f"net.ipv6.conf.eth{p}.disable_ipv6=1")
+                ns(sw, "sysctl", "-q", "-w", f"net.ipv6.conf.{sw}-p{i}.disable_ipv6=1")
+                ns(f"xpu{i}", "ip", "link", "set", "dev", f"eth{p}", "address", f"02:a0:00:00:00:{i:02x}", "mtu", "9000", "up")
+                ns(sw, "ip", "link", "set", "dev", f"{sw}-p{i}", "address", f"02:5f:00:00:00:{i:02x}", "mtu", "9000", "up")
         time.sleep(0.2)
 
     def destroy(self):
         out = sh("ip", "netns", "list", check=False).stdout
         for line in out.splitlines():
             name = line.split()[0]
-            if name == "sw0" or name.startswith("xpu"):
+            if name.startswith("sw") or name.startswith("xpu"):
                 sh("ip", "netns", "del", name, check=False)
 
     # ------------------------------------------------------------ processes
     def start_capture(self):
         if not self.capture:
             return
-        for i in range(self.n):
-            p = subprocess.Popen(["ip", "netns", "exec", "sw0", "tcpdump", "-i", f"sw0-p{i}", "-w", str(self.out / f"link{i}.pcap"),
-                                  "-U", "-s", "0", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.dumps.append(p)
+        for pl in range(self.planes):
+            for i in range(self.n):
+                name = f"link{i}.pcap" if self.planes == 1 else f"p{pl}-link{i}.pcap"
+                p = subprocess.Popen(["ip", "netns", "exec", f"sw{pl}", "tcpdump", "-i", f"sw{pl}-p{i}", "-w", str(self.out / name),
+                                      "-U", "-s", "0", "-q"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.dumps.append(p)
         time.sleep(0.5)                              # let tcpdump attach before the INIT handshake
 
-    def start_switch(self, args=()):
-        cmd = ["ip", "netns", "exec", "sw0", PY, "-m", "emu.switch", "--ports", str(self.n), "--out", str(self.out / "switch.json"),
-               "--log", str(self.out / "switch.log"), *map(str, args)]
-        self.procs["switch"] = subprocess.Popen(cmd, env=self.env, stdout=open(self.out / "switch.stdout", "w"), stderr=subprocess.STDOUT)
+    def start_switch(self, args=(), plane=0):
+        tag = "switch" if self.planes == 1 else f"switch{plane}"
+        cmd = ["ip", "netns", "exec", f"sw{plane}", PY, "-m", "emu.switch", "--ports", str(self.n), "--ifname", f"sw{plane}-p{{i}}",
+               "--out", str(self.out / f"{tag}.json"), "--log", str(self.out / f"{tag}.log"), *map(str, args)]
+        self.procs[tag] = subprocess.Popen(cmd, env=self.env, stdout=open(self.out / f"{tag}.stdout", "w"), stderr=subprocess.STDOUT)
 
     def start_endpoint(self, i, args=()):
         cmd = ["ip", "netns", "exec", f"xpu{i}", PY, "-m", "emu.endpoint", "--xpu", str(i), "--n", str(self.n),
+               "--planes", str(self.planes), "--go-file", str(self.out / "go"),
                "--out", str(self.out / f"xpu{i}.json"), "--log", str(self.out / f"xpu{i}.log"), *map(str, args)]
         self.procs[f"xpu{i}"] = subprocess.Popen(cmd, env=self.env, stdout=open(self.out / f"xpu{i}.stdout", "w"), stderr=subprocess.STDOUT)
 
-    def link(self, i, up):
-        ns("sw0", "ip", "link", "set", "dev", f"sw0-p{i}", "up" if up else "down")
+    def link(self, i, up, plane=0):
+        ns(f"sw{plane}", "ip", "link", "set", "dev", f"sw{plane}-p{i}", "up" if up else "down")
+
+    def plane(self, plane, up):
+        for i in range(self.n):
+            self.link(i, up, plane)
 
     def all_done(self):
         return all((self.out / f"xpu{i}.json.done").exists() for i in range(self.n))
@@ -124,29 +135,41 @@ class Lab:
                 p.kill()
 
     def results(self):
-        res = {"switch": json.loads((self.out / "switch.json").read_text()) if (self.out / "switch.json").exists() else None,
-               "xpus": {}}
+        def load(f):
+            f = self.out / f
+            return json.loads(f.read_text()) if f.exists() else None
+        res = {"switch": load("switch.json") if self.planes == 1 else None, "xpus": {},
+               "switches": {p: load(f"switch{p}.json") for p in range(self.planes)} if self.planes > 1 else None}
         for i in range(self.n):
             f = self.out / f"xpu{i}.json"
             res["xpus"][str(i)] = json.loads(f.read_text()) if f.exists() else None
         return res
 
 
-def run(n, outdir, switch_args=(), endpoint_args=(), per_xpu=None, faults=(), timeout=60, capture=True):
-    """One lab run; returns the merged results dict (and leaves pcaps/logs in outdir)."""
-    lab = Lab(n, outdir, capture=capture)
+def run(n, outdir, switch_args=(), endpoint_args=(), per_xpu=None, faults=(), timeout=60, capture=True, planes=1,
+        per_plane=None):
+    """One lab run; returns the merged results dict (and leaves pcaps/logs in outdir). `per_plane` adds switch
+    arguments for one plane's switch (e.g. bit errors on plane 1)."""
+    lab = Lab(n, outdir, capture=capture, planes=planes)
     try:
         lab.build()
         lab.start_capture()
-        lab.start_switch(switch_args)
+        for p in range(planes):
+            lab.start_switch(list(switch_args) + list((per_plane or {}).get(p, ())), plane=p)
         time.sleep(0.3)
         for i in range(n):
             lab.start_endpoint(i, list(endpoint_args) + list((per_xpu or {}).get(i, ())))
+        t_ready = time.monotonic() + 30
+        while time.monotonic() < t_ready and not all((lab.out / f"xpu{i}.json.ready").exists() for i in range(n)):
+            time.sleep(0.01)
+        time.sleep(0.05)
+        (lab.out / "go").write_text("1")                 # everyone listens: start together (fault times count from here)
         ok = lab.wait(timeout, faults)
         lab.stop()
         res = lab.results()
         res["completed"] = ok
         res["n"] = n
+        res["planes"] = planes
         (lab.out / "result.json").write_text(json.dumps(res, indent=1))
         return res
     finally:

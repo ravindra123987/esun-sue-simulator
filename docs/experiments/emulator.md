@@ -34,6 +34,9 @@ On a real UE link the LLR sequence number rides in the preamble, and LLR ACK/NAC
 | E6 | Scope | Stores only, operational ACKs only, UFH_16 only on the endpoints (the switch forwards ESUN frames by DA), the XPU interface instant | Loads, delivery ACKs and ESUN framing as in `sim/suet.py` | `Endpoint` |
 | E7 | Faults | BER applied per bit to what a port sends, control units included; lost CF_Updates as a receive-side drop fraction; link down on the switch side; stuck receiver = NIC buffer not drained | tc netem on the veths (corrupts the shim as well, which LLR would not see) | `Port`, `Lab.link` |
 | E8 | Kernel path | SO_RCVBUFFORCE 64 MB on the packet sockets, `netdev_max_backlog` raised | Leave defaults: the 208 KB socket buffer overflows under an LLR replay burst, which a real link cannot do | `emu/port.py raw_socket`, `Lab.build` |
+| E9 | Out-of-order on UFH_16 (four-plane runs) | Sprayed traffic keeps the RODL frame layout and is accepted out of order; an ACK names the packet it answers in ack_psn; syn packets carry psn_offset and stay syn until the first ACK; probes are ACK frames with flag 0x40, answered with 0x20 | UFH_16 defines only RODL and ACK formats; real RUD/ROD would use the general PDS header (not built yet) | `emu/endpoint.py` |
+| E10 | Four-plane timing | Window 8 packets per PDC (a PSN span, not a count), LLR replay timer 200 ms (gives up after 1.8 s), transport timer 4 s with LLR, 1 s without, probes every 1 s | The single-plane values: with four ports per Python process, frames queue for longer than a 50 ms replay timer and a 64-packet window only adds queueing | `tools/run_m4.py` `REPLAY`, `WINDOW`, `PDESIGNS` |
+| E11 | Start of a run | Every XPU opens its sockets, then all start sending together (a go file); fault times count from then | Start as soon as each process is up: without LLR's INIT handshake the first packet can reach a peer that is not listening yet, and is lost | `Lab`, `--go-file` |
 
 ## The runs
 
@@ -140,6 +143,12 @@ limactl copy -r clab:~/emu-out /tmp/emu-out
 ```
 
 A single run: `sudo ... python -m emu.lab --n 4 --out ~/emu-out/x --endpoint-args "--bytes-per-peer 65536 --no-llr"`. `tests/test_emu.py` exercises the link layer and the endpoint over an in-memory wire without namespaces; `tests/test_emu_pcap.py` runs the dissector over the sample captures.
+
+*Rechecked 2026-11-19 after the four-plane changes to the lab (start barrier E11, 32 frames per socket per pass): every scenario shows the same behaviour as in the table (LLR hides bit errors from RODL, no transport event on a short flap, FLUSH and RODL recovery on the long outage, zero overflows on the stuck receiver), with counts that differ by about as much as one run differs from the next.*
+
+## Four planes (M5b)
+
+The lab also builds several planes (`emu.lab.run(planes=4)`, `tools/run_m4.py run --planes`): one switch namespace and process per plane, one veth per XPU per plane, and endpoints with a port per plane and the three path policies of the simulator (pinned, failover, spray with out-of-order delivery). The results and how they compare with the simulator are in [docs/where-should-retry-live.md](../where-should-retry-live.md#the-same-faults-on-real-frames-emulator); the raw numbers in [emulator-planes-results.json](emulator-planes-results.json). Getting the four-plane runs clean took three of the decisions above: E10 (a Python process serving four ports needs longer timers and a shorter window), E11 (start every XPU together, or a sender without LLR's INIT handshake can lose its first packet to a peer that is not listening yet), and the window rule M5-13 (bound the PSN span in flight, not the packet count).
 
 ## Next
 

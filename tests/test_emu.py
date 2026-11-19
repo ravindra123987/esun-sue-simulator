@@ -57,11 +57,19 @@ class Wire:
         self.corrupt = None
         self.down = False
         self.n = 0
+        self.fail_after = None          # the wire dies after this many units (a fault mid-burst)
+        self.on_fail = None
+        self.sent = 0
 
     def sender(self, name):
         def send(raw):
+            if self.fail_after is not None and self.sent >= self.fail_after and not self.down:
+                self.down = True
+                if self.on_fail:
+                    self.on_fail()
             if self.down:
                 raise OSError("link down")
+            self.sent += 1
             self.q.append((name, raw))
         return send
 
@@ -342,3 +350,91 @@ def test_switch_lookup_reads_the_ufh16_destination():
     assert dst_port_of(fr.inner) == 1
     assert dst_port_of(xpu_mac(3) + xpu_mac(0) + b"\x88\xb5" + b"\x00" * 40) == 3
     assert dst_port_of(b"\xff" * 60) == -1
+
+
+# ---------------------------------------------------------------------- several planes (M5b)
+from emu.endpoint import PortSource  # noqa: E402
+
+
+def two_plane(path, order, llr=True, n_bytes=65536, rto=0.05, **kw):
+    """XPU 0 and XPU 1 joined back to back on two planes (no switch: the wire is the plane)."""
+    timers = Timers()
+    wires = [Wire(), Wire()]
+    cfg = fast()
+    cfg.llr = llr
+    eps = [Endpoint(i, 2, bytes_per_peer=n_bytes, timers=timers, rto_s=rto, ack_hold_s=0.001, planes=2, path=path,
+                    order=order, probe_s=0.05, **kw) for i in range(2)]
+    ports = {}
+    for q, w in enumerate(wires):
+        for i, ep in enumerate(eps):
+            other = f"x{1 - i}"
+            p = Port(f"x{i}", cfg, timers, w.sender(other), xpu_mac(i), xpu_mac(1 - i), source=PortSource(ep, q),
+                     sink=ep.deliver_from(q))
+            ep.ports[q] = p
+            ports[(i, q)] = p
+        w.ports = {f"x{i}": ports[(i, q)] for i in range(2)}
+    return timers, wires, eps, ports
+
+
+def spin_planes(timers, wires, eps, until, cut=None):
+    """Run until both endpoints finish; `cut(t)` may take a plane down."""
+    t_end = time.monotonic() + until
+    t0 = time.monotonic()
+    while time.monotonic() < t_end:
+        timers.run()
+        if cut:
+            cut(time.monotonic() - t0)
+        more = any([p.kick() for ep in eps for p in ep.ports])
+        moved = sum(w.pump() for w in wires)
+        if not moved and not more:
+            if all(ep.finished for ep in eps):
+                return True
+            time.sleep(0.0005)
+    return all(ep.finished for ep in eps)
+
+
+def start_all(eps):
+    for ep in eps:
+        ep.issue()
+        for p in ep.ports:
+            p.start()
+
+
+def test_spray_uses_both_planes_and_delivers_out_of_order():
+    timers, wires, eps, ports = two_plane("spray", "rud")
+    start_all(eps)
+    assert spin_planes(timers, wires, eps, 5.0)
+    for ep in eps:
+        assert ep.stats["done"] == 256 and ep.stats["failed"] == 0 and ep.stats["rx_payload"] == 65536
+        assert min(ep.port_pkts) > 0                                 # both planes carried requests
+
+
+def test_pinned_pdc_on_a_dead_plane_fails_but_spray_and_failover_survive():
+    res = {}
+    for path, order, kw in (("pin", "rodl", dict(max_rtos=2)), ("failover", "rodl", {}), ("spray", "rud", {})):
+        timers, wires, eps, ports = two_plane(path, order, n_bytes=262144, **kw)
+        wires[1].fail_after = 30                                     # plane 1 dies mid-transfer, for good
+        wires[1].on_fail = lambda eps=eps: [ep.set_carrier(1, False) for ep in eps]
+        start_all(eps)
+        ok = spin_planes(timers, wires, eps, 8.0)
+        res[path] = (ok, sum(ep.stats["failed"] for ep in eps), sum(ep.stats["moves"] for ep in eps))
+    assert res["failover"][0] and res["failover"][1] == 0 and res["failover"][2] >= 1
+    assert res["spray"][0] and res["spray"][1] == 0
+    assert res["pin"][1] > 0 or not res["pin"][0]                    # the pinned PDC on plane 1 cannot recover
+
+
+def test_probe_brings_a_marked_plane_back():
+    timers, wires, eps, ports = two_plane("spray", "rud", llr=False, n_bytes=262144)
+    start_all(eps)
+    wires[1].fail_after = 30                                         # remote-style: no carrier change, only losses
+    state = {"phase": 0}
+
+    def heal(t):
+        if wires[1].down and state["phase"] == 0:
+            state["phase"], state["t"] = 1, t
+        elif state["phase"] == 1 and t - state["t"] > 0.2:
+            state["phase"] = 2
+            wires[1].down, wires[1].fail_after = False, None
+    assert spin_planes(timers, wires, eps, 10.0, cut=heal)
+    st = {k: sum(ep.stats[k] for ep in eps) for k in ("bad_marks", "restores", "failed")}
+    assert st["bad_marks"] >= 1 and st["failed"] == 0

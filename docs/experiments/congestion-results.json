@@ -1,0 +1,140 @@
+{
+ "designs": {
+  "lossless-pin": {
+   "finished_us": 45.23,
+   "victim_us": 45.23,
+   "incast_us": 44.95,
+   "lat_p99_us": 1.6,
+   "lat_max_us": 1.65,
+   "retx": 0,
+   "rtos": 0,
+   "nacks": 0,
+   "trims": 0,
+   "drops": 0,
+   "credit_stalls": 0,
+   "efficiency": 0.9408
+  },
+  "lossless-spray": {
+   "finished_us": 40.17,
+   "victim_us": 38.77,
+   "incast_us": 40.17,
+   "lat_p99_us": 2.15,
+   "lat_max_us": 2.47,
+   "retx": 0,
+   "rtos": 0,
+   "nacks": 0,
+   "trims": 0,
+   "drops": 0,
+   "credit_stalls": 102,
+   "efficiency": 0.9087
+  },
+  "drop-pin": {
+   "finished_us": 45.02,
+   "victim_us": 45.02,
+   "incast_us": 44.73,
+   "lat_p99_us": 1.55,
+   "lat_max_us": 1.6,
+   "retx": 0,
+   "rtos": 0,
+   "nacks": 0,
+   "trims": 0,
+   "drops": 0,
+   "credit_stalls": 0,
+   "efficiency": 0.9408
+  },
+  "drop-spray": {
+   "finished_us": 74.99,
+   "victim_us": 74.06,
+   "incast_us": 74.99,
+   "lat_p99_us": 11.32,
+   "lat_max_us": 21.43,
+   "retx": 105,
+   "rtos": 23,
+   "nacks": 0,
+   "trims": 0,
+   "drops": 105,
+   "credit_stalls": 0,
+   "efficiency": 0.9102
+  },
+  "trim-spray": {
+   "finished_us": 35.29,
+   "victim_us": 34.6,
+   "incast_us": 35.29,
+   "lat_p99_us": 1.97,
+   "lat_max_us": 3.0,
+   "retx": 138,
+   "rtos": 0,
+   "nacks": 0,
+   "trims": 138,
+   "drops": 0,
+   "credit_stalls": 0,
+   "efficiency": 0.8963
+  }
+ },
+ "qlimit": {
+  "drop-spray": {
+   "8192": {
+    "finished_us": 152.86,
+    "rtos": 79,
+    "lost": 690
+   },
+   "16384": {
+    "finished_us": 114.06,
+    "rtos": 48,
+    "lost": 334
+   },
+   "32768": {
+    "finished_us": 123.84,
+    "rtos": 65,
+    "lost": 407
+   },
+   "65536": {
+    "finished_us": 74.99,
+    "rtos": 23,
+    "lost": 105
+   },
+   "131072": {
+    "finished_us": 36.64,
+    "rtos": 0,
+    "lost": 0
+   },
+   "262144": {
+    "finished_us": 36.64,
+    "rtos": 0,
+    "lost": 0
+   }
+  },
+  "trim-spray": {
+   "8192": {
+    "finished_us": 41.02,
+    "rtos": 0,
+    "lost": 3507
+   },
+   "16384": {
+    "finished_us": 39.71,
+    "rtos": 0,
+    "lost": 3254
+   },
+   "32768": {
+    "finished_us": 39.61,
+    "rtos": 0,
+    "lost": 1924
+   },
+   "65536": {
+    "finished_us": 35.29,
+    "rtos": 0,
+    "lost": 138
+   },
+   "131072": {
+    "finished_us": 36.64,
+    "rtos": 0,
+    "lost": 0
+   },
+   "262144": {
+    "finished_us": 36.64,
+    "rtos": 0,
+    "lost": 0
+   }
+  }
+ }
+}

@@ -397,6 +397,10 @@ class Mac:
             fr.t_rx = self.sim.now
             self.rxbuf.append(fr)
             self._drain()
+        elif self.forward is not None:
+            fr.t_rx = self.sim.now                 # lossy switch port: no credits, the switch decides (drop / trim)
+            self.rxbuf.append(fr)
+            self._drain()
         elif self.sink:
             self.sink(fr, self.sim.now)
 

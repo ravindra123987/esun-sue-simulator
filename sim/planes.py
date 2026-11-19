@@ -89,3 +89,45 @@ def run(design, scenario, until=400_000.0, **kw):
     r = f.result()
     wl = f.workload
     return f, r, wl
+
+
+# ---------------------------------------------------------------------------------------------------------
+# M5b: congestion. XPUs 1-3 each write 1 MB to XPU 0 (a 3:1 incast into XPU 0's four downlinks) while XPU 1
+# also writes 1 MB to XPU 2 (the victim: its traffic shares XPU 1's uplinks and the switches' ingress
+# buffers with the incast, but its own destination is idle). No congestion control anywhere: what differs
+# is what the fabric does with a full queue.
+
+from .workloads import Flows  # noqa: E402
+
+QLIMIT = 65536            # lossy fabric: bytes per egress port before a frame is dropped or trimmed
+
+CONG_DESIGNS = {
+    # lossless: CBFC backpressure, nothing is ever dropped
+    "lossless-pin":   dict(lossy=False, llr=True,  suet=dict(path="pin", order="rodl", rto_ns=20_000)),
+    "lossless-spray": dict(lossy=False, llr=True,  suet=dict(path="spray", order="rud", rto_ns=20_000)),
+    # lossy: no credits; a full egress queue drops (RoCE without PFC / MRC without trimming) or trims (MRC)
+    "drop-pin":       dict(lossy=True, trim=False, llr=False, suet=dict(path="pin", order="rodl", rto_ns=10_000)),
+    "drop-spray":     dict(lossy=True, trim=False, llr=False, suet=dict(path="spray", order="rud", rto_ns=10_000,
+                                                                          rtos_before_move=1 << 30)),
+    "trim-spray":     dict(lossy=True, trim=True,  llr=False, suet=dict(path="spray", order="rud", rto_ns=10_000,
+                                                                          rtos_before_move=1 << 30)),
+}
+INCAST = [(1, 0, 1 << 20), (2, 0, 1 << 20), (3, 0, 1 << 20)]
+VICTIM = (1, 2, 1 << 20)
+
+
+def build_cong(design, victim=True, seed=1, trace=None, qlimit=QLIMIT):
+    d = CONG_DESIGNS[design]
+    cfg = SUETCfg(xpu_gbps=3200.0, seed=seed, **d["suet"])
+    lossy = d["lossy"]
+    off = CBFCCfg(enabled=False)
+    flows = INCAST + ([VICTIM] if victim else [])
+    return Fabric(n=N, ports=P, link=LinkCfg(seed=seed), llr=LLRCfg(enabled=d["llr"]), suet=cfg,
+                  nic=off if lossy else None, sw=off if lossy else None, workload=Flows(flows),
+                  qlimit=qlimit if lossy else 0, trim=d.get("trim", False), trace=trace)
+
+
+def run_cong(design, until=2_000_000.0, **kw):
+    f = build_cong(design, **kw)
+    f.run(until)
+    return f, f.result(), f.workload

@@ -67,6 +67,40 @@ class AllToAll(Workload):
         return Txn(next(self.ids), xpu, self.todo[xpu].popleft(), self.op, self.size, self.tc, t_issue=now)
 
 
+class Flows(Workload):
+    """Named point-to-point transfers: [(src, dst, bytes), ...] as `size`-byte stores, round robin over a
+    sender's flows. `flow_done[(src, dst)]` is when a flow's last store completed (incast + victim, M5b)."""
+
+    def __init__(self, flows, size=256, tc=0):
+        super().__init__()
+        self.size, self.tc = size, tc
+        self.todo = {}
+        self.left = {}
+        for s, d, b in flows:
+            self.todo.setdefault(s, deque()).append([d, b // size])
+            self.left[(s, d)] = self.left.get((s, d), 0) + b // size
+        self.total = sum(self.left.values())
+        self.flow_done = {}
+
+    def next_txn(self, xpu, now):
+        q = self.todo.get(xpu)
+        while q:
+            f = q[0]
+            q.rotate(-1)
+            if f[1] > 0:
+                f[1] -= 1
+                return Txn(next(self.ids), xpu, f[0], "store", self.size, self.tc, t_issue=now)
+            q.remove(f)
+        return None
+
+    def on_done(self, t, now):
+        super().on_done(t, now)
+        k = (t.src, t.dst)
+        self.left[k] -= 1
+        if self.left[k] == 0:
+            self.flow_done[k] = now
+
+
 class RingAllReduce(Workload):
     """Ring all-reduce of `total_bytes`: n-1 reduce-scatter steps (stores to the next XPU) then n-1
     all-gather steps (loads from the previous XPU). A step at XPU i starts when its own previous step

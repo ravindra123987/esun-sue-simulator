@@ -109,3 +109,30 @@ def test_rud_needs_operational_acks():
 
 def test_plane_wires_names_both_directions():
     assert set(plane_wires(1, n=2)) == {"n0p1>s1", "n1p1>s1", "s1>n0p1", "s1>n1p1"}
+
+
+# ---------------------------------------------------------------------- congestion (M5b)
+from sim.planes import run_cong  # noqa: E402
+
+
+def test_lossless_fabric_never_drops_under_incast():
+    for d in ("lossless-pin", "lossless-spray"):
+        f, r, wl = run_cong(d)
+        assert wl.finished is not None and r.cong_drops == 0 and r.trims == 0 and r.ep["retx_pkts"] == 0
+
+
+def test_trimming_replaces_timeouts_with_nacks():
+    f, r, wl = run_cong("drop-spray")
+    drop = r
+    assert drop.cong_drops > 0 and drop.ep["rtos"] > 0
+    f, r, wl = run_cong("trim-spray")
+    assert wl.finished is not None and r.failed == 0
+    assert r.trims > 0 and r.cong_drops == 0 and r.ep["rtos"] == 0
+    assert r.ep["trims_rx"] == r.trims and r.ep["trim_resends"] == r.trims
+    assert r.finished_ns < drop.finished_ns and r.lat_max_ns < drop.lat_max_ns
+
+
+def test_victim_flow_is_reported_separately():
+    f, r, wl = run_cong("trim-spray")
+    assert set(wl.flow_done) == {(1, 0), (2, 0), (3, 0), (1, 2)}
+    assert wl.flow_done[(1, 2)] <= max(wl.flow_done.values())

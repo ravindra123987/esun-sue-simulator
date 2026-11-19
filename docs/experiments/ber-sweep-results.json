@@ -1,0 +1,130 @@
+{
+ "sue-t": {
+  "1e-07": {
+   "finished_us": 46.14,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 191
+  },
+  "3e-07": {
+   "finished_us": 49.63,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 598
+  },
+  "1e-06": {
+   "finished_us": 53.8,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 1934
+  },
+  "3e-06": {
+   "finished_us": 99.62,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 7701
+  },
+  "1e-05": {
+   "finished_us": 286.88,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 33855
+  }
+ },
+ "metaroce": {
+  "1e-07": {
+   "finished_us": 89.48,
+   "rtos": 25,
+   "bad_marks": 0,
+   "llr_replays": 0
+  },
+  "3e-07": {
+   "finished_us": 146.55,
+   "rtos": 57,
+   "bad_marks": 0,
+   "llr_replays": 0
+  },
+  "1e-06": {
+   "finished_us": 213.44,
+   "rtos": 175,
+   "bad_marks": 0,
+   "llr_replays": 0
+  },
+  "3e-06": {
+   "finished_us": 301.46,
+   "rtos": 368,
+   "bad_marks": 8,
+   "llr_replays": 0
+  },
+  "1e-05": {
+   "finished_us": 170.46,
+   "rtos": 183,
+   "bad_marks": 12,
+   "llr_replays": 0
+  }
+ },
+ "mrc": {
+  "1e-07": {
+   "finished_us": 73.41,
+   "rtos": 14,
+   "bad_marks": 13,
+   "llr_replays": 0
+  },
+  "3e-07": {
+   "finished_us": 154.01,
+   "rtos": 48,
+   "bad_marks": 37,
+   "llr_replays": 0
+  },
+  "1e-06": {
+   "finished_us": 176.84,
+   "rtos": 92,
+   "bad_marks": 50,
+   "llr_replays": 0
+  },
+  "3e-06": {
+   "finished_us": 119.31,
+   "rtos": 103,
+   "bad_marks": 42,
+   "llr_replays": 0
+  },
+  "1e-05": {
+   "finished_us": 103.7,
+   "rtos": 135,
+   "bad_marks": 40,
+   "llr_replays": 0
+  }
+ },
+ "mrc+llr": {
+  "1e-07": {
+   "finished_us": 35.74,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 209
+  },
+  "3e-07": {
+   "finished_us": 37.21,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 635
+  },
+  "1e-06": {
+   "finished_us": 40.14,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 1886
+  },
+  "3e-06": {
+   "finished_us": 60.63,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 5452
+  },
+  "1e-05": {
+   "finished_us": 169.16,
+   "rtos": 0,
+   "bad_marks": 0,
+   "llr_replays": 18345
+  }
+ }
+}

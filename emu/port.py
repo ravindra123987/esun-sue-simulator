@@ -592,6 +592,7 @@ class Loop:
         self.timers = timers
         self.socks = {}
         self.ports = []                 # kicked after every pass, so a bounded burst continues
+        self.batch = 32                 # frames read per socket per pass: timers and CtlOS interleave across sockets
         self.stop = False
 
     def add(self, sock, on_raw):
@@ -611,7 +612,7 @@ class Loop:
         r, _, _ = select.select(list(self.socks), [], [], wait)
         for fd in r:
             sock, cb = self.socks[fd]
-            for _ in range(256):
+            for _ in range(self.batch):
                 try:
                     data, addr = sock.recvfrom(65535)
                 except BlockingIOError:

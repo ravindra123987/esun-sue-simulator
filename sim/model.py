@@ -37,6 +37,7 @@ class Frame:
     dst: int = 0                    # switch egress port (sim/fabric.py); unused on a single link
     pkt: object = None              # the transport packet inside (sim/suet.py), if any
     t_rx: float = 0.0               # when the receiver accepted it into its buffer
+    trimmed: bool = False           # a switch cut it to its headers instead of dropping it (MRC trimming)
 
 
 @dataclass

@@ -110,6 +110,7 @@ class Pkt:
     t_tx: float = 0.0
     sack: frozenset = frozenset()   # RUD: PSNs beyond cack already executed (selective ACK)
     start: int = -1                 # with syn: the PDC's start PSN (UFH_16 carries it as psn_offset, UEC §3.5.8)
+    nacks: frozenset = frozenset()  # RUD: PSNs whose packets arrived trimmed: resend these now
     port: int = -1                  # the port (plane) it last left on
 
 
@@ -141,6 +142,7 @@ class Pdc:
         self.port_to = {}               # spray: consecutive timeouts per port
         self.bad = {}                   # spray: port -> when it was marked bad
         self.got = set()                # RUD receive: PSNs accepted beyond cack
+        self.trim_nacks = set()         # RUD receive: trimmed PSNs to NACK
 
 
 class PortTx:
@@ -180,7 +182,7 @@ class Endpoint:
         self.stats = {k: 0 for k in (
             "tx_pkts", "tx_wire", "tx_payload", "rx_pkts", "acks_tx", "acks_rx", "nacks_tx", "nacks_rx",
             "retx_pkts", "rtos", "fatal", "dup_rx", "gap_drops", "done", "failed", "xpu_stalls",
-            "moves", "bad_marks", "restores", "probes")}
+            "moves", "bad_marks", "restores", "probes", "trims_rx", "trim_resends")}
 
     # ------------------------------------------------------------ helpers
     def _log(self, ev, **kw):
@@ -329,7 +331,7 @@ class Endpoint:
             if not self._serves(port, p, ack=True):
                 continue
             pkt = Pkt(self.id, p.peer, rtc, p.tc, "ack", cack=p.cack, nack=p.nack,
-                      sack=frozenset(p.done) if self.cfg.order == "rud" else frozenset())
+                      sack=frozenset(p.done) if self.cfg.order == "rud" else frozenset(), nacks=self._take_nacks(p))
             sizes, cap = [], self.cfg.max_resp_payload
             while p.resp_data and sum(sizes) + sum(t.size for t in p.resp_data[0][1]) <= cap:
                 psn, loads = p.resp_data.popleft()
@@ -357,6 +359,7 @@ class Endpoint:
             pkt.cack, pkt.nack = p.cack, p.nack             # carry the latest ACK state
             if self.cfg.order == "rud":
                 pkt.sack = frozenset(p.done)
+                pkt.nacks = self._take_nacks(p)
             p.nack, p.ack_dirty, p.ack_due = -1, False, INF
             if not p.resp_data:
                 self.ack_ready.pop(p, None)
@@ -377,8 +380,9 @@ class Endpoint:
                 p = self.pdc(dst, tc)
                 if not self._serves(port, p):
                     continue
-                if len(p.unacked) >= c.window or p.retx_q:
-                    continue                                 # window full, or replaying: keep order
+                oldest = p.unacked[0].psn if p.unacked else p.tx_psn
+                if p.tx_psn - oldest >= c.window or p.retx_q:
+                    continue                                 # window (PSN span from the oldest unacked) full, or replaying
                 if best is None or q[0].t_enq < best[1][0].t_enq:
                     best = ((dst, tc), q, p)
             if best is None:
@@ -399,7 +403,8 @@ class Endpoint:
                 rpay += rl
             pkt = Pkt(self.id, dst, tc, tc, "req", psn=p.tx_psn, pdus=pdus, cack=p.cack, nack=p.nack, syn=p.syn,
                       size=wire.packet_bytes(c.stack, "req", ses),
-                      sack=frozenset(p.done) if c.order == "rud" else frozenset(), start=p.tx_start)
+                      sack=frozenset(p.done) if c.order == "rud" else frozenset(), start=p.tx_start,
+                      nacks=self._take_nacks(p))
             p.tx_psn += 1
             if c.order != "rud":
                 p.syn = False                                # RUD: syn on every packet until the first ACK
@@ -536,7 +541,24 @@ class Endpoint:
         self._stop_rto(p)
         self._kick(self.port_of(p.peer, p.tc))
 
-    def _on_ack(self, p, cack, nack, sack=frozenset()):
+    @staticmethod
+    def _take_nacks(p):
+        if not p.trim_nacks:
+            return frozenset()
+        n = frozenset(p.trim_nacks)
+        p.trim_nacks.clear()
+        return n
+
+    def _on_ack(self, p, cack, nack, sack=frozenset(), nacks=frozenset()):
+        if nacks:                                            # trimmed: congestion, not a path failure
+            queued = set(id(x) for x in p.retx_q)
+            for x in p.unacked:
+                if x.psn in nacks and id(x) not in queued:
+                    p.retx_q.append(x)
+                    self.stats["trim_resends"] += 1
+            if p.retx_q and p not in self.retx_ready:
+                self.retx_ready.append(p)
+            self._kick(None)
         if cack >= 0 or sack:
             moved = False
             while p.unacked and p.unacked[0].psn <= cack:
@@ -588,7 +610,14 @@ class Endpoint:
             self._restore(p, pkt.port)
             return
         p.rx_port = pkt.port
-        self._on_ack(p, pkt.cack, pkt.nack, pkt.sack)
+        self._on_ack(p, pkt.cack, pkt.nack, pkt.sack, pkt.nacks)
+        if fr.trimmed:                                       # only the headers arrived: NACK it at once
+            if pkt.kind == "req" and pkt.psn > p.cack and pkt.psn not in p.got:
+                self.stats["trims_rx"] += 1
+                p.trim_nacks.add(pkt.psn)
+                self._log("pkt_rx", fid=fr.fid, res="trimmed", src=pkt.src, psn=pkt.psn)
+                self._ack_now(p)
+            return
         if pkt.kind == "ack":
             self.stats["acks_rx"] += 1
             for psn, loads in pkt.data:

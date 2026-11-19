@@ -110,7 +110,7 @@ Rules: public specs only, personal time and identity (no tool attribution). Chec
 - Each SUE-T instance has 4 ports connected to 4 switch planes. Scenarios: kill a plane, flap a link, add congestion, starve credits.
 - Run the same scenarios through the MRC (srv6-mrc-emulator) and MetaRoCE (metaroce-simulator) models.
 
-**Deliverable:** `docs/where-should-retry-live.md`, the main write-up of the project. *Status: first cut done in the simulator: four XPUs × four planes, five recovery designs (the MRC and MetaRoCE rules ported from metaroce-simulator's models), six faults, three seeds. Not yet: the same faults in the M4 emulator with four planes, and congestion with drops (the fabric here is lossless, so MRC's trimming has nothing to do).*
+**Deliverable:** `docs/where-should-retry-live.md`, the main write-up of the project. *Status: done in the simulator (four XPUs × four planes, five recovery designs with the MRC and MetaRoCE rules ported from metaroce-simulator's models, six faults, a bit-error-rate sweep, and a lossy fabric with drop-tail or trimming) and in the M4 emulator with four planes on real frames. Not yet: congestion in the emulator, adaptive transport timers, the viewer's planes picture.*
 
 ### M6: Programmable switch (1–2 weeks)
 - A P4 program on bmv2 that parses the ESUN header / UFH and forwards on it, with TC-to-queue mapping.

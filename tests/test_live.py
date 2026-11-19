@@ -25,7 +25,7 @@ def test_live_captions_match_the_recorded_ones():
     notes = []
     for until in range(100, 2700, 100):
         notes += lv.step(until)["notes"]
-    rec = next(t for t in MT.build() if t["id"] == "outage-flush")["notes"]
+    rec = MT.build(ids={"outage-flush"})[0]["notes"]
     assert sorted(notes, key=lambda n: n["t"]) == rec
 
 

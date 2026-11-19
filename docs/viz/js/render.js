@@ -113,7 +113,15 @@ const EP_NAMES = {hbmA:"XPU A · SUE-T transmit queue", hbmB:"XPU B · SUE-T rec
 const CAP_NAMES = {capAtx:"XPU A · what its port sent (hop 1 →)", capArx:"XPU A · what reached its port (hop 1 ←)", p1:"Switch · port 1: frames arriving from XPU A",
   c1:"Switch · port 1: what it sent back", sbuf:"Switch · internals (not on the wire)", p7:"Switch · port 7: what it sent (hop 2 →)", rb7:"Switch · port 7: frames arriving from XPU B",
   rxB:"XPU B · frames arriving at its port", cB:"XPU B · what its port sent back", epB:"XPU B · SUE-T, as the packets show it", h1:"Hop 1 cable (captured)", h2:"Hop 2 cable (captured)"};
-const blockName = (d, key) => (d.kind === "endpoint" && EP_NAMES[key]) || (d.kind === "captured" && CAP_NAMES[key]) || BLOCK_NAMES[key] || key;
+const blockName = (d, key) => {
+  if (d.kind === "planes"){
+    const [k, v] = key.split(":");
+    if (k === "xpu") return `XPU ${v}` + (d.extra && d.extra.order ? "" : "");
+    if (k === "sw") return `Switch · plane ${v}`;
+    if (k === "design") return (d.extra.designs[v] || {}).label || v;
+  }
+  return (d.kind === "endpoint" && EP_NAMES[key]) || (d.kind === "captured" && CAP_NAMES[key]) || BLOCK_NAMES[key] || key;
+};
 const STATE_COL = s => ({ADVANCE:C.ok, REPLAY:C.ack, INIT:C.init, FLUSH:C.bad}[s] || C.muted);
 const STATE_TXT = {ADVANCE:"normal", REPLAY:"replaying", INIT:"re-syncing", FLUSH:"gave up"};
 const stateTxt = (s, det) => det ? s : (STATE_TXT[s] || s);
@@ -229,7 +237,7 @@ function draw(cv, d, t, opts){
     g.fillStyle = C.grid; for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) g.fillRect(x, y, 1.3, 1.3);
     return drawCaptured(g, d, t, view(d, t), opts.mode === "detail");
   }
-  if (SUE.planes && SUE.planes.handles(d)) return SUE.planes.draw(cv, d, t, opts, {fit, T, pill, rr, alpha, C, HIT, setCur:o => { cur = o; }});
+  if (SUE.planes && SUE.planes.handles(d)) return SUE.planes.draw(cv, d, t, opts, {fit, T, tw, pill, rr, alpha, C, HIT, setCur:o => { cur = o; }});
   return drawPath(cv, d, t, opts);
 }
 

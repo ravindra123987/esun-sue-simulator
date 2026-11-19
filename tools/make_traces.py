@@ -180,6 +180,38 @@ SCENARIOS = [
                  "gap, NACKs, and XPU A goes back and resends in order.",
          watch="No LLR units at all: no sequence numbers, no ACK/NACK control blocks. Every repair is end to end, "
                "flagged as a RODL retransmission."),
+    # ---- planes and recovery (M5): five designs on 4 XPUs x 4 planes, one fault each (tools/planes_trace.py)
+    dict(id="planes-plane-kill", kind="planes", fault="plane-kill", title="Plane 1 dies at 5 µs",
+         summary="Every cable of plane 1 goes down for good. The five designs from docs/where-should-retry-live.md each "
+                 "recover (or not) in their own way: pinned SUE-T never leaves the dead plane, failover moves its PDCs, "
+                 "the spray designs stop using plane 1 and resend what was lost on it after one timeout.",
+         watch="The red-crossed column in each grid, and the sparklines: which designs keep completing stores, which stall "
+               "for a timeout, which never recover. Click a design to see its fabric."),
+    dict(id="planes-plane-flap", kind="planes", fault="plane-flap", title="Plane 1 down from 5 to 15 µs",
+         summary="The same plane comes back after 10 µs, shorter than LLR's give-up time (18 µs). LLR holds the frames "
+               "and replays them when the plane returns; the transports without LLR time out and route around it.",
+         watch="Amber outlines (LLR replaying) on plane 1 in the designs with LLR, and MRC + LLR completing without a "
+               "single transport timeout. Failover moves its PDCs and never moves them back."),
+    dict(id="planes-remote-link", kind="planes", fault="remote-link", title="Switch 1 → XPU 2 link dies",
+         summary="Only one cable fails: no sender's own link goes down, so nobody can see it locally. Switch 1 discards "
+                 "what arrives for its dead port, and the senders find out from their transport timers.",
+         watch="The single crossed cell in row X2, plane 1, and how long each design takes to notice: one transport timer "
+               "(10 µs without LLR, 20 µs with it)."),
+    dict(id="planes-plane-ber", kind="planes", fault="plane-ber", title="Bit errors on every plane-1 cable",
+         summary="A degrading plane: post-FEC bit error rate 1e-6 on plane 1. With LLR the errors never reach the "
+                 "transport; without it every corrupted packet holds its PDC's window for a timeout.",
+         watch="Amber outlines (LLR replays) on plane 1 in the LLR designs, against the stalls and bad marks in the "
+               "others. The sweep in docs/where-should-retry-live.md shows where this flips."),
+    dict(id="planes-plane-credits", kind="planes", fault="plane-credits", title="Plane 1 slow: 4 KB switch buffers",
+         summary="Plane 1 is up but its switch has 4 KB of ingress buffer per port, too little for the credit loop, so "
+                 "it runs at a fraction of line rate. Nothing is lost.",
+         watch="Pinned designs are held to plane 1's pace (look at the sparklines); the spray designs put their packets "
+               "on whichever plane has credits."),
+    dict(id="planes-reorder", kind="planes", fault="reorder", title="Spraying over unequal planes: in order or not",
+         summary="Two planes, plane 1's cables 20 m instead of 3 m. Spraying every packet over both reorders them. With "
+                 "in-order RODL every reorder looks like a loss (NACK, Go-Back-N); with out-of-order delivery and SACK it "
+                 "costs nothing. M3's T5 and M5's argument for RUD.",
+         watch="The in-order row's stalls and resends against the SACK row finishing at full rate."),
 ]
 
 # fabric names (sim/fabric.py) -> the viewer's path names
@@ -269,6 +301,8 @@ def run(sc):
     if sc.get("kind") == "captured":
         from tools.pcap2trace import convert
         return convert(CAPTURES / sc["pcap"], sc)
+    if sc.get("kind") == "planes":
+        return run_planes(sc)
     kw, cfg = setup(sc)
     tr = []
     s = PathSession(trace=tr, **kw)
@@ -304,8 +338,24 @@ def run_endpoint(sc):
     }
 
 
-def build():
-    return [run(sc) for sc in SCENARIOS]
+def run_planes(sc):
+    from tools import planes_trace as PT
+    tr = PT.build_reorder() if sc["fault"] == "reorder" else PT.build_fault(sc["fault"])
+    tr.update({k: sc[k] for k in ("id", "title", "summary", "watch")})
+    n, p = tr["cfg"]["n"], (2 if sc["fault"] == "reorder" else tr["cfg"]["p"])
+    tr["cfg"]["p"] = p
+    chips = [f"{n} XPUs × {p} planes", "all-to-all, 256 B stores packed to 2 KB", f"bins of {tr['cfg']['bin_us']} µs"]
+    for k, v in tr["result"].items():
+        chips.append(f"{tr['extra']['designs'][k]['label']}: " + (f"done {v['finished_us']} µs" if v["finished_us"] else f"not done · {v['failed']} failed"))
+    tr["extra"]["chips"] = chips
+    tr["extra"]["intro"] = "Each row is one recovery design under the same fault. Press Play, or click a design to see its fabric."
+    return tr
+
+
+def build(ids=None, kinds=None):
+    """All scenarios, or only those with an id in `ids` / a kind in `kinds` (tests rebuild what they compare)."""
+    return [run(sc) for sc in SCENARIOS
+            if (ids is None or sc["id"] in ids) and (kinds is None or sc.get("kind", "link") in kinds)]
 
 
 def render(traces) -> str:

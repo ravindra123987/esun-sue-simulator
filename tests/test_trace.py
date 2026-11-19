@@ -13,9 +13,14 @@ def test_tracing_does_not_change_the_simulation(seed):
     assert run_link(**kw) == run_link(**kw, trace=[])
 
 
+@pytest.fixture(scope="session")
+def built():
+    return MT.build()
+
+
 @pytest.fixture(scope="module")
-def traces():
-    return {t["id"]: t for t in MT.build()}
+def traces(built):
+    return {t["id"]: t for t in built}
 
 
 def kinds(t, at=None):
@@ -128,11 +133,32 @@ def test_flush_caption_counts_the_frames(traces):
     assert t["result"]["lost"] < len(flush["fids"])          # some had crossed; only their ACKs died
 
 
-def test_build_is_deterministic():
-    same = MT.render(MT.build()) == MT.render(MT.build())
-    assert same, "two builds differ: a scenario hook keeps state between runs"
+def test_build_is_deterministic(built):
+    """A second build gives the same bytes (the fast kinds in full, and one planes scenario)."""
+    fast = {"link", "endpoint", "captured"}
+    first = [t for t in built if t["cfg"]["kind"] in fast or t["id"] == "planes-reorder"]
+    again = MT.build(kinds=fast) + MT.build(ids={"planes-reorder"})
+    assert MT.render(first) == MT.render(again), "two builds differ: a scenario hook keeps state between runs"
 
 
-def test_traces_js_is_up_to_date():
-    same = MT.OUT.read_text() == MT.render(MT.build())     # no pytest diff: the file is ~1 MB
+def test_traces_js_is_up_to_date(built):
+    same = MT.OUT.read_text() == MT.render(built)     # no pytest diff: the file is several MB
     assert same, "docs/viz/traces.js is stale: run tools/make_traces.py"
+
+
+def test_planes_scenarios_carry_every_design_and_tell_the_m5_story(traces):
+    pl = {k: t for k, t in traces.items() if t["cfg"]["kind"] == "planes"}
+    assert set(pl) >= {"planes-plane-kill", "planes-plane-flap", "planes-remote-link", "planes-plane-ber", "planes-plane-credits", "planes-reorder"}
+    for t in pl.values():
+        assert t["events"] == [] and t["notes"] and t["extra"]["order"]
+        for k in t["extra"]["order"]:
+            s = t["extra"]["designs"][k]["series"]
+            assert len(s["up"]) == t["cfg"]["n"] and len(s["up"][0]) == t["cfg"]["p"] and len(s["up"][0][0]) == s["bins"]
+            assert all(0 <= u <= 100 for row in s["up"] for col in row for u in col)
+        assert {n["at"] for n in t["notes"]} <= set(t["extra"]["order"]) | {"fab"}
+    r = pl["planes-plane-kill"]["result"]
+    assert r["sue-t"]["finished_us"] is None and r["sue-t"]["failed"] > 0
+    assert all(r[k]["finished_us"] is not None and r[k]["failed"] == 0 for k in ("sue-t+fo", "metaroce", "mrc", "mrc+llr"))
+    assert pl["planes-plane-ber"]["result"]["mrc+llr"]["finished_us"] < pl["planes-plane-ber"]["result"]["mrc"]["finished_us"]
+    ro = pl["planes-reorder"]["result"]
+    assert ro["rud-spray"]["finished_us"] < ro["rodl-spray"]["finished_us"] / 3

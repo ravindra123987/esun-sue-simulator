@@ -20,7 +20,7 @@ const KIND_TAG = {"cap-clean":"capture", "cap-ber-hop2":"capture · LLR", "cap-o
 const D = TR.map(tr => { const d = newData(tr, tr.cfg); ingest(d, tr.events); d.notes = tr.notes.slice(); return d; });
 let d = D[0], t = 0, playing = false, lastFrame = 0;
 let mode = store.get("sue-viz-view", "simple") === "detail" ? "detail" : "simple";
-let sel = null, hover = null, tab = "events", filter = "all";
+let sel = null, hover = null, tab = "events", filter = "all", focus = null;   // focus: the design a planes scenario shows in detail
 const LIVE = {avail:false, on:false, id:null, busy:false, simT:0, metas:[], waiting:false, gen:0, over:null};
 const LOOK = 40;                 // ns the simulator stays ahead of the picture (a frame is logged when its last bit leaves)
 const cv = $("cNet");
@@ -196,6 +196,8 @@ function idList(ids){ const w = el("div", "fidlist"); for (const id of ids.slice
 function rowsDl(rows){ const dl = el("dl"); for (const [k, v] of rows){ dl.append(el("dt", null, k)); const dd = el("dd"); if (v instanceof Node) dd.appendChild(v); else dd.textContent = String(v); dl.appendChild(dd); } return dl; }
 const inFlight = (dir, t) => d.frames[dir].filter(f => f.t0 <= t && t < f.arrive && f.kind === "data").map(f => f.fid);
 function blockRows(key, v){
+  if (v.blocks) return v.blocks(key) || [];
+  if (d.kind === "captured") return capRows(key, v);
   const c = d.cfg, A = v.A, S7 = v.S7, llrOn = c.llr.enabled;
   const sender = (a, rx) => [["LLR state", llrOn ? a.llr : "LLR off"], ["next seq to send", a.tx_seq], ["acknowledged up to", a.acked === ALL1 ? "– (nothing yet)" : a.acked],
     ["frames in replay buffer", a.nbuf], ["retries", `${a.replay_ct} of ${c.llr.replay_ct_max}`], ["replay timer", a.timer ? `running (${c.llr.replay_timer_ns} ns)` : "idle"],
@@ -211,8 +213,6 @@ function blockRows(key, v){
     ["acknowledged up to", e.acked < 0 ? "– (nothing yet)" : `PSN ${e.acked}`], ["expects from the peer", `PSN ${e.expect}`], ["ACK mode", su.ack_mode], ["retransmission", su.retx ? `Go-Back-N, timer ${su.rto_ns / 1000} µs` : "none (SUE-lite)"],
     ["packing", `≤ ${su.max_pack} transactions, ≤ ${su.max_payload / 1024} KB payload`], ["XPU interface", `${su.xpu_gbps} Gb/s into a ${su.tx_buf / 1024} KB buffer`], ["completed / failed", `${e.done} / ${e.failed}`],
     ["wire so far", `${(100 * e.eff).toFixed(1)}% data, ${e.packAvg.toFixed(2)} transactions per packet`]]; };
-  if (d.kind === "captured") return capRows(key, v);
-  if (v.blocks) return v.blocks(key) || [];
   if (v.ep && (key === "hbmA" || key === "hbmB")) return ep(key === "hbmA" ? "A" : "B");
   switch (key){
     case "hbmA": return [["next frame to send", "#" + v.next], ["source", "always full (backlog)"]];
@@ -290,7 +290,7 @@ function drawAll(force){
   $("clock").innerHTML = ""; $("clock").append(`t = ${fmtT(t)}`); if (LIVE.on && LIVE.waiting){ const s = el("small", null, "waiting for the simulator"); $("clock").appendChild(s); }
   if (!LIVE.on) $("scrub").value = t;
   cv.classList.toggle("hit", !!hover);
-  const v = RD.draw(cv, d, t, {mode, sel, hover});
+  const v = RD.draw(cv, d, t, {mode, sel, hover, focus});
   if (tab === "flow") RD.drawLadder($("cLadder"), d, t, +$("span").value);
   drawNotes();
   if (tab === "counters") drawStats(v);
@@ -392,12 +392,15 @@ function unitControls(){
 function pick(id){
   if (LIVE.on){ startLive(id); return; }
   stop();
-  d = D.find(x => x.id === id) || D[0]; t = 0; sel = null; lastInsp = ""; lastStats = "";
+  const [sid, foc] = id.split("/");
+  d = D.find(x => x.id === sid) || D[0]; t = 0; sel = null; lastInsp = ""; lastStats = "";
+  focus = d.kind === "planes" && foc && d.extra.designs[foc] ? foc : null;
+  for (const b of document.querySelectorAll(".filters button[data-f=A], .filters button[data-f=S], .filters button[data-f=B]")) b.hidden = d.kind === "planes";
   unitControls();
   showScenario();
   $("scrub").max = d.dur;
   buildLog(); RD.drawMarks($("cMarks"), d); drawAll(true);
-  if (location.hash.slice(1) !== d.id) history.replaceState(null, "", location.search + "#" + d.id);
+  if (location.hash.slice(1).split("/")[0] !== d.id) history.replaceState(null, "", location.search + "#" + d.id + (focus ? "/" + focus : ""));
 }
 function setMode(m){
   mode = m; store.set("sue-viz-view", m);
@@ -408,7 +411,15 @@ function setMode(m){
 // ---------------------------------------------------------------- picture interaction
 cv.addEventListener("mousemove", e => { const h = RD.hitTest(cv, e.clientX, e.clientY); if (JSON.stringify(h) !== JSON.stringify(hover)){ hover = h; drawAll(true); } });
 cv.addEventListener("mouseleave", () => { if (hover){ hover = null; drawAll(true); } });
-cv.addEventListener("click", e => { const h = RD.hitTest(cv, e.clientX, e.clientY); select(h && sel && JSON.stringify(h) === JSON.stringify(sel) ? null : h); });
+cv.addEventListener("click", e => {
+  const h = RD.hitTest(cv, e.clientX, e.clientY);
+  if (d.kind === "planes" && h && h.kind === "block" && (h.key.startsWith("design:") || h.key === "focus:none")){
+    focus = h.key === "focus:none" ? null : h.key.slice(7); sel = null; lastStats = ""; lastInsp = "";
+    if (location.hash.slice(1) === d.id || location.hash.startsWith("#" + d.id + "/")) history.replaceState(null, "", location.search + "#" + d.id + (focus ? "/" + focus : ""));
+    drawAll(true); return;
+  }
+  select(h && sel && JSON.stringify(h) === JSON.stringify(sel) ? null : h);
+});
 
 // ---------------------------------------------------------------- transport, filters, overlays
 $("bPlay").onclick = () => playing ? stop() : play();
@@ -456,7 +467,7 @@ document.addEventListener("keydown", e => {
   else if (k === "?") $("help").showModal();
   else if (k === "Escape"){ if (sel) select(null); if (!$("legend").hidden) $("bLegend").click(); }
 });
-window.addEventListener("hashchange", () => { if (location.hash.slice(1) !== d.id) pick(location.hash.slice(1)); });
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h.split("/")[0] !== d.id || (h.split("/")[1] || null) !== focus) pick(h); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => drawAll(true));
 
 // ---------------------------------------------------------------- start

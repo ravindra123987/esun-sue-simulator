@@ -30,13 +30,14 @@ Captured runs replay in the same viewer, under "Captured on the wire (M4)". `too
 - [x] Scenario entries in the sidebar, Counters per hop, Inspector rows for every capture block.
 - Found on the way: tcpdump buffered whole blocks of the capture ring, so a short run could end before its frames reached the file. The lab now captures with `--immediate-mode`, and the M4 tables and samples were regenerated (docs/experiments/emulator.md).
 
-## M5: planes and the comparison
+## M5: planes and the comparison (done)
 
-The simulator side exists now (`sim/planes.py`, `tools/run_m5.py`); its traces carry `rodl` events with `what` = `move` (failover), `bad` and `restore` (spray), `timeout`, `fatal`, and `sw_drop` from a switch discarding frames for a dead port. What is missing is the picture.
+Six scenarios under "Planes and recovery (M5)", one per fault: plane 1 dies, flaps, one remote link dies, plane 1 gets bit errors, plane 1 is slow (small switch buffers), and spraying over two planes of unequal delay in order or out of order (M3's T5). `tools/planes_trace.py` runs each design on the 4 x 4 fabric and reduces it to 1 µs bins (cable use per direction, every port's LLR state, stores completed and failed, the port each XPU uses towards each peer) plus the recovery events, with captions per design; `docs/viz/js/planes.js` draws them.
 
-- [ ] N XPUs × P planes picture: a plane strip per switch, one row per XPU; a plane failure dims a strip, and the reaction (LLR FLUSH → RODL, or nothing in SUE-T 1.0; MRC demotion; MetaRoCE pair move) shows as traffic moving or dying. Input: a `make_traces.py` family built on `sim.planes.build(design, scenario, trace=[])`.
-- [ ] Side-by-side mode: the same fault in SUE-T, MRC and MetaRoCE traces, one timeline. This is the picture for `docs/where-should-retry-live.md`.
-- [ ] Load-balancing scenario from T5: per-group balancing across unequal planes, reorder → NACK storm.
+- [x] Side-by-side picture (the default): one row per design under the same fault, with its mechanism, a status pill, a 4 x 4 XPU x plane grid of cable use now (crossed out when dead, outlined amber or red when LLR is replaying or has flushed), a completions-per-µs sparkline over the run with the playhead, and its counters. This is the picture for `docs/where-should-retry-live.md`.
+- [x] One design's fabric: click a row (or open `#planes-<fault>/<design>`): four XPUs and four switches with all 32 cable directions drawn by use and state, the port each XPU uses towards each peer or the planes it has marked bad, a sparkline, counters and the latest recovery events. Every XPU, switch and design opens in the Inspector; Counters show every design.
+- [x] Load-balancing scenario from T5: per-packet spraying over unequal planes, in order (NACK and Go-Back-N storms) against out of order with SACK.
+- Found on the way: in the spray designs, a dead plane silences the whole fabric for most of a transport timer, because every PDC holds a hole and its window is a PSN span from it. The write-up said the other planes "never stopped"; corrected.
 
 ## M6 / M7
 

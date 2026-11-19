@@ -167,7 +167,10 @@ function leaveHome(){ if (!HOME.on) return; HOME.on = false; $("app").classList.
 function stepScenario(dir){ const i = D.findIndex(x => x.id === d.id), n = D[(i + dir + D.length) % D.length]; pick(n.id); }
 function showScenario(){
   for (const b of document.querySelectorAll(".sc")){ b.setAttribute("aria-current", b.dataset.id === d.id ? "true" : "false"); b.disabled = LIVE.on && !LIVE.metas.some(m => m.id === b.dataset.id); }
-  for (const dt of document.querySelectorAll("details.chap")) if (dt.dataset.kind === d.kind) dt.open = true;
+  for (const dt of document.querySelectorAll("details.chap")){
+    if (dt.dataset.kind === d.kind) dt.open = true;
+    dt.classList.toggle("reconly", LIVE.on && !LIVE.metas.some(m => m.kind === dt.dataset.kind));
+  }
   for (const g of document.querySelectorAll("#liveSec [data-kinds], #customSec [data-kinds]")) g.hidden = !g.dataset.kinds.split(" ").includes(d.kind);
   const ch = chapterOf(d), ci = CHAPTERS.indexOf(ch), sib = D.filter(x => x.kind === d.kind), si = sib.findIndex(x => x.id === d.id);
   $("scname").textContent = ""; $("scname").append(el("span", "ch", ch.name), el("span", "sep", "/"), el("b", null, (LIVE.on ? "Live · " : "") + shortTitle(d)));
@@ -465,10 +468,18 @@ $("bRestart").onclick = () => startLive(d.id, LIVE.over);
 // ---------------------------------------------------------------- scenario + mode switching
 // the transport's speed and the flow graph's window are in the scenario's unit, scaled to its time scale
 const SPEEDS = [2, 5, 10, 25, 60, 150], SPANS = [150, 300, 600, 1200];
+const AUTOPLAY = new Set(["captured", "planes", "p4"]);      // too many captions to stop at each one
+let pauseUser = null;                                        // the visitor's own choice, once made, wins
+$("pauseAt").addEventListener("change", () => { if (!LIVE.on) pauseUser = $("pauseAt").checked; });
 function unitControls(){
   const sm = d.cfg.speed_mult || 1, wm = d.cfg.span_mult || 1;
   [...$("speed").options].forEach((o, i) => { o.value = SPEEDS[i] * sm; o.textContent = `${+(SPEEDS[i] * sm).toPrecision(3)} ${d.unit}/s`; });
-  $("speed").selectedIndex = d.cfg.speed_default != null ? d.cfg.speed_default : 2;
+  // link and endpoint runs are short and stop at each caption; the long kinds play through in about a minute
+  const target = {captured:40, planes:60}[d.kind];
+  let pickI = d.cfg.speed_default != null ? d.cfg.speed_default : 2;
+  if (target && d.dur){ const want = d.dur / target; pickI = SPEEDS.reduce((bi, v, i) => Math.abs(Math.log(v * sm / want)) < Math.abs(Math.log(SPEEDS[bi] * sm / want)) ? i : bi, 0); }
+  $("speed").selectedIndex = pickI;
+  if (!LIVE.on) $("pauseAt").checked = pauseUser != null ? pauseUser : !AUTOPLAY.has(d.kind);
   [...$("span").options].forEach((o, i) => { o.value = SPANS[i] * wm; o.textContent = `${+(SPANS[i] * wm).toPrecision(3)} ${d.unit}`; });
   $("span").selectedIndex = 1;
   const flow = document.querySelector('.dtabs [data-tab=flow]'); flow.disabled = !!d.cfg.no_flow; if (flow.disabled && tab === "flow") setTab("events");

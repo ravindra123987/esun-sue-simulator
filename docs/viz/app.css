@@ -105,6 +105,8 @@ select.sel{padding:4px 24px 4px 8px; border-radius:var(--r); border:1px solid va
 .chap summary .ct::after{content:""; width:6px; height:6px; border-right:1.5px solid var(--muted); border-bottom:1.5px solid var(--muted); transform:rotate(-45deg); transition:transform .15s}
 .chap[open] summary .ct::after{transform:rotate(45deg)}
 .chap[open]{padding-bottom:6px}
+.chap.reconly summary{color:var(--muted)}
+.chap.reconly summary .nm::after{content:"recorded only"; margin-left:8px; font-family:var(--f-mono); font-size:9.5px; font-weight:400; padding:1px 6px; border-radius:999px; border:1px solid var(--line)}
 .sc{display:block; align-items:center; text-align:left; padding:5px 8px 5px 12px; margin-left:17px; width:calc(100% - 17px);
   border:0; border-left:1.5px solid var(--line); background:transparent; font-size:12.5px; color:var(--muted); border-radius:0 var(--r) var(--r) 0}
 .sc .ti{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}

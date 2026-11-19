@@ -68,3 +68,12 @@ def test_a_backward_clock_step_is_undone(tmp_path):
     w.close()
     ts = [t for t, _ in P.read(f)]
     assert ts == sorted(ts) and ts[2] == pytest.approx(10.010) and ts[3] - ts[2] == pytest.approx(0.005)
+
+
+def test_capture_starts_when_the_xpus_do(runs):
+    """The switch is up long before the XPUs; the picture must not open on hundreds of ms of it waiting."""
+    for tr in runs.values():
+        first = min(e.get("t0", e.get("t1", e.get("t", 0))) for e in tr["events"] if e.get("dir") in ("a2s", "b2s"))
+        assert first <= P.LEAD_MS + 0.01, tr["id"]
+        assert min(e.get("t0", e.get("t1", e.get("t", 0))) for e in tr["events"]) >= 0
+        assert tr["notes"][0]["t"] == 0 and "earlier" in tr["notes"][0]["text"]

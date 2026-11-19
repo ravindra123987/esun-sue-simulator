@@ -48,6 +48,8 @@ VIS_MS = 0.6               # how long a frame is drawn crossing a cable
 SER_MS = 0.05              # and how long it is drawn leaving the port
 GAP_MS = 60.0              # silence on a link (both directions) taken as the cable being down
 TAIL_MS = 60.0             # kept after the last data frame
+LEAD_MS = 2.0              # kept before the first unit an XPU sends
+TIME_KEYS = ("t", "t0", "t1", "arrive")
 # capture direction by link and source MAC prefix (XPU side 02:a0, switch side 02:5f)
 DIRS = {(0, b"\x02\xa0"): "a2s", (0, b"\x02\x5f"): "s2a", (1, b"\x02\x5f"): "s2b", (1, b"\x02\xa0"): "b2s"}
 TX = {"a2s": "A", "s2a": "S1", "s2b": "S7", "b2s": "B"}
@@ -269,6 +271,25 @@ def convert(run_dir, meta):
     tkey = lambda e: e.get("t0", e.get("t1", e.get("t", 0)))  # noqa: E731
     events = [e for e in events if tkey(e) <= end]
     notes = [n for n in notes if n["t"] <= end]
+    # The lab starts the switch first: its ports repeat LLR_INIT until the XPUs come up, which can be most of
+    # the capture. Start the picture just before the first unit from an XPU and say what was cut.
+    first_xpu = min((tkey(e) for e in events if e.get("dir") in ("a2s", "b2s")), default=0.0)
+    cut = round(max(0.0, first_xpu - LEAD_MS), 3)       # 3 decimals, like the outage intervals, so they stay aligned
+    if cut > 0:
+        waiting = sum(1 for e in events if tkey(e) < cut)
+        events = [e for e in events if tkey(e) >= cut]
+        notes = [n for n in notes if n["t"] >= cut]
+        for e in events:
+            for k in TIME_KEYS:
+                if e.get(k) is not None:
+                    e[k] = round(e[k] - cut, 4)
+        for n in notes:
+            n["t"] = round(n["t"] - cut, 4)
+        downs = {h: [[round(max(0.0, a - cut), 3), round(b - cut, 3)] for a, b in iv if b > cut] for h, iv in downs.items()}
+        end -= cut
+        if waiting:
+            notes.append({"t": 0.0, "at": "S1", "kind": "init", "text": f"The capture starts {cut:.0f} ms earlier: the switch's ports were "
+                          f"already up, {'repeating LLR_INIT' if llr_on else 'sending periodic credit updates'} ({waiting} units, not shown) until the XPUs started."})
     dur = round(min(end, max(e.get("arrive", e.get("t", 0)) for e in events)) + 1, 3)
     events.sort(key=tkey)
     cfg = {"kind": "captured", "time_unit": "ms", "span_mult": 0.05, "rate_gbps": None, "frame": None, "sim_ns": dur,

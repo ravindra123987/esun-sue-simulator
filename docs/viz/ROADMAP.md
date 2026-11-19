@@ -56,6 +56,11 @@ After M6 the viewer held 27 scenarios of five kinds in one flat sidebar list nam
 - [x] One player bar: play, event steps, time of total, a scrubber with the event marks on it, speed, share.
 - [x] Phone width: sidebar as an overlay (closed at start), single-column header, the timeline on its own row.
 - [x] Keys: `N` / `P` next / previous scenario, `H` home.
+- [x] Chapters 3 to 5 play properly. Found by pressing Play on each:
+  - Captures opened on 415 to 480 ms of the switch waiting for the XPUs (86% of the clean run). `tools/pcap2trace.py` now starts 2 ms before the first XPU sends (`LEAD_MS`) and says in the first caption what was cut.
+  - Planes runs with a design that never finishes ran to the simulation limit (201 µs for a 40 µs story). `tools/planes_trace.py` ends the picture at 1.3 times the last finish (`VIEW_TAIL`); the unfinished design gets a closing caption with its full-run numbers.
+  - Captured, planes and P4 runs no longer stop at every caption (dozens each) and pick a speed so a run takes about a minute or less.
+- [x] Pictures: the smallest text sizes are lifted in one place (`fs` in `js/render.js`); the planes sparklines show the fault as a strip with time ticks instead of a full tint; the SUE-T queue's "+N" no longer overlaps "next PSN".
 
 ## General
 

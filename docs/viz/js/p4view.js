@@ -94,7 +94,7 @@ function box(g, d, f, j, cur, opts){
     }
     yy += 78;
   }
-  const rows = stageRows(f, j), LW = 58, bottom = y + BH - 22;
+  const rows = stageRows(f, j), LW = 52, bottom = y + BH - 22;
   for (let r = 0; r < rows.length; r++){
     const [k, v, tone] = rows[r];
     if (yy > bottom){ T(g, `+${rows.length - r} more in the inspector`, x + 12, y + BH - 10, {s:9.5, c:C.muted}); break; }

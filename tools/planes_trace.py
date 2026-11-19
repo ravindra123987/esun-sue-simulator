@@ -10,11 +10,13 @@ Used by tools/make_traces.py; the runs are sim/planes.py's, on a smaller workloa
 """
 
 import dataclasses
+import math
 from collections import defaultdict
 
 from sim import planes as PL
 
 BIN_NS = 1000.0
+VIEW_TAIL = 1.3              # the picture runs to this multiple of the last finish time
 BYTES = 2 << 20              # per peer: long enough that every fault lands mid-run
 MAX_NS = 200_000.0
 KEEP = {"frame", "rodl", "txn", "sw_drop", "sw_trim", "sw_cong_drop", "flush", "pkt_tx"}
@@ -158,9 +160,20 @@ def build_fault(fault, designs=None, title=None, summary="", watch="", scenario_
         if w["b"] is not None and w["b"] < dur:
             notes.append({"t": w["b"], "at": "fab", "kind": "up", "text": f"Cable {w['wire']} is back up."})
     notes = _merge_cable_notes(notes)
+    # The picture ends shortly after the last design that finishes. A design that never finishes (pinned on a
+    # dead plane) would otherwise stretch the time axis several times over; its full-run numbers stay in `result`.
+    fins = [v["finished_us"] for v in out.values() if v["finished_us"]]
+    view = min(dur, float(math.ceil(max(fins) * VIEW_TAIL))) if fins else dur
+    if view < dur:
+        for d, v in out.items():
+            if v["finished_us"] is None or v["finished_us"] > view:
+                failed, done = sum(map(sum, v["series"]["failed"])), sum(map(sum, v["series"]["done"]))
+                notes.append({"t": view, "at": d, "kind": "fail", "text": f"{LABEL.get(d, d)} is not done when the others are: over the full run "
+                              f"({dur:.0f} µs) it completes {done} of {v['series']['total']} stores and {failed} fail."})
+        notes = [x for x in notes if x["t"] <= view]
     notes.sort(key=lambda x: (x["t"], x["at"]))
     return {"id": scenario_id or f"planes-{fault}", "title": title or fault, "summary": summary, "watch": watch,
-            "cfg": {"kind": "planes", "time_unit": "µs", "sim_ns": round(dur, 3), "speed_mult": 0.1, "no_flow": True,
+            "cfg": {"kind": "planes", "time_unit": "µs", "sim_ns": round(view, 3), "full_us": round(dur, 3), "speed_mult": 0.1, "no_flow": True,
                     "n": PL.N, "p": PL.P, "bin_us": BIN_NS / 1000, "fault": fault, "down": down,
                     "hops": [{"down": []}, {"down": []}]},
             "result": {d: {"finished_us": v["finished_us"], "done": sum(map(sum, v["series"]["done"])),

@@ -21,12 +21,14 @@ function fit(cv, lw, lh){
   return [g, lw || r.width, lh || r.height];
 }
 function rr(g, x, y, w, h, r){ g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
+// the smallest sizes are lifted so labels stay readable when the picture is scaled to the column
+const fs = s => s <= 10 ? s + 1 : s <= 11 ? s + .5 : s;
 function T(g, s, x, y, o = {}){
-  g.font = `${o.w || 400} ${o.s || 12}px ${o.m ? MONO : BODY}`;
+  g.font = `${o.w || 400} ${fs(o.s || 12)}px ${o.m ? MONO : BODY}`;
   g.fillStyle = o.c || C.fg; g.textAlign = o.a || "left"; g.textBaseline = o.b || "alphabetic";
   g.fillText(s, x, y);
 }
-function tw(g, s, size, weight, mono){ g.font = `${weight || 400} ${size}px ${mono ? MONO : BODY}`; return g.measureText(s).width; }
+function tw(g, s, size, weight, mono){ g.font = `${weight || 400} ${fs(size)}px ${mono ? MONO : BODY}`; return g.measureText(s).width; }
 function chassis(g, [x, y, w, h], name, sub, col){
   rr(g, x, y, w, h, 14); g.fillStyle = C.chassis; g.fill(); g.strokeStyle = C["chassis-line"]; g.lineWidth = 1.2; g.stroke();
   rr(g, x, y, w, 4, [14, 14, 0, 0]); g.fillStyle = col; g.fill();
@@ -254,7 +256,7 @@ function drawHbmA(g, d, v){
     stage(g, "hbmA", "SUE-T", "TX queue", {fill:alpha(C.mem, .05)});
     T(g, `${ids.length} queued`, x + 10, y + 51, {s:11, c:C.muted});
     let i = 0;
-    for (; i < ids.length; i++){ const yy = LT - 11 + i * 26; if (yy + 22 > y + h - 78) break; txcell(g, x + 8, yy, w - 16, 22, ids[i], i === 0 ? .32 : .12); }
+    for (; i < ids.length; i++){ const yy = LT - 11 + i * 26; if (yy + 22 > y + h - 98) break; txcell(g, x + 8, yy, w - 16, 22, ids[i], i === 0 ? .32 : .12); }
     if (i < ids.length) T(g, `+${ids.length - i}`, x + w/2, LT - 11 + i * 26 + 15, {s:11, w:600, a:"center", c:C.muted});
     if (!ids.length) T(g, "empty", x + w/2, LT + 4, {s:11.5, a:"center", c:C.muted});
     T(g, "next PSN", x + w/2, y + h - 60, {s:10, a:"center", c:C.muted}); T(g, String(e.nextPsn), x + w/2, y + h - 46, {s:12, w:700, a:"center", m:true});

@@ -180,6 +180,7 @@ function showScenario(){
   $("sWatch").textContent = ""; $("sWatch").append(el("b", null, "Watch for"), LIVE.on ? "Use the fault-injection buttons: every reaction you see is the simulator's." : d.watch);
   const nx = D[(D.findIndex(x => x.id === d.id) + 1) % D.length]; $("nextName").textContent = "Next: " + shortTitle(nx); $("bNextSc").title = nx.title + " (N)";
   $("segView").hidden = d.kind === "planes" || d.kind === "p4";
+  $("bLegend").hidden = $("segView").hidden;             // the legend is about frames on cables
   document.title = `${shortTitle(d)} · Scale-up Packet Viewer`;
   const c = d.cfg, r = d.result, kb = n => `${(n * c.credit_size / 1024).toFixed(0)} KB`;
   const downs = c.hops.flatMap((h, i) => h.down.map(([a, b]) => `hop ${i + 1} down ${a}–${b} ${d.unit}`));

@@ -39,7 +39,10 @@ function spark(g, d, key, x, y, w, h, t){
   rr(g, x, y, w, h, 6); g.fillStyle = C["surface-2"]; g.fill();
   const X = tt => x + Math.min(1, tt / dur) * w, Y = r => y + h - 3 - (h - 8) * r / mx;
   const spans = [...new Set(d.cfg.down.map(w0 => `${w0.a}|${w0.b}`))];          // one band per fault interval, not per cable
-  for (const sp of spans){ const [a0, b0] = sp.split("|"); const a = X(+a0), b = X(b0 === "null" ? dur : +b0); g.fillStyle = alpha(C.bad, .1); g.fillRect(a, y, Math.max(1, b - a), h); }
+  for (const sp of spans){ const [a0, b0] = sp.split("|"); const a = X(+a0), b = X(b0 === "null" ? dur : +b0); g.fillStyle = alpha(C.bad, .7); g.fillRect(a, y, Math.max(2, b - a), 3); g.fillStyle = alpha(C.bad, .05); g.fillRect(a, y + 3, Math.max(2, b - a), h - 3);
+    g.fillStyle = alpha(C.bad, .55); g.fillRect(a, y, 1, h); }
+  g.fillStyle = alpha(C.muted, .35); const stepT = [1, 2, 5, 10, 20, 50, 100].find(v => dur / v <= 12) || 100;       // a tick per round number of µs
+  for (let tt = stepT; tt < dur; tt += stepT) g.fillRect(X(tt), y + h - 4, 1, 4);
   for (const pass of [0, 1]){
     g.beginPath(); g.moveTo(X(0), y + h - 3);
     for (let b = 0; b < s.bins; b++){ const tt = b * d.cfg.bin_us; if (pass && tt > t) break; const r = s.done.reduce((a, row) => a + (row[b] || 0), 0); g.lineTo(X(tt), Y(r)); g.lineTo(X(tt + d.cfg.bin_us), Y(r)); }
@@ -76,10 +79,9 @@ function status(d, st, key){
 function drawCompare(g, d, t, opts){
   const {T, pill, rr, alpha, HIT} = H$;
   const keys = d.extra.order, rowH = Math.min(100, (H - 56) / keys.length), top = 50;
-  T(g, d.title, 24, 30, {s:15, w:700});
-  T(g, "Click a design to see its fabric.", W - 24, 30, {s:11.5, a:"right", c:C.muted});
-  T(g, "cable use per XPU × plane", 470, top - 6, {s:10.5, a:"center", c:C.muted});
-  T(g, "stores completed per µs (all XPUs)", 980, top - 6, {s:10.5, a:"center", c:C.muted});
+  T(g, "Five designs, the same fault. Click one to see its fabric.", 24, 30, {s:12.5, c:C.muted});
+  T(g, "cable use per XPU × plane", 470, top - 14, {s:11, a:"center", c:C.muted});
+  T(g, `stores completed per µs, all XPUs · 0 to ${+d.dur.toFixed(0)} µs · red strip: fault`, 885, top - 14, {s:11, a:"center", c:C.muted});
   const stats = [], rows = {};
   keys.forEach((k, r) => {
     const y = top + r * rowH, st = stateAt(d, k, t), col = C[DCOL[k]] || C.accent;
